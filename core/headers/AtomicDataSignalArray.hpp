@@ -9,10 +9,12 @@
 #include "AllocNW.hpp"
 #include "PackedCell.hpp"
 #include "PackedStRel.h"
-
+#include <thread>
 
 namespace AtomicCScompact
 {
+    #define THREAD_SLEEP_DURATION_MS 50u
+
     using HWCallback = void(*)(size_t current, size_t capacity, void* user);
     static inline constexpr uint64_t HASH_CONST = 11400714819323198485ull;
 
@@ -23,7 +25,7 @@ class AtomicDSA
 private:
     std::atomic<PackedCell64_t*> Rawptr_{nullptr};
     size_t Capacity_{0};
-    std::atomic<size_t> Count_{0};
+    std::atomic<size_t> Occupancy_{0};
     std::atomic<size_t> ProducerCursor_{0};
     std::atomic<size_t> ConsumCursor_{0};
 
@@ -87,7 +89,7 @@ public:
             {
                 new(&Rawptr_[i]) std::atomic<PackedCell64_t>(idle);
             }
-            Count_.store(0, MoStoreUnSeq_);
+            Occupancy_.store(0, MoStoreUnSeq_);
             ProducerCursor_.store(0, MoStoreUnSeq_);
             ConsumCursor_.store(0, MoStoreUnSeq_);
         }
@@ -115,9 +117,224 @@ public:
     }
     size_t GetOccupancy() const noexcept
     {
-        return Count_.load(MoLoad_);
+        return Occupancy_.load(MoLoad_);
     }
     
+    size_t PublishDSA(packed64_t item, int max_probs = -1) noexcept
+    {
+        strl16_t sr = PackedCell64_t::ExtractSTRL(item);
+        if constexpr (PackedCell64_t::StateFromSTRL(sr) != ST_PUBLISHED)
+        {
+            tag8_t rel = PackedCell64_t::RelationFromSTRL(sr);
+            if (MODE == PackedMode::MODE_VALUE32)
+            {
+                item = PackedCell64_t::PackV32x_64(PackedCell64_t::ExtractValue32(item), PackedCell64_t::ExtractClk16(item), ST_PUBLISHED, rel);
+            }
+            else if constexpr (MODE == PackedMode::MODE_CLKVAL48)
+            {
+                item = PackedCell64_t::PackCLK48x_64(PackedCell64_t::ExtractClk48(item), ST_PUBLISHED, rel)
+            }
+        }
+        size_t start = ProducerCursor_.fetch_add(1, MoStoreUnSeq_);
+        size_t idx = start % Capacity_;
+        int probs = 0;
+        while (true)
+        {
+            packed64_t cur = Rawptr_[idx].load(MoLoad_);
+            strl16_t cur_sr = PackedCell64_t::ExtractSTRL(cur_sr);
+            if (PackedCell64_t::StateFromSTRL(cur_sr) == ST_IDLE)
+            {
+                packed64_t expected = cur;
+                if (Rawptr_[idx].compare_exchange_strong(expected, item, EXsuccess_, EXfailure_))
+                {
+                    size_t occ = Occupancy_.fetch_add(1, std::memory_order_acq_rel) + 1;
+                    CheckHighWater_(occ);
+                    return idx;
+                }
+            }
+            ++probs;
+            if (max_probs >= 0 && probs >= max_probs)
+            {
+                return SIZE_MAX;
+            }
+            if (probs >= static_cast<int>(Capacity_))
+            {
+                return SIZE_MAX;
+            }
+            idx = (idx + 1) % Capacity_;
+        }
+    }
+
+    size_t PublishBlocking(packed64_t item, int timeout_ms = -1) noexcept
+    {
+        auto start = std::chrono::steady_clock::now();
+        while(true)
+        {
+            size_t idx = PublishDSA(item, static_cast<int>(Capacity_));
+            if (idx != SIZE_MAX)
+            {
+                return idx;
+            }
+            if (timeout_ms == 0)
+            {
+                return SIZE_MAX;
+            }
+            if (timeout_ms > 0)
+            {
+                auto now = std::chrono::steady_clock::now();
+                if (std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() >= timeout_ms)
+                {
+                    return SIZE_MAX;
+                }
+                std::this_thread::sleep_for(std::chrono::microseconds(THREAD_SLEEP_DURATION_MS));
+            }
+        }
+    }
+
+    bool ClaimOne(tag8_t rel_mask, size_t& out_idx, packed64_t& out_observed, int max_scans = -1) noexcept
+    {
+        size_t start = HashStart(rel_mask);
+        size_t idx = start;
+        int scans = 0;
+        while(true)
+        {
+            packed64_t cur = Rawptr_[idx].load(MoLoad_);
+            strl16_t cur_sr = PackedCell64_t::ExtractSTRL(cur);
+            tag8_t st = PackedCell64_t::StateFromSTRL(cur_sr);
+            if (st == ST_PUBLISHED)
+            {
+                tag8_t rel = PackedCell64_t::RelationFromSTRL(cur_sr);
+                if (RelationMatches(rel, rel_mask))
+                {
+                    packed64_t desired = PackedCell64_t::SetSTRL(cur, MakeSTREL(ST_CLAIMED, rel));
+                    packed64_t expired = cur;
+                    if (Rawptr_[idx].compare_exchange_strong(expired, desired, EXsuccess_, EXfailure_))
+                    {
+                        out_idx = idx;
+                        out_observed = cur;
+                        return true;
+                    }
+                }
+            }
+            ++scans;
+            if (max_scans >=0)
+            {
+                return false;
+            }
+            if (scans >= static_cast<int>(Capacity_))
+            {
+                return false;
+            }
+            idx = (idx + 1) % Capacity_;
+        }
+    }
+
+    size_t ClaimBatch(tag8_t rel_mask, std::vector<std::pair<size_t, packed64_t>>& out, size_t max_count) noexcept
+    {
+        out.clear();
+        if (max_count == 0)
+        {
+            return 0;
+        }
+        size_t start = HashStart(rel_mask);
+        size_t idx = start;
+        size_t scans = 0;
+        while (out.size() < max_count && scans < Capacity_)
+        {
+            packed64_t cur = Rawptr_[idx].load(MoLoad_);
+            strl16_t cur_sr = PackedCell64_t::ExtractSTRL(cur);
+            if (PackedCell64_t::StateFromSTRL(cur_sr) == ST_PUBLISHED)
+            {
+                tag8_t rel = PackedCell64_t::RelationFromSTRL(cur_sr);
+                if (RelationMatches(rel, rel_mask))
+                {
+                    packed64_t desired = PackedCell64_t::SetSTRL(cur, MakeSTREL(ST_CLAIMED, rel));
+                    packed64_t expected = cur;
+                    if (Rawptr_[idx].compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_))
+                    {
+                        out.emplace_back(idx, cur);
+                    }
+                }
+            }
+            ++scans;
+            idx = (idx +1) % Capacity_;
+        }
+        return out.size;
+    }
+
+    void CommitIdx(size_t idx, packed64_t committed) noexcept
+    {
+        if (idx >= Capacity_)
+        {
+            return;
+        }
+        strl16_t cur_sr = PackedCell64_t::ExtractSTRL(committed);
+        tag8_t st = PackedCell64_t::StateFromSTRL(cur_sr);
+        tag8_t rel = PackedCell64_t::RelationFromSTRL(cur_sr);
+        if (st != ST_COMPLETE)
+        {
+            if constexpr (MODE == PackedMode::MODE_VALUE32)
+            {
+                committed = PackedCell64_t::PackV32x_64(PackedCell64_t::ExtractValue32(committed), PackedCell64_t::ExtractClk16(committed), ST_COMPLETE, rel);
+            }
+            else if constexpr (MODE == PackedMode::MODE_CLKVAL48)
+            {
+                committed = PackedCell64_t::PackCLK48x_64(PackedCell64_t::ExtractClk48(committed), ST_COMPLETE, rel);
+            }
+        }
+        Rawptr_[idx].store(committed, MoStoreSeq_);
+        std::atomic_notify_all(&Rawptr_[idx]);
+    }
+
+    packed64_t Recycle(size_t idx) noexcept
+    {
+        if (idx >= Capacity_)
+        {
+            return packed64_t(0);
+        }
+        packed64_t prev = Rawptr_[idx].load(MoLoad_);
+        Rawptr_[idx].store(MakeIdlePacked_(), MoStoreSeq_);
+        Occupancy_.fetch_add(1, std::memory_order_acq_rel);
+        return prev;
+    }
+    bool WaitFrSlotChange(size_t idx, packed64_t expected, int timeout_ms = -1) const noexcept
+    {
+        if (idx >= Capacity_)
+        {
+            return false;
+        }
+        if (timeout_ms < 0)
+        {
+            std::atomic_wait(&Rawptr_[idx], expected);
+            return true;
+        }
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+        while (std::chrono::steady_clock::now() < deadline)
+        {
+            packed64_t cur = Rawptr_[idx].load(MoLoad_);
+            if (cur != expected)
+            {
+                return true;
+            }
+            std::atomic_wait(&Rawptr_[idx], expected);
+        }
+        return false;
+    }
+    std::vector<size_t> FindState(tag8_t st_filter)
+    {
+        std::vector<size_t> v;
+        v.reserve(MAX_VAL);
+        for (size_t i = 0; i < Capacity_; i++)
+        {
+            packed64_t p = Rawptr_[idx].load(MoLoad_);
+            tag8_t st = PackedCell64_t::StateFromSTRL(PackedCell64_t::ExtractSTRL(p));
+            if (st == st_filter)
+            {
+                v.push_back(i);
+            }
+            return v;
+        }
+    }
 
 };
 

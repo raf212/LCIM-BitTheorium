@@ -14,6 +14,7 @@ namespace AtomicCScompact
     #define MAX_VAL 64u
     #define LN_OF_BYTE_IN_BITS 8u
     #define MASK_8_BIT  0xFFu
+    #define RELATION_MASK_LEN 5u
 
     static constexpr unsigned MASK16B_HIGH8B_0 = 0xFF00u;
 
@@ -91,6 +92,9 @@ namespace AtomicCScompact
         static inline tag8_t RelationFromSTRL(strl16_t strl) noexcept
         {
             return static_cast<tag8_t>(strl & MASK_8_BIT);
+        }
+        static inline tag8_t RelationMaskREL5(tag8_t rel_bit) noexcept
+        {
         }
         static inline packed64_t SetSTRL(packed64_t p, strl16_t strl) noexcept
         {

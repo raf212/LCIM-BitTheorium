@@ -30,7 +30,7 @@ static inline strl16_t MakeSTREL(tag8_t st, tag8_t rel) noexcept
 }
 static inline bool RelationMatches(tag8_t slot_rel, tag8_t rel_mask) noexcept
 {
-    return (static_cast<strl16_t>(slot_rel) & static_cast<uint8_t>(rel_mask));
+    return ((static_cast<strl16_t>(slot_rel) & static_cast<uint8_t>(rel_mask)) != 0);
 }
 
 

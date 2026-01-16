@@ -11,31 +11,6 @@
 
 namespace AtomicCScompact
 {
-    #define NO_VAL 0u
-    #define MAX_VAL 64u
-    #define LN_OF_BYTE_IN_BITS 8u
-    #define MASK_8_BIT  0xFFu
-    #define RELATION_MASK_5 0x1Fu
-    #define RELATION_PRIORITY 0x07u
-
-    
-    static constexpr unsigned MASK16B_HIGH8B_0 = 0xFF00u;
-
-    static constexpr ::std::memory_order MoLoad_      = ::std::memory_order_acquire;
-    static constexpr ::std::memory_order MoStoreSeq_  = ::std::memory_order_release;
-    static constexpr ::std::memory_order MoStoreUnSeq_= ::std::memory_order_relaxed;
-    static constexpr ::std::memory_order EXsuccess_   = ::std::memory_order_acq_rel;
-    static constexpr ::std::memory_order EXfailure_   = ::std::memory_order_relaxed;
-
-    static constexpr unsigned CLK_B48 = 48u;
-    static constexpr unsigned VALBITS  = 32u;
-    static constexpr unsigned CLK_B16  = 16u;
-    static constexpr unsigned STRL_B16  = 16u;
-    static constexpr unsigned STBITS   = 8u;
-    static constexpr unsigned RELBITS  = 8u;
-    static constexpr unsigned TOTAL_LOW = 48u;
-    static constexpr unsigned MASK_OF_RELBIT = 5u;
-
 
     using packed64_t = uint64_t;
     using val32_t    = uint32_t;
@@ -74,11 +49,11 @@ namespace AtomicCScompact
         }
         static inline tag8_t PackRel8x_t(tag8_t rel_mask_5, tag8_t priority_3) noexcept
         {
-            return static_cast<tag8_t>(((priority_3 & RELATION_PRIORITY) << 5) | (rel_mask_5 & RELATION_MASK_5));
+            return static_cast<tag8_t>(((priority_3 & RELATION_PRIORITY) << MASK_OF_RELBIT) | (rel_mask_5 & RELATION_MASK_5));
         }
         static inline strl16_t PackSTRL16x_t(tag8_t st, tag8_t rel) noexcept
         {
-            return static_cast<strl16_t>((static_cast<strl16_t>(st) << 8) | (static_cast<strl16_t>(rel)));
+            return static_cast<strl16_t>((static_cast<strl16_t>(st) << STBITS) | (static_cast<strl16_t>(rel)));
         }
         static inline packed64_t SetSTRLInPacked(packed64_t p, strl16_t strl) noexcept
         {

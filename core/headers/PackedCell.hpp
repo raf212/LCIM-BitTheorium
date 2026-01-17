@@ -1,23 +1,12 @@
 #pragma once
-#include <cstdint>
-#include <type_traits>
-#include <cassert>
-#include <limits>
-#include <atomic>
-#include <cstring>
+
 #include "PackedStRel.h"
+
 
 #define ATOMIC_THRESHOLD 64u
 
 namespace AtomicCScompact
 {
-
-    using packed64_t = uint64_t;
-    using val32_t    = uint32_t;
-    using clk16_t    = uint16_t;
-    using tag8_t     = uint8_t;
-    using strl16_t   = uint16_t;
-
     enum class PackedMode : int
     {
         MODE_VALUE32 = 0,

@@ -17,6 +17,8 @@ set(SRC_DIR     ${CMAKE_SOURCE_DIR}/programs)
 set(SRC_FILES
     ${HEADERS_DIR}/AllocNW.hpp
     ${HEADERS_DIR}/PackedCell.hpp
+    ${HEADERS_DIR}/PackedStRel.h
+    ${HEADERS_DIR}/AtomicAdaptiveBackoff.hpp
     # ${HEADERS_DIR}/AtomicPCArray.hpp
     # ${HEADERS_DIR}/AtomicDataSignalArray.hpp
     ${CMAKE_SOURCE_DIR}/main.cpp

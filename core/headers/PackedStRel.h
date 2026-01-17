@@ -1,7 +1,19 @@
 #pragma once
-#include "PackedCell.hpp"
+
+#include <cstdint>
+#include <type_traits>
+#include <cassert>
+#include <limits>
+#include <atomic>
+#include <cstring>
 
 namespace AtomicCScompact {
+    using packed64_t = uint64_t;
+    using val32_t    = uint32_t;
+    using clk16_t    = uint16_t;
+    using tag8_t     = uint8_t;
+    using strl16_t   = uint16_t;
+
     #define NO_VAL 0u
     #define MAX_VAL 64u
     #define LN_OF_BYTE_IN_BITS 8u

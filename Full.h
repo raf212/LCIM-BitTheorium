@@ -252,50 +252,6 @@ struct Config {
     bool enable_producer_reserve = true; // allow reservation of N slots
 };
 
-// small adaptive backoff
-struct AdaptiveBackoff {
-    int tries = 0;
-    int base_us = 50;
-    void reset() noexcept { tries = 0; }
-    inline void spin_once() noexcept {
-        if (tries < 8) {
-#if defined(__x86_64__) || defined(_M_X64)
-            __builtin_ia32_pause();
-#else
-            std::this_thread::yield();
-#endif
-        } else if (tries < 16) std::this_thread::yield();
-        else std::this_thread::sleep_for(std::chrono::microseconds(std::min(200, base_us << (tries - 16))));
-        ++tries;
-    }
-};
-
-// Fallback wait/notify (coarse-grained)
-class WakeFallback {
-public:
-    void notify_all() noexcept {
-        std::lock_guard<std::mutex> g(mu_);
-        cv_.notify_all();
-    }
-    void notify_one() noexcept {
-        std::lock_guard<std::mutex> g(mu_);
-        cv_.notify_one();
-    }
-    // wait until predicate true or timeout
-    template<typename Pred>
-    bool wait_for_pred(int timeout_ms, Pred pred) {
-        std::unique_lock<std::mutex> lk(mu_);
-        if (timeout_ms < 0) {
-            cv_.wait(lk, pred);
-            return true;
-        } else {
-            return cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms), pred);
-        }
-    }
-private:
-    std::condition_variable cv_;
-    std::mutex mu_;
-};
 
 // AtomicDataSignalArray: single-atomic AoS mailbox array
 template<PackedMode MODE>

@@ -43,7 +43,7 @@ else()
         #silence for windows branch
         -Wno-unused-parameter
         -Wno-error=reorder
-        -Wno-error=parenthesses
+        -Wno-error=parentheses
     )
 
     find_library(NUMALIB NAMES numa libnuma)

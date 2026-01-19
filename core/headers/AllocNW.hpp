@@ -59,6 +59,7 @@ namespace AtomicCScompact::AllocNW
 #if defined(HAVE_LIBNUMA)
     inline void* AlignedAllocONnode(size_t alignment, size_t sizeBytes, int node)
     {
+        (void)alignment;
         size_t ps = PageSize();
         size_t rounded = ((sizeBytes + ps - 1) / ps) * ps;
         if (numa_available() < 0) throw std::runtime_error("libnuma not available");

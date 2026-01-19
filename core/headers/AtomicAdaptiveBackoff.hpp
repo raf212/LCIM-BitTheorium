@@ -48,6 +48,9 @@ private :
     std::atomic<uint64_t> Samples_;
 
 public :
+    EMAEstimatorAPC() noexcept :
+        EMAEstimatorAPC(EMAConfig())
+    {}
     explicit EMAEstimatorAPC(const EMAConfig& cfg = EMAConfig()) noexcept :
         EMACfg_(cfg), EMATicks_(0.0), Samples_(0)
     {}
@@ -116,6 +119,11 @@ public:
 public:
     static inline constexpr uint8_t MIN_BIN_COUNT = 8;
     static inline constexpr uint8_t MAX_BIN_COUNT = 64;
+
+    HazardEstimatorPC() noexcept :
+        HazardEstimatorPC(HECfg())
+    {}
+
     explicit HazardEstimatorPC(const HECfg& cfg = HECfg()) noexcept :
         HeCfg_(cfg), HBins_(cfg.BinCount, 0.0), HMassEMA_(0.0), HSamples_(0)
     {
@@ -283,7 +291,7 @@ private:
             clk16_t stored = PackedCell64_t::ExtractClk16(packed);
             unsigned ds = Cfg_.DownShift;
             uint64_t now_down = (now_ticks >> ds) & MaskBits(TOTAL_LOW);
-            uint64_t candidate = (now_down & ~uint64_t(0xFFFFu) | static_cast<uint64_t>(stored));
+            uint64_t candidate = ((now_down & ~uint64_t(0xFFFFu) | static_cast<uint64_t>(stored)));
             if (candidate > now_down)
             {
                 candidate -= (1ull << 16); //why?
@@ -311,6 +319,9 @@ private:
     }
     /* data */
 public:
+    AtomicAdaptiveBackoff() noexcept :
+        AtomicAdaptiveBackoff(PCBCfg())
+    {}
     explicit AtomicAdaptiveBackoff
                 (
                     const PCBCfg& cfg = PCBCfg(),

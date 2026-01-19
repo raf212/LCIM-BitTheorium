@@ -51,7 +51,7 @@ public :
     EMAEstimatorAPC() noexcept :
         EMAEstimatorAPC(EMAConfig())
     {}
-    explicit EMAEstimatorAPC(const EMAConfig& cfg = EMAConfig()) noexcept :
+    explicit EMAEstimatorAPC(const EMAConfig& cfg) noexcept :
         EMACfg_(cfg), EMATicks_(0.0), Samples_(0)
     {}
     void ObserveTicks(uint64_t ticks) noexcept
@@ -124,7 +124,7 @@ public:
         HazardEstimatorPC(HECfg())
     {}
 
-    explicit HazardEstimatorPC(const HECfg& cfg = HECfg()) noexcept :
+    explicit HazardEstimatorPC(const HECfg& cfg) noexcept :
         HeCfg_(cfg), HBins_(cfg.BinCount, 0.0), HMassEMA_(0.0), HSamples_(0)
     {
         assert(cfg.BinCount > MIN_BIN_COUNT && cfg.BinCount < MAX_BIN_COUNT);
@@ -291,7 +291,7 @@ private:
             clk16_t stored = PackedCell64_t::ExtractClk16(packed);
             unsigned ds = Cfg_.DownShift;
             uint64_t now_down = (now_ticks >> ds) & MaskBits(TOTAL_LOW);
-            uint64_t candidate = ((now_down & ~uint64_t(0xFFFFu) | static_cast<uint64_t>(stored)));
+            uint64_t candidate = (((now_down & ~uint64_t(0xFFFFu)) | (static_cast<uint64_t>(stored))));
             if (candidate > now_down)
             {
                 candidate -= (1ull << 16); //why?
@@ -324,7 +324,7 @@ public:
     {}
     explicit AtomicAdaptiveBackoff
                 (
-                    const PCBCfg& cfg = PCBCfg(),
+                    const PCBCfg& cfg,
                     PackedMode mode = PackedMode::MODE_VALUE32,
                     Timer48 timer = Timer48()
                 ) :

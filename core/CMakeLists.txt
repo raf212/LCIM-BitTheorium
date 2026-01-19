@@ -35,5 +35,24 @@ target_include_directories(AtomicCIM PRIVATE ${HEADERS_DIR})
 if (MSVC)
     target_compile_options(AtomicCIM PRIVATE /W4 /WX)
 else()
-    target_compile_options(AtomicCIM PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    target_compile_options(AtomicCIM PRIVATE 
+        -Wall
+        -Wextra
+        -Wpedantic
+
+        #silence for windows branch
+        -Wno-unused-parameter
+        -Wno-error=reorder
+        -Wno-error=parenthesses
+    )
+
+    find_library(NUMALIB NAMES numa libnuma)
+    if(NOT NUMALIB)
+        message(FATAL_ERROR
+            "Please Install libnuma :) "
+        )
+    endif()
+    target_compile_definitions(AtomicCIM PRIVATE HAVE_LIBNUMA)
+    target_link_libraries(AtomicCIM PRIVATE ${NUMALIB})
+    
 endif()

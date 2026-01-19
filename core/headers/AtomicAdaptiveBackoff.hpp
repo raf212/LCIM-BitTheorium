@@ -377,7 +377,7 @@ public:
             uint64_t spin_us = std::min<uint64_t>(expect_us, Cfg_.SpinThresholUS);
             if (Cfg_.Jitter && spin_us > 1)
             {
-                JitterUS_(spin_us);
+                spin_us = JitterUS_(spin_us);
             }
             if (spin_us <= 1)
             {

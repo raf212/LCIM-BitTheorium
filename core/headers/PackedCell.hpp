@@ -38,15 +38,15 @@ namespace AtomicCScompact
         static inline packed64_t PackV32x_64(val32_t v, clk16_t clk, tag8_t st, tag8_t rel) noexcept {
             packed64_t p = (packed64_t(v) & MaskBits(VALBITS));
             p |= (packed64_t(clk) & MaskBits(CLK_B16)) << VALBITS;
-            p |= (packed64_t(st)  & MaskBits(STBITS))  << (VALBITS + CLK_B16);
-            p |= (packed64_t(rel) & MaskBits(RELBITS)) << (VALBITS + CLK_B16 + STBITS);
+            p |= (packed64_t(rel)  & MaskBits(RELBITS))  << (VALBITS + CLK_B16);
+            p |= (packed64_t(st) & MaskBits(STBITS)) << (VALBITS + CLK_B16 + RELBITS);
             return p;
         }
 
         static inline packed64_t PackCLK48x_64(uint64_t clk, tag8_t st, tag8_t rel) noexcept {
             packed64_t p = (packed64_t(clk) & MaskBits(CLK_B48));
-            p |= (packed64_t(st)  & MaskBits(STBITS))  << CLK_B48;
-            p |= (packed64_t(rel) & MaskBits(RELBITS)) << (CLK_B48 + STBITS);
+            p |= (packed64_t(rel)  & MaskBits(RELBITS))  << CLK_B48;
+            p |= (packed64_t(st) & MaskBits(STBITS)) << (CLK_B48 + RELBITS);
             return p;
         }
         static inline tag8_t PackRel8x_t(tag8_t rel_mask_5, tag8_t priority_3) noexcept

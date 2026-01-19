@@ -29,10 +29,7 @@ struct Timer48
         using  cns = std::chrono::nanoseconds;
         auto d = std::chrono::steady_clock::now().time_since_epoch();
         uint64_t ns_count = static_cast<uint64_t>(std::chrono::duration_cast<cns>(d).count());
-        if (TicksPerSec_ == A_BILLION)
-        {
-            return ns_count & MaskBits(CLK_B48);
-        }
+        return ns_count & MaskBits(CLK_B48);
     }
 };
 
@@ -213,6 +210,7 @@ private :
 class AtomicAdaptiveBackoff
 {
 public:
+    Timer48 PublicTimer48;
     struct PCBCfg
     {
         unsigned DownShift = 10u;
@@ -240,7 +238,6 @@ public:
 private:
     PCBCfg Cfg_;
     PackedMode PCMode_;
-    Timer48 Timer48_;
     EMAEstimatorAPC Ema_;
     HazardEstimatorPC Hist_;
     mutable std::mt19937_64 Rng_;
@@ -298,7 +295,7 @@ private:
     }
     inline uint64_t ReconstructPublishTicks_(packed64_t p) const noexcept
     {
-        uint64_t now = Timer48_.NowTicks();
+        uint64_t now = PublicTimer48.NowTicks();
         return ReconstructPublishTicks_(now, p);
     }
     
@@ -320,15 +317,16 @@ public:
                     PackedMode mode = PackedMode::MODE_VALUE32,
                     Timer48 timer = Timer48()
                 ) :
-        Cfg_(cfg), PCMode_(mode), Timer48_(timer), Ema_(cfg.EMACfg),
+        PublicTimer48(timer), Cfg_(cfg), PCMode_(mode), Ema_(cfg.EMACfg),
         Hist_(cfg.HazardCfg), Rng_(std::random_device{}())
     {
         Recall_C_Over_p_();
     }
+    ~AtomicAdaptiveBackoff() = default;
 
     void ObserveCompletation(packed64_t pub_p, std::optional<uint64_t>observe_time_ticks = std::nullopt) noexcept
     {
-        uint64_t now = observe_time_ticks.value_or(Timer48_.NowTicks());
+        uint64_t now = observe_time_ticks.value_or(PublicTimer48.NowTicks());
         uint64_t pub_ticks = ReconstructPublishTicks_(now, pub_p);
         uint64_t age_ticks = (now - pub_ticks) & MaskBits(TOTAL_LOW);
         uint64_t age_us = age_ticks / 1000u; //micro sec conver
@@ -338,7 +336,7 @@ public:
 
     PCBDecision DecideForSlot(packed64_t slot_payload, std::optional<uint64_t>now_ticks_opt = std::nullopt) const noexcept
     {
-        uint64_t now = now_ticks_opt.value_or(Timer48_.NowTicks());
+        uint64_t now = now_ticks_opt.value_or(PublicTimer48.NowTicks());
         strl16_t sr = PackedCell64_t::ExtractSTRL(slot_payload);
         tag8_t relbyte = PackedCell64_t::RelationFromSTRL(sr);
         int8_t priority = static_cast<int8_t>(PackedCell64_t::PriorityFromRelation(relbyte));
@@ -353,7 +351,7 @@ public:
         }
         else
         {
-            auto hema = Ema_.HazardPerSec(Timer48_);
+            auto hema = Ema_.HazardPerSec(PublicTimer48);
             if (hema.has_value())
             {
                 hazard = hema.value();

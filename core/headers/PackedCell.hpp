@@ -22,6 +22,19 @@ namespace AtomicCScompact
 
     struct PackedCell64_t 
     {
+        static inline packed64_t MakeInitialPacked(PackedMode mode) noexcept
+        {
+            packed64_t p = 0;
+            if (mode == PackedMode::MODE_VALUE32)
+            {
+                p = static_cast<packed64_t>(PackV32x_64(0u, 0u, ST_IDLE, REL_NONE));
+            }
+            else if (mode == PackedMode::MODE_CLKVAL48)
+            {
+                p = static_cast<packed64_t>(PackCLK48x_64(0u, ST_IDLE, REL_NONE));
+            }
+            return p;
+        }
         static inline packed64_t PackV32x_64(val32_t v, clk16_t clk, tag8_t st, tag8_t rel) noexcept {
             packed64_t p = (packed64_t(v) & MaskBits(VALBITS));
             p |= (packed64_t(clk) & MaskBits(CLK_B16)) << VALBITS;

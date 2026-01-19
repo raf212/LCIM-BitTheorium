@@ -7,6 +7,10 @@
 #include <atomic>
 #include <cstring>
 
+#if defined(_MSC_VER)
+    #include <intrin.h>
+#endif
+
 namespace AtomicCScompact {
     using packed64_t = uint64_t;
     using val32_t    = uint32_t;
@@ -20,7 +24,7 @@ namespace AtomicCScompact {
     #define MASK_8_BIT  0xFFu
     #define RELATION_MASK_5 0x1Fu
     #define RELATION_PRIORITY 0x07u
-
+    #define ID_HASH_GOLDEN_CONST 0x9E3779B97F4A7C15ull 
     
     static constexpr unsigned MASK16B_HIGH8B_0 = 0xFF00u;
 

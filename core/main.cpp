@@ -25,7 +25,7 @@ static inline void CpuRelaxHint()
 #if defined(_MSC_VER)
     YieldProcessor();
 #else   
-    __asm__ __volatile__("pause" ::: "memory")
+    __asm__ __volatile__("pause" ::: "memory");
 #endif
 }
 
@@ -169,7 +169,7 @@ int main()
                     {
                         auto start = std::chrono::steady_clock::now();
                         auto suggested = std::chrono::microseconds(decision.SuggestedUs);
-                        while ((std::chrono::steady_clock::now() - start) > suggested)
+                        while ((std::chrono::steady_clock::now() - start) < suggested)
                         {
                             CpuRelaxHint();
                             packed64_t cur2 = slot.load(MoLoad_);
@@ -258,7 +258,12 @@ int main()
                 LogPrint(oss.str());
                 last_progress = std::chrono::steady_clock::now();
             }
+            if (done_producing.load(MoLoad_) && (completed_count.load(MoLoad_) == published_count.load(MoLoad_)))
+            {
+                break;
+            }
         }
+        
     });
 
     producer.join();
@@ -266,7 +271,7 @@ int main()
     {
         t.join();
     }
-    stop_watch.store(false);
+    stop_watch.store(true);
     watchdog.join();
 
     //validation

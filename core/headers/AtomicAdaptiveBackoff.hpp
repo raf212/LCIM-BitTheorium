@@ -277,7 +277,7 @@ private:
         }
         else
         {
-            C_OVER_P_ = Cfg_.CostSpinPerSec / Cfg_.CostPark;;
+            C_OVER_P_ = Cfg_.CostSpinPerSec / Cfg_.CostPark;
         }
     }
     inline uint64_t ReconstructPublishTicks_(uint64_t now_ticks, packed64_t packed) const noexcept

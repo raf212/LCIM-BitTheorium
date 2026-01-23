@@ -59,7 +59,7 @@ int main()
     //shared-signals
     std::atomic<packed64_t>slot;
     packed64_t idle = PackedCell64_t::MakeInitialPacked(PackedMode::MODE_VALUE32);
-    slot.store(idle, MoStoreUnSeq_);
+    slot.store(idle, MoStoreUnSeq_); // std::memory_order_release - MoStoreSeq_ might me better option ? 
     slot.notify_all();
 
     //ADAPTIVE BACKOFF INSTANCES
@@ -98,7 +98,7 @@ int main()
                     packed64_t expected = cur;
                     if (slot.compare_exchange_strong(expected, publish, EXsuccess_, EXfailure_))
                     {
-                        slot.notify_all();
+                        slot.notify_all(); // thundaring thread problem ?? prefered -> slot.notify_one()
                         published_count.fetch_add(1, std::memory_order_acq_rel);
                         {
                             std::ostringstream oss;

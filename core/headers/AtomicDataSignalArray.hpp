@@ -18,6 +18,7 @@
 #include "AllocNW.hpp"
 #include "PackedCell.hpp"
 #include "AtomicAdaptiveBackoff.hpp"
+#include "MasterClockConf.hpp"
 
 namespace AtomicCScompact
 {
@@ -84,15 +85,11 @@ private:
     std::vector<std::vector<std::atomic<uint64_t>>> RelBitmaps_; //[bit][word]
 
     //master clock
-    std::atomic<packed64_t>* MasterClockSlotsPtr_{nullptr};
-    size_t MasterCLKCapacity_{0};
-    std::atomic<size_t> MasterAlloc_{0};
+    MasterClockConf* MasterClkConfigaration_;
 
-    //TLS Thread MAster ID
-    static inline thread_local size_t& ThreadLocMasterID_() noexcept
+    static inline thread_local size_t& ADSAThreadLocalMID_() noexcept
     {
         static thread_local size_t id = SIZE_MAX;
-        return id;
     }
 
     void InitZeroOCR_()
@@ -112,7 +109,7 @@ public:
     AtomicDataSignalArray() noexcept :
         Backing_(nullptr), Capacity_(0), Owned_(false), UsedNode_(0),
         Cfg_(), Adaptivebkof_(typename AtomicAdaptiveBackoff::PCBCfg{}, MODE),
-        RegionSize_(0), NumRegion_(0)
+        RegionSize_(0), NumRegion_(0), MasterClkConfigaration_(nullptr)
     {}
 
     ~AtomicDataSignalArray()
@@ -210,6 +207,23 @@ public:
         RegionSize_ = 0;
     }
 
+    void SetMasterClockConf(MasterClockConf* mc) noexcept
+    {
+        MasterClkConfigaration_ = mc;
+    }
+
+    size_t AttachThreadMasterClockID(size_t m_id) noexcept
+    {
+        size_t prev = ADSAThreadLocalMID_();
+        ADSAThreadLocalMID_() = MasterClkConfigaration_;
+        if (MasterClkConfigaration_)
+        {
+            (void)MasterClkConfigaration_->AttachThreadMClockID(m_id);
+        }
+        return prev;
+    }
+
+    
     size_t ReserveProducerSlots(size_t n) noexcept
     {
         if (!AnyValid_() || n == 0)
@@ -232,118 +246,6 @@ public:
         size_t seq = block_base++;
         --block_left;
         return seq;
-    }
-    //master clock functions
-    bool InitMasterClockSlots(size_t max_slots, size_t allignment = 64)
-    {
-        if (!MasterClockSlotsPtr_)
-        {
-            return;
-        }
-        if (max_slots == 0)
-        {
-            throw std::invalid_argument("MAX SLOTS == 0");
-        }
-        size_t bytes = sizeof(std::atomic<packed64_t>) * max_slots;
-        void* mem = AllocNW::AlignedAllocONnode(allignment, bytes, UsedNode_);
-        if (!mem)
-        {
-            throw std::bad_alloc();
-        }
-        MasterClockSlotsPtr_ = reinterpret_cast<std::atomic<packed64_t>*>(mem);
-        uint64_t now = Adaptivebkof_.PublicTimer48.NowTicks();
-        packed64_t init_p = PackedCell64_t::PackCLK48x_64((now & MaskBits(CLK_B48)), ST_IDLE, REL_NONE);
-        for (size_t i = 0; i < max_slots; i++)
-        {
-            new (&MasterClockSlotsPtr_[i] std::atomic<packed64_t>(init_p));
-        }
-        MasterCLKCapacity_ = max_slots;
-        MasterAlloc_.store(0, MoStoreSeq_);
-        
-    }
-
-    void FreeMasterClockSlots() noexcept
-    {
-        if (!MasterClockSlotsPtr_)
-        {
-            return;
-        }
-        for (size_t i = 0; i < MasterCLKCapacity_; i++)
-        {
-            MasterClockSlotsPtr_[i]~atomic();
-        }
-        size_t bytes = sizeof(std::atomic<packed64_t>) * MasterCLKCapacity_;
-        AllocNW::FreeONNode(static_cast<void*>(MasterClockSlotsPtr_), bytes);
-        MasterClockSlotsPtr_ = nullptr;
-        MasterCLKCapacity_ = 0;
-        MasterAlloc_.store(0, MoStoreUnSeq_);
-    }
-
-    size_t RegisterMasterClockSlot(packed64_t initial = 0) noexcept
-    {
-        if (!MasterClockSlotsPtr_ || MasterCLKCapacity_ == 0)
-        {
-            return SIZE_MAX;
-        }
-        size_t id = MasterAlloc_.fetch_add(1, std::memory_order_acq_rel);
-        if (id >= MasterCLKCapacity_)
-        {
-            MasterAlloc_.fetch_sub(1, std::memory_order_acq_rel);
-            return SIZE_MAX;
-        }
-        packed64_t p = PackedCell64_t::PackCLK48x_64((initial & MaskBits(CLK_B48)), ST_PUBLISHED, REL_NONE);
-        MasterClockSlotsPtr_[id].store(p, MoStoreSeq_);
-        MasterClockSlotsPtr_[id].notify_all();
-        return id;
-    }
-
-    bool UpdateMasterClock(size_t master_id, packed64_t clk48) noexcept
-    {
-        if (!MasterClockSlotsPtr_ || master_id >= MasterCLKCapacity_ )
-        {
-            return false;
-        }
-        auto& slot = MasterClockSlotsPtr_[master_id];
-        packed64_t  oldv = slot.load(MoLoad_);
-        while (true)
-        {
-            strl16_t sr = PackedCell64_t::ExtractSTRL(oldv);
-            tag8_t st = PackedCell64_t::StateFromSTRL(sr);
-            tag8_t rel = PackedCell64_t::RelationFromSTRL(sr);
-            packed64_t desired = PackedCell64_t::PackCLK48x_64((clk48 & MaskBits(CLK_B48)), st, rel);
-            if (slot.compare_exchange_weak(oldv, desired, EXsuccess_, MoLoad_))
-            {
-                slot.notify_all();                
-            }
-            CpuRelaxHint();
-        }
-    }
-
-    packed64_t ReadMasterClock(size_t master_id) const noexcept
-    {
-        if (!MasterClockSlotsPtr_ || master_id >= MasterCLKCapacity_)
-        {
-            return 0;
-        }
-        packed64_t p = MasterClockSlotsPtr_[master_id].load(MoLoad_);
-        return PackedCell64_t::ExtractClk48(p);
-    }
-
-    size_t AttachThreadMasterID(size_t master_id) const noexcept
-    {
-        size_t previous = ThreadLocMasterID_();
-        ThreadLocMasterID_() = master_id;
-        return previous;
-    }
-
-    packed64_t ReadMasterCLKPacked(size_t master_id)
-    {
-        if (!MasterClockSlotsPtr_ || master_id >= MasterCLKCapacity_)
-        {
-            return 0;
-        }
-        return MasterClockSlotsPtr_[master_id].load(MoLoad_);
-        
     }
     void InitRegionIndex(size_t region_size)
     {

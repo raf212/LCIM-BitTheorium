@@ -3,8 +3,6 @@
 #include "PackedStRel.h"
 
 
-#define ATOMIC_THRESHOLD 64u
-
 namespace AtomicCScompact
 {
     enum class PackedMode : int
@@ -75,6 +73,16 @@ namespace AtomicCScompact
             uint64_t clk48 = ExtractClk48(payload);
             tag8_t rel = RelationFromSTRL(ExtractSTRL(payload));
             return PackCLK48x_64(clk48, ST_COMPLETE, rel);
+        }
+
+        static inline strl16_t MakeSTRL(tag8_t st, tag8_t rel) noexcept
+        {
+            return static_cast<strl16_t>((static_cast<strl16_t>(st) << STBITS) | static_cast<strl16_t>(rel));
+        }
+
+        static inline bool RelationMatches(tag8_t slot_rel, tag8_t rel_mask) noexcept
+        {
+            return ((static_cast<strl16_t>(slot_rel) & static_cast<uint8_t>(rel_mask)) != 0);
         }
 
         static inline val32_t ExtractValue32(packed64_t p) noexcept

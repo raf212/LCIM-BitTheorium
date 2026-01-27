@@ -20,14 +20,7 @@ static inline void LogPrint(const std::string& s)
     std::cerr << s << std::flush;
 }
 
-static inline void CpuRelaxHint()
-{
-#if defined(_MSC_VER)
-    YieldProcessor();
-#else   
-    __asm__ __volatile__("pause" ::: "memory");
-#endif
-}
+
 
 static const char* PCBActionName(AtomicAdaptiveBackoff::PCBAction action)
 {

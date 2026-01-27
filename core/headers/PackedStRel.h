@@ -1,11 +1,25 @@
 #pragma once
 
-#include <cstdint>
 #include <type_traits>
-#include <cassert>
-#include <limits>
-#include <atomic>
 #include <cstring>
+#include <atomic>
+#include <chrono>
+#include <cmath>
+#include <cstdint>
+#include <random>
+#include <optional>
+#include <vector>
+#include <algorithm>
+#include <limits>
+#include <cassert>
+#include <cstddef>
+#include <array>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <stdexcept>
+#include <memory>
+#include <latch> // For std::latch (C++20)
 
 #if defined(_MSC_VER)
     #include <intrin.h>
@@ -25,7 +39,8 @@ namespace AtomicCScompact {
     #define RELATION_MASK_5 0x1Fu
     #define RELATION_PRIORITY 0x07u
     #define ID_HASH_GOLDEN_CONST 0x9E3779B97F4A7C15ull 
-    
+    #define ATOMIC_THRESHOLD 64u
+
     static constexpr unsigned MASK16B_HIGH8B_0 = 0xFF00u;
 
     static constexpr ::std::memory_order MoLoad_      = ::std::memory_order_acquire;
@@ -42,6 +57,7 @@ namespace AtomicCScompact {
     static constexpr unsigned RELBITS  = 8u;
     static constexpr unsigned TOTAL_LOW = 48u;
     static constexpr unsigned MASK_OF_RELBIT = 5u;
+    static constexpr unsigned CLK48TO16_PACKED_ERROR = 16u;
 
 
 // States (8-bit) - keep your canonical names
@@ -63,15 +79,8 @@ static constexpr tag8_t REL_PAGE        = 0x04;
 static constexpr tag8_t REL_PATTERN     = 0x08;
 static constexpr tag8_t REL_SELF        = 0x10;
 static constexpr tag8_t REL_ALL_LOW5    = 0x1F; // all low-5 relation bits
+static constexpr uint8_t MAX_PRIORITY   = 7;
 
-static inline strl16_t MakeSTREL(tag8_t st, tag8_t rel) noexcept
-{
-    return static_cast<strl16_t>((static_cast<strl16_t>(st) << STBITS) | static_cast<strl16_t>(rel));
-}
-static inline bool RelationMatches(tag8_t slot_rel, tag8_t rel_mask) noexcept
-{
-    return ((static_cast<strl16_t>(slot_rel) & static_cast<uint8_t>(rel_mask)) != 0);
-}
 
 
 }

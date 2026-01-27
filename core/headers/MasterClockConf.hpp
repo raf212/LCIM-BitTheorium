@@ -1,20 +1,4 @@
 #pragma once 
-#include <atomic>
-#include <cstddef>
-#include <cstdint>
-#include <memory>
-#include <vector>
-#include <array>
-#include <algorithm>
-#include <chrono>
-#include <thread>
-#include <mutex>
-#include <condition_variable>
-#include <stdexcept>
-#include <optional>
-#include <cassert>
-#include <limits>
-#include <memory>
 
 #include "AllocNW.hpp"
 #include "PackedCell.hpp"
@@ -24,14 +8,6 @@
 namespace AtomicCScompact
 {
 
-    static inline void CpuRelaxHint()
-    {
-    #if defined(_MSC_VER)
-        YieldProcessor();
-    #else   
-        __asm__ __volatile__("pause" ::: "memory");
-    #endif
-    }
 
     class MasterClockConf
     {

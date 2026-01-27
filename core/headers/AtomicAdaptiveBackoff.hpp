@@ -1,25 +1,24 @@
 
 #pragma once
 
-#include <atomic>
-#include <chrono>
-#include <cmath>
-#include <cstdint>
-#include <random>
-#include <optional>
-#include <vector>
-#include <algorithm>
-#include <limits>
-#include <cassert>
-
 #include "PackedCell.hpp"
 #include "PackedStRel.h"
-#include <latch> // For std::latch (C++20)
 
 namespace AtomicCScompact
 {
 #define A_BILLION 1000000000ull
 #define THRESHHOLD_64BIT 1e-12
+
+
+static inline void CpuRelaxHint()
+{
+#if defined(_MSC_VER)
+    _mm_pause();
+#else   
+    __asm__ __volatile__("pause" ::: "memory");
+#endif
+}
+
 struct Timer48
 {
     uint64_t TicksPerSec_ = A_BILLION;
@@ -33,6 +32,28 @@ struct Timer48
     }
 };
 
+struct SpinBackoff
+{
+    int Tries = 0;
+    uint16_t MaxTries = 8;
+    uint16_t MazLazySleepDurationUS = 200;
+    inline void Reset()
+    {
+        Tries = 0;
+    }
+    inline void SpinOnce()
+    {
+        if (Tries < MaxTries)
+        {
+            CpuRelaxHint();
+        }
+        else
+        {
+            std::this_thread::sleep_for(std::chrono::microseconds(std::min<int>(MazLazySleepDurationUS, (1 << (Tries - MaxTries)))));
+        }
+        ++Tries;
+    }
+};
 
 class EMAEstimatorAPC
 {

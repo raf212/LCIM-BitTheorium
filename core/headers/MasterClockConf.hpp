@@ -159,14 +159,6 @@ namespace AtomicCScompact
             }
         }
 
-        packed64_t ReadMasterClock(size_t mclock_id) const noexcept
-        {
-            if (!MasterClockSlotsPtr || mclock_id >= MasterCLKCapacity)
-            {
-                return 0;
-            }
-            return MasterClockSlotsPtr[mclock_id].load(MoLoad_); 
-        }
 
         size_t AttachThreadMClockID(size_t mclock_id) const noexcept
         {

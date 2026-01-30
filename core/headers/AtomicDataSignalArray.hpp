@@ -108,7 +108,7 @@ private:
     {
         return (Backing_ && (idx < Capacity_));
     }
-    inline void CommitPayloadBasedMODE_(packed64_t payload, packed64_t& committed, std::optional<size_t> idx)
+    inline void CommitPayloadBasedMODE_(packed64_t payload, packed64_t& committed, size_t idx)
     {
         if (!IfIdxValid(idx))
         {

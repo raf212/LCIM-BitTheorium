@@ -35,7 +35,7 @@ struct ADSAConfig
     size_t MaxTlsCandidates = 4096;
     size_t ProducerBlockSize = 64;
     size_t RegionSize = 0;
-    size_t MaxTLS = 8192;
+    static constexpr size_t MaxTLS = 8192;
 };
 
 enum class PublishStatus : uint8_t
@@ -83,7 +83,7 @@ private:
     {
         size_t Idx;
         packed64_t Obs;
-        int EffPtr;
+        uint32_t EffPtr;
         uint16_t SlotSeq16;
     };
     static inline size_t& ADSAThreadLocalMID_() noexcept
@@ -97,7 +97,7 @@ private:
         Occupancy_.store(0, MoStoreUnSeq_);
         ProducerCursor_.store(0, MoStoreUnSeq_);
         ConsumerCursor_.store(0, MoStoreUnSeq_);
-        RelOffSet_.assign(Capacity_, std::atomic<uint32_t>(0));
+        RelOffSet_.assign(Capacity_, std::atomic<packed64_t>(0));
     }
 
     inline bool IfAnyValid_() const noexcept
@@ -110,6 +110,10 @@ private:
     }
     inline void CommitPayloadBasedMODE_(packed64_t payload, packed64_t& committed, std::optional<size_t> idx)
     {
+        if (!IfIdxValid(idx))
+        {
+            throw std::out_of_range("CommitPayloadBasedMODE_:: idx->Invalid");
+        }
         
         if (payload)
         {
@@ -221,13 +225,15 @@ public:
                 AllocNW::FreeONNode(static_cast<void*>(Backing_), bytes);
             }
         }
+
+        Backing_ = nullptr;
         Capacity_ = 0;
         Owned_ = false;
         RelOffSet_.clear();
         //clear region
-        for(auto& v : RelBitmaps_)
+        for(auto& vec : RelBitmaps_)
         {
-            v.clear;
+            vec.clear();
         }
         RelBitmaps_.clear();
         RegionEpoch_.clear();
@@ -297,13 +303,13 @@ public:
             {
                 packed64_t mp = MasterClkConfigaration_->ReadMasterClockPacked(mt);
                 packed64_t mc = PackedCell64_t::ExtractClk48(mp);
-                clk16_t clk16 = static_cast<clk16_t>((mc >> Cfg_.TimerDownShift + CLK48TO16_PACKED_ERROR) & MaskBits(CLK_B16));
+                clk16_t clk16 = static_cast<clk16_t>((mc >> (Cfg_.TimerDownShift + CLK48TO16_PACKED_ERROR)) & MaskBits(CLK_B16));
                 item = PackedCell64_t::PackV32x_64(v, clk16, ST_PUBLISHED, relbyte);
             }
             else if (Cfg_.UseTimerStamp)
             {
                 packed64_t now = Adaptivebkof_.PublicTimer48.NowTicks();
-                clk16_t clk16 = static_cast<clk16_t>((now >> Cfg_.TimerDownShift + CLK48TO16_PACKED_ERROR) & MaskBits(CLK_B16));
+                clk16_t clk16 = static_cast<clk16_t>((now >> (Cfg_.TimerDownShift + CLK48TO16_PACKED_ERROR)) & MaskBits(CLK_B16));
                 item = PackedCell64_t::PackV32x_64(v, clk16, ST_PUBLISHED, relbyte);
             }
             else
@@ -413,7 +419,7 @@ public:
         {
             size_t idx = (reserved_base + i) % Capacity_;
             packed64_t cur = Backing_[idx].load(MoLoad_);
-            if (PackedCell64_t::StateFromSTRL(PackedCell64_t::ExtractSTRL(cur) != ST_IDLE))
+            if (PackedCell64_t::StateFromSTRL(PackedCell64_t::ExtractSTRL(cur)) != ST_IDLE)
             {
                 return {PublishStatus::FULL, idx};
             }
@@ -424,7 +430,7 @@ public:
             }
             if (RegionSize_)
             {
-                UpdateRegionRelForIndex(idx, PackedCell64_t::ExtractSTRL(PackedCell64_t::RelationFromSTRL(items[i])));
+                UpdateRegionRelForIndex(idx, PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(items[i])));
             }
             Occupancy_.fetch_add(1, std::memory_order_acq_rel);
         }
@@ -452,7 +458,7 @@ public:
                 auto now = steady_clock::now();
                 if (duration_cast<milliseconds>(now - start).count() >= timeout_ms)
                 {
-                    return r;
+                    return res;
                 }
             }
             std::this_thread::sleep_for(std::chrono::microseconds(sleep_ms));
@@ -530,24 +536,24 @@ public:
             uint16_t prod_seq16 = static_cast<uint16_t>((ProducerCursor_.load(MoLoad_)) & 0xFFFFu); // why 0xFFFFu ??
             while (scans < static_cast<int>(scan_limit) && ccount < std::min<size_t>(Cfg_.MaxGather, tls_cap))
             {
-                packed64_t cur = Backing_[idx].load(MoLoad_);
-                strl16_t csr = PackedCell64_t::ExtractClk16(cur);
+                packed64_t cur_2 = Backing_[idx].load(MoLoad_);
+                strl16_t csr_2 = PackedCell64_t::ExtractClk16(cur_2);
                 if (PackedCell64_t::StateFromSTRL(csr) == ST_PUBLISHED)
                 {
-                    tag8_t relbyte = PackedCell64_t::RelationFromSTRL(csr);
+                    tag8_t relbyte = PackedCell64_t::RelationFromSTRL(csr_2);
                     tag8_t slot_rel_mask = PackedCell64_t::RelMaskBSetFromRelation(relbyte);
                     if ((slot_rel_mask & rel_mask_low_5) != 0)
                     {
                         uint16_t slot_seq16 = 0;
                         if constexpr (MODE == PackedMode::MODE_VALUE32)
                         {
-                            slot_seq16 = static_cast<clk16_t>(PackedCell64_t::ExtractClk16(cur));
+                            slot_seq16 = static_cast<clk16_t>(PackedCell64_t::ExtractClk16(cur_2));
                         }
-                        packed64_t effect_prio_packed = ComputeEffectivePriority(relbyte, slot_seq16, prod_seq16);
+                        packed64_t effect_prio_packed = ComputeEffectivePriority(slot_seq16, prod_seq16);
                         strl16_t c_esr = PackedCell64_t::ExtractSTRL(effect_prio_packed);
                         if (PackedCell64_t::StateFromSTRL(c_esr) == ST_PUBLISHED)
                         {
-                            cbuf[ccount++] = Candidate_CO_ {idx, cur, PackedCell64_t::ExtractValue32(effect_prio_packed), slot_seq16};
+                            cbuf[ccount++] = Candidate_CO_ {idx, cur_2, PackedCell64_t::ExtractValue32(effect_prio_packed), slot_seq16};
                         }
                     }
                 }
@@ -573,7 +579,14 @@ public:
 
             Candidate_CO_ best_candidate = cbuf[best];
 
-            packed64_t desired = PackedCell64_t::SetSTRLInPacked(best_candidate, PackedCell64_t::MakeSTRL(ST_CLAIMED, PackedCell64_t::RelationFromSTRL(best_candidate.Obs)));
+            // packed64_t desired = PackedCell64_t::SetSTRLInPacked(best_candidate, PackedCell64_t::MakeSTRL(ST_CLAIMED, PackedCell64_t::RelationFromSTRL(best_candidate.Obs)));
+            packed64_t desired = PackedCell64_t::SetSTRLInPacked(
+                best_candidate.Obs,
+                PackedCell64_t::MakeSTRL(
+                    ST_CLAIMED,
+                    PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(best_candidate.Obs))
+                )
+            );
             //continue from here
             packed64_t expected = best_candidate.Obs;
             if (Backing_[best_candidate.Idx].compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_))
@@ -591,7 +604,7 @@ public:
         }
     }
 
-    packed64_t ClaimBatch(tag8_t rel_mask_low5, std::vector<std::pair<size_t>>& out, size_t max_count) noexcept
+    packed64_t ClaimBatch(tag8_t rel_mask_low5, std::vector<std::pair<size_t, packed64_t>>& out, size_t max_count) noexcept
     {
         uint8_t this_prio = 4;
         out.clear();
@@ -612,7 +625,7 @@ public:
         {
             return 0;
         }
-        size_t scan_limit = std::min(Capacity_, std::max<size_t>(available + 16, max_count * 8)); // wht + 16???
+        size_t scan_limit = min(Capacity_, std::max<size_t>(available + 16, max_count * 8));
         size_t tls_cap = std::min<size_t>(Cfg_.MaxTlsCandidates, Cfg_.MaxTLS);
         thread_local Candidate_CO_ tls_buf[Cfg_.MaxTLS];
         Candidate_CO_* buffer = tls_buf;
@@ -623,7 +636,7 @@ public:
         while (scans < scan_limit && buffer_count < std::min<size_t>(Cfg_.MaxGather, tls_cap))
         {
             packed64_t cur = Backing_[idx].load(MoLoad_);
-            strl16_t csr = PackedCell64_t::ExtractClk48(cur);
+            strl16_t csr = PackedCell64_t::ExtractSTRL(cur);
             if (PackedCell64_t::StateFromSTRL(csr) == ST_PUBLISHED)
             {
                 tag8_t relbyte = PackedCell64_t::RelationFromSTRL(csr);
@@ -634,8 +647,8 @@ public:
                     if constexpr (MODE == PackedMode::MODE_VALUE32)
                     {
                         slot_seq16 = static_cast<uint16_t>(PackedCell64_t::ExtractClk16(cur));
-                        packed64_t effec_prio_packed = ComputeEffectivePriority(relbyte, slot_seq16, slot_seq16, producer_sequense16);
-                        strl16_t c_esr = PackedCell64_t::ExtractClk48(effec_prio_packed);
+                        packed64_t effec_prio_packed = ComputeEffectivePriority(slot_seq16, producer_sequense16);
+                        strl16_t c_esr = PackedCell64_t::ExtractSTRL(effec_prio_packed);
                         if (PackedCell64_t::StateFromSTRL(c_esr) == ST_PUBLISHED)
                         {
                             buffer[buffer_count++] = Candidate_CO_{idx, cur, PackedCell64_t::ExtractValue32(effec_prio_packed), slot_seq16};
@@ -652,7 +665,7 @@ public:
         }
         if (buffer_count == 0)
         {
-            retur 0;
+            return 0; // I should define state and priority ???
         }
         size_t k = std::min<size_t>(max_count, buffer_count);
         std::nth_element(buffer, buffer + k, buffer + buffer_count, 
@@ -722,13 +735,13 @@ public:
         CommitPayloadBasedMODE_(oldv, committed, idx);
     }
 
-    inline void GetNewClock16ForThread(size_t& mt, clk16_t& clk16)
+    inline void GetNewClock16ForThread(size_t mt, clk16_t& clk16)
     {
         if (MasterClkConfigaration_ && (mt != 0))
         {
-            packed64_t mp = MasterClkConfigaration_->ReadMasterClockPacked();
+            packed64_t mp = MasterClkConfigaration_->ReadMasterClockPacked(mt);
             packed64_t now = PackedCell64_t::ExtractClk48(mp);
-            clk16 = static_cast<clk16_t>((now >> Cfg_.TimerDownShift + CLK48TO16_PACKED_ERROR) & MaskBits(CLK_B16));
+            clk16 = static_cast<clk16_t>((now >> (Cfg_.TimerDownShift + CLK48TO16_PACKED_ERROR)) & MaskBits(CLK_B16));
         }
         else
         {
@@ -750,10 +763,10 @@ public:
         
     }
 
-    inline packed64_t ComputeEffectivePriority(tag8_t relbyte, uint16_t slot_seq16, uint16_t prod_seq16) noexcept
+    inline packed64_t ComputeEffectivePriority(uint16_t slot_seq16, uint16_t prod_seq16) noexcept
     {
+        
         uint8_t prio_of_this = 4;
-        int base_pr = static_cast<int>(PackedCell64_t::PriorityFromRelation(relbyte));
         uint16_t age = static_cast<uint16_t>(prod_seq16 - slot_seq16);
         int age_bonus = std::min<int>(MAX_PRIORITY, (age >> 8)); //why the bit shift and why MAX_PRIORITY??(MAX_PRIORITY==7) 
         size_t mt = ADSAThreadLocalMID_();
@@ -849,7 +862,6 @@ public:
         }
         else if (decision.Action == PAct::PARK_FOR_US)
         {
-            int ms = static_cast<int>((decision.SuggestedUs + 999) / 1000); // why +999/1000??
             Backing_[idx].wait(observed);
             return;
         }
@@ -886,7 +898,7 @@ public:
     {
         if (!IfIdxValid(idx))
         {
-            return 0;
+            return;
         }
         RelOffSet_[idx].store(offset, MoStoreSeq_);
     }
@@ -913,20 +925,20 @@ public:
         }
         RegionSize_ = region_size;
         NumRegion_ = ((Capacity_ + RegionSize_ - 1) / RegionSize_);
-        RegionRel_.assign(NumRegion_, std::atomic<uint8_t>0);
+        RegionRel_.assign(NumRegion_, std::atomic<uint8_t>(0));
         RelBitmaps_.assign(8, std::vector<std::atomic<uint64_t>>((NumRegion_ + (MAX_VAL - 1)) / MAX_VAL));
         for (size_t r = 0; r < NumRegion_; r++)
         {
             size_t base = r * RegionSize_;
-            size_t end = std::min(Capacity_, base + RegionSize_);
+            size_t end = min(Capacity_, base + RegionSize_);
             uint8_t accum = 0;
             for (size_t i = 0; i < end; i++)
             {
-                packed64_t p = Backing_[idx].load(MoLoad_);
+                packed64_t p = Backing_[i].load(MoLoad_);
                 tag8_t relbyte = static_cast<tag8_t>(PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(p)));
                 accum |= PackedCell64_t::RelMaskBSetFromRelation(relbyte);
             }
-            RegionRel_[r].store(MoStoreSeq_);
+            RegionRel_[r].store(accum, MoStoreSeq_);
             if (accum)
             {
                 size_t w = r / MAX_VAL;
@@ -995,14 +1007,14 @@ public:
             uint64_t word = combined[w];
             while (word)
             {
-                unsigned tz = static_cast<unsigned>(__builtin_ctzll(word));
+                unsigned tz = static_cast<unsigned>(std::countr_zero(word));
                 size_t region_idx = w * MAX_VAL + tz;
                 if (region_idx >= NumRegion_)
                 {
                     break;
                 }
                 size_t base = region_idx * RegionSize_;
-                size_t end = std::min(Capacity_, base + RegionSize_);
+                size_t end = min(Capacity_, base + RegionSize_);
                 size_t i = base;
                 while(i < end)
                 {
@@ -1026,7 +1038,7 @@ public:
                     }
                     out.emplace_back(s, i - s);
                 }
-                word& = (word - 1);
+                word &=  (word -1);
             }
         }
         return out;
@@ -1038,15 +1050,13 @@ public:
         {
             return;
         }
-        for (unsigned bit = 0; i < SIZE_OF_BYTE_IN_BITS; bit++)
+        for (unsigned bit = 0; bit < SIZE_OF_BYTE_IN_BITS; bit++)
         {
             for (auto& w : RelBitmaps_[bit])
             {
                 w.store(0ull, MoStoreSeq_);
             }
         }
-        
-        
     }
 
     std::vector<size_t> FindState(tag8_t st_filter) const noexcept
@@ -1056,7 +1066,7 @@ public:
         {
             return out;
         }
-        out.reserve();
+        out.reserve(MAX_VAL);
         for (size_t i = 0; i < Capacity_; i++)
         {
             packed64_t p = Backing_[i].load(MoLoad_);

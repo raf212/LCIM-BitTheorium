@@ -69,7 +69,7 @@ private:
     //adaptivebackoff
     AtomicAdaptiveBackoff Adaptivebkof_;
     //re-offset
-    std::vector<std::atomic<uint32_t>> RelOffSet_;
+    std::vector<std::atomic<packed64_t>> RelOffSet_;
     //region
     size_t RegionSize_{0};
     size_t NumRegion_{0};
@@ -86,9 +86,10 @@ private:
         int EffPtr;
         uint16_t SlotSeq16;
     };
-    static inline thread_local size_t& ADSAThreadLocalMID_() noexcept
+    static inline size_t& ADSAThreadLocalMID_() noexcept
     {
         static thread_local size_t id = SIZE_MAX;
+        return id;
     }
 
     void InitZeroOCR_()
@@ -107,7 +108,7 @@ private:
     {
         return (Backing_ && (idx < Capacity_));
     }
-    inline void CommitPayloadBasedMODE_(packed64_t& payload, packed64_t& committed, std::optional<size_t>& idx)
+    inline void CommitPayloadBasedMODE_(packed64_t payload, packed64_t& committed, std::optional<size_t> idx)
     {
         
         if (payload)
@@ -180,7 +181,7 @@ public:
         }
     }
 
-    void InitFromExisting(std::atomic<packed64_t>* backing, ADSAConfig cfg = {}, size_t capacity)
+    void InitFromExisting(std::atomic<packed64_t>* backing, ADSAConfig cfg = {}, size_t capacity = 0)
     {
         FreeAll();
         if (!backing)
@@ -214,7 +215,7 @@ public:
             {
                 for (size_t i = 0; i < Capacity_; i++)
                 {
-                    Backing_[i].~atomic();
+                    Backing_[i].~atomic<packed64_t>();
                 }
                 size_t bytes = sizeof(std::atomic<packed64_t>) * Capacity_;
                 AllocNW::FreeONNode(static_cast<void*>(Backing_), bytes);
@@ -308,7 +309,7 @@ public:
             else
             {
                 clk16_t clk16 = static_cast<clk16_t>(seq);
-                item = PackedCell64_t::PackV32x_64(v, clk16, ST_PUBLISHED, relbyte)
+                item = PackedCell64_t::PackV32x_64(v, clk16, ST_PUBLISHED, relbyte);
             }
         }
         else
@@ -334,7 +335,7 @@ public:
         int probs = 0;
         while (true)
         {
-            packed64_t cur = Backing_.[idx].load(MoLoad_);
+            packed64_t cur = Backing_[idx].load(MoLoad_);
             strl16_t csr = PackedCell64_t::ExtractSTRL(cur);
             tag8_t stcur = PackedCell64_t::StateFromSTRL(csr);
             if (stcur == ST_IDLE)
@@ -349,7 +350,7 @@ public:
                         strl16_t sr2 = PackedCell64_t::ExtractClk16(to_write);
                         tag8_t relbyte = PackedCell64_t::RelationFromSTRL(sr2);
                         val32_t v = PackedCell64_t::ExtractValue32(to_write);
-                        to_write = PackedCell64_t::PackV32x_64(v, nclk, ST_PUBLISHED, relbyte)
+                        to_write = PackedCell64_t::PackV32x_64(v, nclk, ST_PUBLISHED, relbyte);
                     }
                     else if constexpr (MODE == PackedMode::MODE_CLKVAL48)
                     {
@@ -600,7 +601,7 @@ public:
         }
         size_t start = ConsumerCursor_.fetch_add(1, MoStoreUnSeq_);
         size_t idx = start % Capacity_;
-        uint64_t mix = (static_cast<uint64_t>(start) * ID_HASH_GOLDEN_CONST) ^(static_cast<uint64_t>(start) >> 31) // why 31??
+        uint64_t mix = (static_cast<uint64_t>(start) * ID_HASH_GOLDEN_CONST) ^(static_cast<uint64_t>(start) >> 31); // why 31??
         size_t step = 1;
         if (Capacity_ > 1)
         {
@@ -616,7 +617,7 @@ public:
         thread_local Candidate_CO_ tls_buf[Cfg_.MaxTLS];
         Candidate_CO_* buffer = tls_buf;
         size_t buffer_count = 0;
-        uint16_t producer_sequense16 = static_cast<uint16_t>(ProducerCursor_.load(MoLoad_) & OxFFFFu); // why 0xFFFFu;
+        uint16_t producer_sequense16 = static_cast<uint16_t>(ProducerCursor_.load(MoLoad_) & 0xFFFFu); // why 0xFFFFu;
         size_t scans = 0;
         idx = start % Capacity_;
         while (scans < scan_limit && buffer_count < std::min<size_t>(Cfg_.MaxGather, tls_cap))
@@ -654,7 +655,7 @@ public:
             retur 0;
         }
         size_t k = std::min<size_t>(max_count, buffer_count);
-        std::nth_element(buf, buf + k, buffer + buffer_count, 
+        std::nth_element(buffer, buffer + k, buffer + buffer_count, 
                 [](const Candidate_CO_& a, const Candidate_CO_& b)
                 {
                     return a.EffPtr > b.EffPtr;
@@ -902,7 +903,7 @@ public:
 
     void InitRegionIndex(size_t region_size)
     {
-        if (!IfAnyValid_(idx))
+        if (!IfAnyValid_())
         {
             throw std::runtime_error("DSA not initialized");
         }
@@ -945,7 +946,7 @@ public:
     std::vector<std::pair<size_t, size_t>> ScanRelRanges(tag8_t rel_mas_low5) const noexcept
     {
         std::vector<std::pair<size_t, size_t>> out;
-        if (!IfAnyValid_)
+        if (!IfAnyValid_())
         {
             return out;
         }
@@ -978,7 +979,7 @@ public:
         
         size_t words = RelBitmaps_[0].size();
         std::vector<uint64_t> combined(words, 0ull);
-        for (unsigned bit = 0; i < SIZE_OF_BYTE_IN_BITS; bit++)
+        for (unsigned bit = 0; bit < SIZE_OF_BYTE_IN_BITS; bit++)
         {
             if (rel_mas_low5 &(1u << bit))
             {

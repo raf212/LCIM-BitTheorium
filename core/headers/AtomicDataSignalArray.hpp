@@ -73,7 +73,7 @@ private:
     //region
     size_t RegionSize_{0};
     size_t NumRegion_{0};
-    std::vector<std::atomic<uint64_t>> RegionEpoch_;
+    std::vector<packed64_t> RegionEpoch_;
     std::vector<std::atomic<uint8_t>> RegionRel_;
     std::vector<std::vector<std::atomic<uint64_t>>> RelBitmaps_; //[bit][word]
 
@@ -97,7 +97,33 @@ private:
         Occupancy_.store(0, MoStoreUnSeq_);
         ProducerCursor_.store(0, MoStoreUnSeq_);
         ConsumerCursor_.store(0, MoStoreUnSeq_);
-        RelOffSet_.assign(Capacity_, std::atomic<packed64_t>(0));
+        RelOffSet_.resize(Capacity_);
+        for (size_t i = 0; i < Capacity_; ++i) {
+            RelOffSet_[i].store(packed64_t(0), MoStoreUnSeq_);
+        }    
+    }
+
+    void InitRelRegionAndBitmap_()
+    {
+        RegionRel_.clear();
+        RegionRel_.resize(NumRegion_);
+        for (size_t i = 0; i < NumRegion_; i++)
+        {
+            RegionRel_[i].store(static_cast<tag8_t>(0), MoStoreUnSeq_);
+        }
+
+        size_t words = (NumRegion_ +(MAX_VAL -1) / MAX_VAL);
+        RelBitmaps_.clear();
+        RelBitmaps_.resize(SIZE_OF_BYTE_IN_BITS);
+        for (size_t i = 0; i < SIZE_OF_BYTE_IN_BITS; i++)
+        {
+            RelBitmaps_[i].clear();
+            RelBitmaps_[i].resize(words);
+            for (size_t j = 0; i < words; j++)
+            {
+                RelBitmaps_[i][j].store(0ull, MoStoreSeq_);
+            }
+        }
     }
 
     inline bool IfAnyValid_() const noexcept
@@ -802,7 +828,8 @@ public:
                 if (n_clk16 < clk16 && RegionSize_)
                 {
                     size_t r = idx / RegionSize_;
-                    RegionEpoch_[r].fetch_add(1, std::memory_order_acq_rel);
+                    std::atomic_ref<packed64_t>aref(RegionEpoch_[r]);
+                    aref.fetch_add(1, std::memory_order_acq_rel);
                 }
                 Backing_[idx].notify_all();
                 out_new = desired;
@@ -880,7 +907,8 @@ public:
         }
         size_t r = idx / RegionSize_;
         tag8_t mask5 = PackedCell64_t::RelMaskBSetFromRelation(relbyte);
-        RegionRel_[r].fetch_or(static_cast<tag8_t>(mask5), std::memory_order_acq_rel);
+        std::atomic_ref<tag8_t>aref8(RegionRel_[r]);
+        aref8.fetch_or(static_cast<tag8_t>(mask5), std::memory_order_acq_rel);
         size_t w = r / MAX_VAL;
         size_t b = r % MAX_VAL;
         uint64_t mask = (1ull << b);
@@ -888,7 +916,8 @@ public:
         {
             if (mask5 & (1u << i))
             {
-                RelBitmaps_[i][w].fetch_or(mask, std::memory_order_acq_rel);
+                std::atomic_ref<packed64_t>aref(RelBitmaps_[i][w]);
+                aref.fetch_or(mask, std::memory_order_acq_rel);
             }
         }
     }
@@ -926,7 +955,7 @@ public:
         RegionSize_ = region_size;
         NumRegion_ = ((Capacity_ + RegionSize_ - 1) / RegionSize_);
         RegionRel_.assign(NumRegion_, std::atomic<uint8_t>(0));
-        RelBitmaps_.assign(8, std::vector<std::atomic<uint64_t>>((NumRegion_ + (MAX_VAL - 1)) / MAX_VAL));
+        RelBitmaps_.assign(SIZE_OF_BYTE_IN_BITS, std::vector<packed64_t>((NumRegion_ + (MAX_VAL - 1)) / MAX_VAL));
         for (size_t r = 0; r < NumRegion_; r++)
         {
             size_t base = r * RegionSize_;
@@ -938,7 +967,7 @@ public:
                 tag8_t relbyte = static_cast<tag8_t>(PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(p)));
                 accum |= PackedCell64_t::RelMaskBSetFromRelation(relbyte);
             }
-            RegionRel_[r].store(accum, MoStoreSeq_);
+            RegionRel_[r] = accum;
             if (accum)
             {
                 size_t w = r / MAX_VAL;
@@ -948,7 +977,8 @@ public:
                 {
                     if (accum & (1u << bit))
                     {
-                        RelBitmaps_[bit][w].fetch_or(mask, std::memory_order_acq_rel);
+                        std::atomic_ref<packed64_t> aref(RelBitmaps_[bit][w]);
+                        aref.fetch_or(mask, std::memory_order_acq_rel);
                     }
                 }
             }
@@ -997,7 +1027,7 @@ public:
             {
                 for (size_t w = 0; w < words; w++)
                 {
-                    combined[w] |= RelBitmaps_[bit][w].load(MoLoad_);
+                    combined[w] |= RelBitmaps_[bit][w];
                 }
             }
         }
@@ -1054,7 +1084,8 @@ public:
         {
             for (auto& w : RelBitmaps_[bit])
             {
-                w.store(0ull, MoStoreSeq_);
+                std::atomic_ref<packed64_t>aref(w);
+                aref.store(0ull, MoStoreSeq_);
             }
         }
     }

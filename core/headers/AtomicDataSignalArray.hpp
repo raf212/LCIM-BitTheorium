@@ -650,7 +650,8 @@ public:
         size_t scan_limit = min(Capacity_, std::max<size_t>(available + 16, max_count * 8));
         size_t tls_cap = std::min<size_t>(Cfg_.MaxTlsCandidates, Cfg_.MaxTLS);
         thread_local Candidate_CO_ tls_buf[Cfg_.MaxTLS];
-        Candidate_CO_* buffer = tls_buf;
+        std::vector<Candidate_CO_> buffer;
+        buffer.reserve(std::min<size_t>(Cfg_.MaxGather, tls_cap));
         size_t buffer_count = 0;
         uint16_t producer_sequense16 = static_cast<uint16_t>(ProducerCursor_.load(MoLoad_) & 0xFFFFu); // why 0xFFFFu;
         size_t scans = 0;
@@ -673,7 +674,9 @@ public:
                         strl16_t c_esr = PackedCell64_t::ExtractSTRL(effec_prio_packed);
                         if (PackedCell64_t::StateFromSTRL(c_esr) == ST_PUBLISHED)
                         {
-                            buffer[buffer_count++] = Candidate_CO_{idx, cur, PackedCell64_t::ExtractValue32(effec_prio_packed), slot_seq16};
+                            Candidate_CO_ cand {idx, cur, PackedCell64_t::ExtractValue32(effec_prio_packed), slot_seq16};
+                            buffer.push_back(cand);
+                            ++buffer_count;
                         }
                     }
                 }
@@ -685,26 +688,17 @@ public:
                 idx = idx % Capacity_;
             }
         }
-        if (buffer_count == 0)
+        if (buffer.empty())
         {
             return 0; // I should define state and priority ???
         }
         size_t k = std::min<size_t>(max_count, buffer_count);
-        std::nth_element(buffer, buffer + k, buffer + buffer_count, 
-                [](const Candidate_CO_& a, const Candidate_CO_& b)
-                {
-                    return a.EffPtr > b.EffPtr;
-                }
-            );
-        std::sort(buffer, buffer + k, 
-            [] (const Candidate_CO_& a, const Candidate_CO_& b)
-            {
-                if (a.EffPtr != b.EffPtr)
-                {
-                    return a.EffPtr > b.EffPtr;
-                }
-            }
-        );
+        auto comp = [](const Candidate_CO_& a, const Candidate_CO_& b) -> bool {
+            if (a.EffPtr != b.EffPtr) return a.EffPtr > b.EffPtr;
+            return a.Idx < b.Idx;
+        };
+        std::nth_element(buffer.begin(), buffer.begin() + k, buffer.begin() + buffer_count, comp);
+        std::sort(buffer.begin(), buffer.begin() + k, comp);
         SpinBackoff in_claimbatch_spin;
         for (size_t i = 0; i < k; i++)
         {
@@ -1103,8 +1097,8 @@ public:
             {
                 out.push_back(i);
             }
-            return out;
         }
+        return out;
     }
 
     size_t GetOccupancy() const noexcept

@@ -131,27 +131,34 @@ private:
     {
         return (Backing_ && (idx < Capacity_));
     }
-    inline void CommitPayloadBasedMODE_(packed64_t payload, packed64_t& committed, size_t idx)
+
+    inline void CommitPayloadBasedMODE_(packed64_t payload, packed64_t& committed, size_t idx) noexcept
     {
         if (!IfIdxValid(idx))
         {
-            throw std::out_of_range("CommitPayloadBasedMODE_:: idx->Invalid");
+            committed = PackedCell64_t::MakeInitialPacked(MODE);
+            return;
         }
-        
-        if (payload)
+        if (payload == 0)
         {
-            if constexpr (MODE == PackedMode::MODE_VALUE32)
-            {
-                committed = PackedCell64_t::MakeCommitFromPayloadV32(payload);
-            }
-            else if constexpr (MODE == PackedMode::MODE_CLKVAL48)
-            {
-                committed = PackedCell64_t::MakeCommitFromPayloadCLK48(payload);
-            }
+            committed = PackedCell64_t::MakeInitialPacked(MODE);
+            return;
         }
-        else
+
+        strl16_t sr = PackedCell64_t::ExtractSTRL(payload);
+        tag8_t st = PackedCell64_t::StateFromSTRL(sr);
+        if (st == ST_IDLE)
         {
-            throw std::bad_alloc();
+            committed = PackedCell64_t::MakeInitialPacked(MODE);
+            return;
+        }
+        if constexpr (MODE == PackedMode::MODE_VALUE32)
+        {
+            committed = PackedCell64_t::MakeCommitFromPayloadV32(payload);
+        }
+        else if constexpr (MODE == PackedMode::MODE_CLKVAL48)
+        {
+            committed = PackedCell64_t::MakeCommitFromPayloadCLK48(payload);
         }
         Backing_[idx].store(committed, MoStoreSeq_);
         if (RegionSize_)
@@ -736,7 +743,10 @@ public:
         }
         packed64_t committed = 0;
         CommitPayloadBasedMODE_(payload, committed, idx);
-        Backing_[idx].notify_all();
+        if (committed != PackedCell64_t::MakeInitialPacked(MODE))
+        {
+            Backing_[idx].notify_all();
+        }        
     }
     
     void CommitMarkComplete(size_t idx) noexcept
@@ -748,6 +758,10 @@ public:
         packed64_t oldv = Backing_[idx].load(MoLoad_);
         packed64_t committed = 0;
         CommitPayloadBasedMODE_(oldv, committed, idx);
+        if (committed != PackedCell64_t::MakeInitialPacked(MODE))
+        {
+            Backing_[idx].notify_all();
+        }
     }
 
     inline void GetNewClock16ForThread(size_t mt, clk16_t& clk16)

@@ -69,13 +69,13 @@ private:
     //adaptivebackoff
     AtomicAdaptiveBackoff Adaptivebkof_;
     //re-offset
-    std::vector<std::atomic<packed64_t>> RelOffSet_;
+    std::vector<packed64_t> RelOffSet_;
     //region
     size_t RegionSize_{0};
     size_t NumRegion_{0};
     std::vector<packed64_t> RegionEpoch_;
-    std::vector<std::atomic<uint8_t>> RegionRel_;
-    std::vector<std::vector<std::atomic<uint64_t>>> RelBitmaps_; //[bit][word]
+    std::vector<uint8_t> RegionRel_;
+    std::vector<std::vector<uint64_t>> RelBitmaps_; //[bit][word]
 
     //master clock
     MasterClockConf* MasterClkConfigaration_;
@@ -98,9 +98,7 @@ private:
         ProducerCursor_.store(0, MoStoreUnSeq_);
         ConsumerCursor_.store(0, MoStoreUnSeq_);
         RelOffSet_.resize(Capacity_);
-        for (size_t i = 0; i < Capacity_; ++i) {
-            RelOffSet_[i].store(packed64_t(0), MoStoreUnSeq_);
-        }    
+        RelOffSet_.assign(Capacity_, packed64_t(0));
     }
 
     void InitRelRegionAndBitmap_()
@@ -109,19 +107,19 @@ private:
         RegionRel_.resize(NumRegion_);
         for (size_t i = 0; i < NumRegion_; i++)
         {
-            RegionRel_[i].store(static_cast<tag8_t>(0), MoStoreUnSeq_);
+            RegionRel_[i] = static_cast<tag8_t>(0);
         }
 
-        size_t words = (NumRegion_ +(MAX_VAL -1) / MAX_VAL);
+        size_t words = (NumRegion_ +(MAX_VAL -1)) / MAX_VAL;
         RelBitmaps_.clear();
         RelBitmaps_.resize(SIZE_OF_BYTE_IN_BITS);
         for (size_t i = 0; i < SIZE_OF_BYTE_IN_BITS; i++)
         {
             RelBitmaps_[i].clear();
             RelBitmaps_[i].resize(words);
-            for (size_t j = 0; i < words; j++)
+            for (size_t j = 0; j < words; j++)
             {
-                RelBitmaps_[i][j].store(0ull, MoStoreSeq_);
+                RelBitmaps_[i][j] = 0ull;
             }
         }
     }
@@ -503,7 +501,7 @@ public:
         size_t step = 1;
         if (Capacity_ > 1)
         {
-            static_cast<size_t>((mix % Capacity_ -1) + 1);
+            step = static_cast<size_t>((mix % Capacity_ -1) + 1);
         }
 
         size_t available = Occupancy_.load(MoLoad_);
@@ -545,88 +543,86 @@ public:
             {
                 idx = idx % Capacity_;
             }
-            if (max_scan >= 0)
+            if (max_scan >= 0 && scans >= max_scan)
             {
                 return false;
             }
-            
-            //Gather Phase
-            size_t tls_cap = std::min<size_t>(Cfg_.MaxTlsCandidates, Cfg_.MaxTLS);
+        }
+        //Gather Phase
+        size_t tls_cap = std::min<size_t>(Cfg_.MaxTlsCandidates, Cfg_.MaxTLS);
+        std::vector<Candidate_CO_> cand_buf;
+        cand_buf.reserve(std::min<size_t>(Cfg_.MaxGather, tls_cap));
+        idx = start % Capacity_;
+        scans = 0;
 
-            thread_local static Candidate_CO_ tls_cand[Cfg_.MaxTLS];
-            Candidate_CO_* cbuf = tls_cand;
-            size_t ccount = 0;
-
-            idx = start % Capacity_;
-
-            uint16_t prod_seq16 = static_cast<uint16_t>((ProducerCursor_.load(MoLoad_)) & 0xFFFFu); // why 0xFFFFu ??
-            while (scans < static_cast<int>(scan_limit) && ccount < std::min<size_t>(Cfg_.MaxGather, tls_cap))
+        uint16_t prod_seq16 = static_cast<uint16_t>((ProducerCursor_.load(MoLoad_)) & 0xFFFFu); // why 0xFFFFu ??
+        while (scans < static_cast<int>(scan_limit) && cand_buf.size() < std::min<size_t>(Cfg_.MaxGather, tls_cap))
+        {
+            packed64_t cur_2 = Backing_[idx].load(MoLoad_);
+            strl16_t csr_2 = PackedCell64_t::ExtractSTRL(cur_2);
+            if (PackedCell64_t::StateFromSTRL(csr_2) == ST_PUBLISHED)
             {
-                packed64_t cur_2 = Backing_[idx].load(MoLoad_);
-                strl16_t csr_2 = PackedCell64_t::ExtractClk16(cur_2);
-                if (PackedCell64_t::StateFromSTRL(csr) == ST_PUBLISHED)
+                tag8_t relbyte = PackedCell64_t::RelationFromSTRL(csr_2);
+                tag8_t slot_rel_mask = PackedCell64_t::RelMaskBSetFromRelation(relbyte);
+                if ((slot_rel_mask & rel_mask_low_5) != 0)
                 {
-                    tag8_t relbyte = PackedCell64_t::RelationFromSTRL(csr_2);
-                    tag8_t slot_rel_mask = PackedCell64_t::RelMaskBSetFromRelation(relbyte);
-                    if ((slot_rel_mask & rel_mask_low_5) != 0)
+                    uint16_t slot_seq16 = 0;
+                    if constexpr (MODE == PackedMode::MODE_VALUE32)
                     {
-                        uint16_t slot_seq16 = 0;
-                        if constexpr (MODE == PackedMode::MODE_VALUE32)
-                        {
-                            slot_seq16 = static_cast<clk16_t>(PackedCell64_t::ExtractClk16(cur_2));
-                        }
-                        packed64_t effect_prio_packed = ComputeEffectivePriority(slot_seq16, prod_seq16);
-                        strl16_t c_esr = PackedCell64_t::ExtractSTRL(effect_prio_packed);
-                        if (PackedCell64_t::StateFromSTRL(c_esr) == ST_PUBLISHED)
-                        {
-                            cbuf[ccount++] = Candidate_CO_ {idx, cur_2, PackedCell64_t::ExtractValue32(effect_prio_packed), slot_seq16};
-                        }
+                        slot_seq16 = static_cast<clk16_t>(PackedCell64_t::ExtractClk16(cur_2));
+                    }
+                    packed64_t effect_prio_packed = ComputeEffectivePriority(slot_seq16, prod_seq16);
+                    strl16_t c_esr = PackedCell64_t::ExtractSTRL(effect_prio_packed);
+                    if (PackedCell64_t::StateFromSTRL(c_esr) == ST_PUBLISHED)
+                    {
+                        Candidate_CO_ cand {idx, cur_2, PackedCell64_t::ExtractValue32(effect_prio_packed), slot_seq16};
+                        cand_buf.push_back(cand);
                     }
                 }
-                ++scans;
-                idx = idx + step;
-                if (idx >= Capacity_)
-                {
-                    idx = idx % Capacity_;
-                }
             }
-            if (ccount == 0)
+            ++scans;
+            idx = idx + step;
+            if (idx >= Capacity_)
             {
-                return false;
+                idx = idx % Capacity_;
             }
-            size_t best = 0;
-            for (size_t i = 0; i < ccount; i++)
-            {
-                if (cbuf[i].EffPtr > cbuf[best].EffPtr)
-                {
-                    best = i;
-                }
-            }
+        }
 
-            Candidate_CO_ best_candidate = cbuf[best];
+        if (cand_buf.empty())
+        {
+            return false;
+        }
+        size_t best = 0;
+        for (size_t i = 0; i < cand_buf.size(); i++)
+        {
+            if (cand_buf[i].EffPtr > cand_buf[best].EffPtr)
+            {
+                best = i;
+            }
+        }
+        Candidate_CO_ best_candidate = cand_buf[best];
 
-            // packed64_t desired = PackedCell64_t::SetSTRLInPacked(best_candidate, PackedCell64_t::MakeSTRL(ST_CLAIMED, PackedCell64_t::RelationFromSTRL(best_candidate.Obs)));
-            packed64_t desired = PackedCell64_t::SetSTRLInPacked(
-                best_candidate.Obs,
-                PackedCell64_t::MakeSTRL(
-                    ST_CLAIMED,
-                    PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(best_candidate.Obs))
-                )
-            );
-            //continue from here
-            packed64_t expected = best_candidate.Obs;
-            if (Backing_[best_candidate.Idx].compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_))
-            {
-                out_idx = best_candidate.Idx;
-                out_observed = best_candidate.Obs;
-                return true;
-            }
-            else
-            {
-                packed64_t latest = Backing_[best_candidate.Idx].load(MoLoad_);
-                ApplyBackoffForSlot(latest, best_candidate.Idx);
-                return false;
-            }
+        // packed64_t desired = PackedCell64_t::SetSTRLInPacked(best_candidate, PackedCell64_t::MakeSTRL(ST_CLAIMED, PackedCell64_t::RelationFromSTRL(best_candidate.Obs)));
+        packed64_t desired = PackedCell64_t::SetSTRLInPacked(
+            best_candidate.Obs,
+            PackedCell64_t::MakeSTRL(
+                ST_CLAIMED,
+                PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(best_candidate.Obs))
+            )
+        );
+        //continue from here
+        packed64_t expected = best_candidate.Obs;
+        if (Backing_[best_candidate.Idx].compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_))
+        {
+            out_idx = best_candidate.Idx;
+            out_observed = best_candidate.Obs;
+            return true;
+        }
+        else
+        {
+            packed64_t latest = Backing_[best_candidate.Idx].load(MoLoad_);
+            ApplyBackoffForSlot(latest, best_candidate.Idx);
+            return false;
         }
     }
 
@@ -779,7 +775,7 @@ public:
     {
         if (!IfIdxValid(idx))
         {
-            return false;
+            return 0;
         }
         packed64_t prev = Backing_[idx].load(MoLoad_);
         Backing_[idx].store(PackedCell64_t::MakeInitialPacked(MODE), MoStoreSeq_);
@@ -929,7 +925,8 @@ public:
         {
             return;
         }
-        RelOffSet_[idx].store(offset, MoStoreSeq_);
+        std::atomic_ref<packed64_t> aref(RelOffSet_[idx]);
+        aref.store(offset, MoStoreSeq_);
     }
 
     packed64_t GetEncodedOffset(size_t idx) const noexcept
@@ -938,7 +935,8 @@ public:
         {
             return 0;
         }
-        return RelOffSet_[idx].load(MoLoad_);
+        std::atomic_ref<const packed64_t> aref(RelOffSet_[idx]);
+        return aref.load(MoLoad_);
         
     }
 
@@ -954,8 +952,7 @@ public:
         }
         RegionSize_ = region_size;
         NumRegion_ = ((Capacity_ + RegionSize_ - 1) / RegionSize_);
-        RegionRel_.assign(NumRegion_, std::atomic<uint8_t>(0));
-        RelBitmaps_.assign(SIZE_OF_BYTE_IN_BITS, std::vector<packed64_t>((NumRegion_ + (MAX_VAL - 1)) / MAX_VAL));
+        InitRelRegionAndBitmap_();
         for (size_t r = 0; r < NumRegion_; r++)
         {
             size_t base = r * RegionSize_;

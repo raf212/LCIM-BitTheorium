@@ -362,7 +362,7 @@ public:
         size_t step = 1;
         if (Capacity_ > 1)
         {
-            step = static_cast<size_t>( mix % (Capacity_ -1));
+            step = static_cast<size_t>((mix % Capacity_ -1) + 1);
         }
         
         SpinBackoff spin_backoff;
@@ -383,7 +383,7 @@ public:
                     {
                         clk16_t oldclk = PackedCell64_t::ExtractClk16(to_write);
                         clk16_t nclk = static_cast<clk16_t>(oldclk + 1u);
-                        strl16_t sr2 = PackedCell64_t::ExtractClk16(to_write);
+                        strl16_t sr2 = PackedCell64_t::ExtractSTRL(to_write);
                         tag8_t relbyte = PackedCell64_t::RelationFromSTRL(sr2);
                         val32_t v = PackedCell64_t::ExtractValue32(to_write);
                         to_write = PackedCell64_t::PackV32x_64(v, nclk, ST_PUBLISHED, relbyte);
@@ -646,7 +646,7 @@ public:
         size_t step = 1;
         if (Capacity_ > 1)
         {
-            step = static_cast<size_t>(mix % (Capacity_ - 1)+ 1);
+            step = static_cast<size_t>((mix % Capacity_ - 1) + 1);
         }
         size_t available = Occupancy_.load(MoLoad_);
         if (available == 0)

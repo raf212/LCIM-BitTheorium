@@ -97,7 +97,6 @@ private:
         Occupancy_.store(0, MoStoreUnSeq_);
         ProducerCursor_.store(0, MoStoreUnSeq_);
         ConsumerCursor_.store(0, MoStoreUnSeq_);
-        RelOffSet_.resize(Capacity_);
         RelOffSet_.assign(Capacity_, packed64_t(0));
     }
 
@@ -176,7 +175,7 @@ public:
     AtomicDataSignalArray(const AtomicDataSignalArray&) = delete;
     AtomicDataSignalArray& operator = (const AtomicDataSignalArray&) = delete;
     
-    void InitOwned(size_t capacity, int node = REL_NODE0, ADSAConfig cfg = {}, size_t alignment = 64)
+    void InitOwned(size_t capacity, int node = REL_NONE, ADSAConfig cfg = {}, size_t alignment = 64)
     {
         FreeAll();
         if (capacity == 0)
@@ -274,7 +273,7 @@ public:
     size_t AttachThreadMasterClockID(size_t m_id) noexcept
     {
         size_t prev = ADSAThreadLocalMID_();
-        ADSAThreadLocalMID_() = MasterClkConfigaration_;
+        ADSAThreadLocalMID_() = m_id;
         if (MasterClkConfigaration_)
         {
             (void)MasterClkConfigaration_->AttachThreadMClockID(m_id);
@@ -398,12 +397,12 @@ public:
                     if (RegionSize_)
                     {
                         UpdateRegionRelForIndex(idx, PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(to_write)));
-                        Occupancy_.fetch_add(1, std::memory_order_acq_rel);
-                        Backing_[idx].notify_all();
-                        return {PublishStatus::OK, idx};
                     }
-                    spin_backoff.SpinOnce();
+                    Occupancy_.fetch_add(1, std::memory_order_acq_rel);
+                    Backing_[idx].notify_all();
+                    return {PublishStatus::OK, idx};
                 }
+                
                 ++probs;
                 if ((max_prob >= 0) && (probs >= max_prob))
                 {
@@ -761,7 +760,7 @@ public:
         }
         else
         {
-            throw std::nullopt;
+            throw std::runtime_error("MasterClock not configured or thread id not attached");
         }
     }
 
@@ -773,7 +772,7 @@ public:
         }
         packed64_t prev = Backing_[idx].load(MoLoad_);
         Backing_[idx].store(PackedCell64_t::MakeInitialPacked(MODE), MoStoreSeq_);
-        Occupancy_.fetch_add(1, std::memory_order_acq_rel);
+        Occupancy_.fetch_sub(1, std::memory_order_acq_rel);
         Backing_[idx].notify_all();
         return prev;
         

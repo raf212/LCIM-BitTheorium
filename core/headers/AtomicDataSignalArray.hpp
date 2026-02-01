@@ -121,6 +121,7 @@ private:
                 RelBitmaps_[i][j] = 0ull;
             }
         }
+        RegionEpoch_.assign(NumRegion_, 0ull);
     }
 
     inline bool IfAnyValid_() const noexcept
@@ -362,7 +363,7 @@ public:
         size_t step = 1;
         if (Capacity_ > 1)
         {
-            step = static_cast<size_t>((mix % Capacity_ -1) + 1);
+            step = static_cast<size_t>((mix % (Capacity_ - 1)) + 1);
         }
         
         SpinBackoff spin_backoff;
@@ -507,7 +508,7 @@ public:
         size_t step = 1;
         if (Capacity_ > 1)
         {
-            step = static_cast<size_t>((mix % Capacity_ -1) + 1);
+            step = static_cast<size_t>((mix % (Capacity_ - 1)) + 1);
         }
 
         size_t available = Occupancy_.load(MoLoad_);
@@ -646,7 +647,7 @@ public:
         size_t step = 1;
         if (Capacity_ > 1)
         {
-            step = static_cast<size_t>((mix % Capacity_ - 1) + 1);
+            step = static_cast<size_t>((mix % (Capacity_ - 1)) + 1);
         }
         size_t available = Occupancy_.load(MoLoad_);
         if (available == 0)
@@ -710,7 +711,7 @@ public:
         {
             Candidate_CO_& c = buffer[i];
             packed64_t desired = PackedCell64_t::SetSTRLInPacked(c.Obs, PackedCell64_t::MakeSTRL(ST_CLAIMED, PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(c.Obs))));
-            packed64_t expected = desired;
+            packed64_t expected = c.Obs;
             if (Backing_[c.Idx].compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_))
             {
                 out.emplace_back(c.Idx, c.Obs);
@@ -965,7 +966,7 @@ public:
             size_t base = r * RegionSize_;
             size_t end = min(Capacity_, base + RegionSize_);
             uint8_t accum = 0;
-            for (size_t i = 0; i < end; i++)
+            for (size_t i = base; i < end; i++)
             {
                 packed64_t p = Backing_[i].load(MoLoad_);
                 tag8_t relbyte = static_cast<tag8_t>(PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(p)));

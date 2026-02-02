@@ -60,25 +60,37 @@ namespace AtomicCScompact {
     static constexpr unsigned MASK_OF_RELBIT = 5u;
     static constexpr unsigned CLK48TO16_PACKED_ERROR = 16u;
 
+    //STRL->[priority | locality | relmask | reloffset]->(4 * 4) = 16 bit
+    static constexpr unsigned STRL_DIVISION_CONST = 4u;
 
-// States (8-bit) - keep your canonical names
-static constexpr tag8_t ST_IDLE        = 0x00;
-static constexpr tag8_t ST_PUBLISHED   = 0x01;
-static constexpr tag8_t ST_PENDING     = 0x02;
-static constexpr tag8_t ST_CLAIMED     = 0x03;
-static constexpr tag8_t ST_PROCESSING  = 0x04;
-static constexpr tag8_t ST_COMPLETE    = 0x05;
-static constexpr tag8_t ST_RETIRED     = 0x06;
-static constexpr tag8_t ST_EPOCH_BUMP  = 0x07;
-static constexpr tag8_t ST_LOCKED      = 0x08;
+    static constexpr tag8_t STRL_DIVISION_MASK_4 = static_cast<tag8_t>((1u << STRL_DIVISION_CONST) - 1u);
+
+
+    //priority(4 bit)
+    static constexpr tag8_t PRIORITY_MIN = 0;
+    static constexpr tag8_t PRIORITY_MAX = static_cast<tag8_t>(STRL_DIVISION_MASK_4);
+    // locality (4-bit)
+    static constexpr tag8_t ST_IDLE        = 0x00;
+    static constexpr tag8_t ST_PUBLISHED   = 0x01;
+    static constexpr tag8_t ST_PENDING     = 0x02;
+    static constexpr tag8_t ST_CLAIMED     = 0x03;
+    static constexpr tag8_t ST_PROCESSING  = 0x04;
+    static constexpr tag8_t ST_COMPLETE    = 0x05;
+    static constexpr tag8_t ST_RETIRED     = 0x06;
+    static constexpr tag8_t ST_EPOCH_BUMP  = 0x07;
+    static constexpr tag8_t ST_LOCKED      = 0x08;
+
+    //Relation(4 + 4) = 8 bit
+    static constexpr tag8_t REL_NONE        = 0x00;
+    static constexpr tag8_t REL_NODE0       = 0x01;
+    static constexpr tag8_t REL_NODE1       = 0x02;
+    static constexpr tag8_t REL_PAGE        = 0x04;
+    static constexpr tag8_t REL_PATTERN     = 0x08;
+    static constexpr tag8_t REL_SELF        = 0x01; // reused
+    static constexpr tag8_t REL_ALL_LOW_4   = static_cast<tag8_t>(STRL_DIVISION_MASK_4);
 
 // Relation masks: keep lower-5-bit usage for relation masks (0..4). Priority will live in bits 7..5.
-static constexpr tag8_t REL_NONE        = 0x00;
-static constexpr tag8_t REL_NODE0       = 0x01;
-static constexpr tag8_t REL_NODE1       = 0x02;
-static constexpr tag8_t REL_PAGE        = 0x04;
-static constexpr tag8_t REL_PATTERN     = 0x08;
-static constexpr tag8_t REL_SELF        = 0x10;
+
 static constexpr tag8_t REL_ALL_LOW5    = 0x1F; // all low-5 relation bits
 static constexpr uint8_t MAX_PRIORITY   = 7;
 

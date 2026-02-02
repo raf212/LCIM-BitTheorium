@@ -89,8 +89,70 @@ namespace AtomicCScompact {
     static constexpr tag8_t REL_SELF        = 0x01; // reused
     static constexpr tag8_t REL_ALL_LOW_4   = static_cast<tag8_t>(STRL_DIVISION_MASK_4);
 
-// Relation masks: keep lower-5-bit usage for relation masks (0..4). Priority will live in bits 7..5.
+    inline constexpr strl16_t MakeSTRL4_t(tag8_t priority, tag8_t locality, tag8_t rel_mask, tag8_t rel_offset) noexcept
+    {
+        strl16_t prio = static_cast<strl16_t>(priority & STRL_DIVISION_MASK_4);
+        strl16_t loc = static_cast<strl16_t>(locality & STRL_DIVISION_MASK_4);
+        strl16_t rm = static_cast<strl16_t>(rel_mask & STRL_DIVISION_MASK_4);
+        strl16_t ro = static_cast<strl16_t>(rel_offset & STRL_DIVISION_MASK_4);
 
+        strl16_t strl = static_cast<strl16_t>(
+            (prio << (SIZE_OF_BYTE_IN_BITS + STRL_DIVISION_CONST))
+            | (loc << SIZE_OF_BYTE_IN_BITS)
+            | (rm << STRL_DIVISION_CONST)
+            |ro
+        );
+        return strl;
+    }
+
+    inline constexpr tag8_t ExtractPriorityFromSTRL(strl16_t strl) noexcept
+    {
+        return static_cast<tag8_t>((strl >> (SIZE_OF_BYTE_IN_BITS + STRL_DIVISION_CONST)) & STRL_DIVISION_MASK_4);
+    }
+    
+    inline constexpr tag8_t ExtractLocalityFromSTRL(strl16_t strl) noexcept
+    {
+        return static_cast<tag8_t>((strl >> SIZE_OF_BYTE_IN_BITS) & STRL_DIVISION_MASK_4);
+    }
+
+    inline constexpr tag8_t ExtractRelMaskFromSTRL(strl16_t strl) noexcept
+    {
+        return static_cast<tag8_t>((strl >> STRL_DIVISION_CONST) & STRL_DIVISION_MASK_4);
+    }
+
+    inline constexpr tag8_t ExtractRelOffsetFromSTRL(strl16_t strl) noexcept
+    {
+        return static_cast<tag8_t>(strl & STRL_DIVISION_MASK_4);
+    }
+
+    inline constexpr tag8_t MakeRelByte(tag8_t rel_mask, tag8_t rel_offset) noexcept
+    {
+        return static_cast<tag8_t>(
+            (static_cast<tag8_t>(rel_mask & STRL_DIVISION_MASK_4) << STRL_DIVISION_CONST)
+            | static_cast<tag8_t>(rel_offset & STRL_DIVISION_MASK_4)
+        );
+    }
+
+    inline constexpr int8_t DecodeRelOffsetSigned(tag8_t reloffset) noexcept
+    {
+        tag8_t r = reloffset & STRL_DIVISION_MASK_4;
+        if (r & (1u << (STRL_DIVISION_CONST -1)))
+        {
+            return static_cast<tag8_t>(static_cast<int8_t>(r) | static_cast<int8_t>(~((1 << STRL_DIVISION_CONST) - 1)));
+        }
+        return static_cast<int8_t>(r);
+    }
+
+    inline constexpr bool ISRelOffsetEscaped(tag8_t reloffset) noexcept
+    {
+        return ((reloffset & STRL_DIVISION_MASK_4) == STRL_DIVISION_MASK_4);
+    }
+
+    inline constexpr bool DoseRelMatch(tag8_t slot_relbyte, tag8_t relmask) noexcept
+    {
+        tag8_t slot_rm = static_cast<tag8_t>((slot_relbyte >> STRL_DIVISION_CONST) & STRL_DIVISION_MASK_4);
+        return ((slot_rm & (relmask & STRL_DIVISION_MASK_4)) != 0);
+    }
 static constexpr tag8_t REL_ALL_LOW5    = 0x1F; // all low-5 relation bits
 static constexpr uint8_t MAX_PRIORITY   = 7;
 

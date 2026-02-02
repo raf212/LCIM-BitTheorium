@@ -79,6 +79,7 @@ namespace AtomicCScompact
         {
             return static_cast<strl16_t>((static_cast<strl16_t>(st) << STBITS) | static_cast<strl16_t>(rel));
         }
+        
 
         static inline bool RelationMatches(tag8_t slot_rel, tag8_t rel_mask) noexcept
         {

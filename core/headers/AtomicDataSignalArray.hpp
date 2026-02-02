@@ -54,8 +54,9 @@ struct PublishResult
 template<PackedMode MODE>
 class AtomicDataSignalArray
 {
+public:
+    std::atomic<packed64_t>* BackingPtr{nullptr};
 private:
-    std::atomic<packed64_t>* Backing_{nullptr};
     size_t Capacity_{0};
     bool Owned_{false};
     int UsedNode_{0};
@@ -126,11 +127,11 @@ private:
 
     inline bool IfAnyValid_() const noexcept
     {
-        return Backing_ && Capacity_ > 0;
+        return BackingPtr && Capacity_ > 0;
     }
     inline bool IfIdxValid(size_t idx) const noexcept
     {
-        return (Backing_ && (idx < Capacity_));
+        return (BackingPtr && (idx < Capacity_));
     }
 
     inline void CommitPayloadBasedMODE_(packed64_t payload, packed64_t& committed, size_t idx) noexcept
@@ -161,7 +162,7 @@ private:
         {
             committed = PackedCell64_t::MakeCommitFromPayloadCLK48(payload);
         }
-        Backing_[idx].store(committed, MoStoreSeq_);
+        BackingPtr[idx].store(committed, MoStoreSeq_);
         if (RegionSize_)
         {
             UpdateRegionRelForIndex(idx, PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(committed)));
@@ -170,7 +171,7 @@ private:
 
 public:
     AtomicDataSignalArray() noexcept :
-        Backing_(nullptr), Capacity_(0), Owned_(false), UsedNode_(0),
+        BackingPtr(nullptr), Capacity_(0), Owned_(false), UsedNode_(0),
         Cfg_(), Adaptivebkof_(typename AtomicAdaptiveBackoff::PCBCfg{}, MODE),
         RegionSize_(0), NumRegion_(0), MasterClkConfigaration_(nullptr)
     {}
@@ -197,11 +198,11 @@ public:
         {
             throw std::bad_alloc();
         }
-        Backing_ = reinterpret_cast<std::atomic<packed64_t>*>(mem);
+        BackingPtr = reinterpret_cast<std::atomic<packed64_t>*>(mem);
         packed64_t idle = PackedCell64_t::MakeInitialPacked(MODE);
         for (size_t i = 0; i < capacity; i++)
         {
-            new (&Backing_[i]) std::atomic<packed64_t>(idle); 
+            new (&BackingPtr[i]) std::atomic<packed64_t>(idle); 
         }
         Capacity_ = capacity;
         Owned_ = true;
@@ -228,7 +229,7 @@ public:
             throw std::invalid_argument("capacity == 0");
         }
 
-        Backing_ = backing;
+        BackingPtr = backing;
         Capacity_ = capacity;
         Owned_ = false;
         UsedNode_ = -1;
@@ -244,20 +245,20 @@ public:
 
     void FreeAll()
     {
-        if (Backing_)
+        if (BackingPtr)
         {
             if (Owned_)
             {
                 for (size_t i = 0; i < Capacity_; i++)
                 {
-                    Backing_[i].~atomic<packed64_t>();
+                    BackingPtr[i].~atomic<packed64_t>();
                 }
                 size_t bytes = sizeof(std::atomic<packed64_t>) * Capacity_;
-                AllocNW::FreeONNode(static_cast<void*>(Backing_), bytes);
+                AllocNW::FreeONNode(static_cast<void*>(BackingPtr), bytes);
             }
         }
 
-        Backing_ = nullptr;
+        BackingPtr = nullptr;
         Capacity_ = 0;
         Owned_ = false;
         RelOffSet_.clear();
@@ -372,7 +373,7 @@ public:
         int probs = 0;
         while (true)
         {
-            packed64_t cur = Backing_[idx].load(MoLoad_);
+            packed64_t cur = BackingPtr[idx].load(MoLoad_);
             strl16_t csr = PackedCell64_t::ExtractSTRL(cur);
             tag8_t stcur = PackedCell64_t::StateFromSTRL(csr);
             if (stcur == ST_IDLE)
@@ -400,14 +401,14 @@ public:
                 }
                 
                 packed64_t expected = cur;
-                if (Backing_[idx].compare_exchange_strong(expected, to_write, EXsuccess_, EXfailure_))
+                if (BackingPtr[idx].compare_exchange_strong(expected, to_write, EXsuccess_, EXfailure_))
                 {
                     if (RegionSize_)
                     {
                         UpdateRegionRelForIndex(idx, PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(to_write)));
                     }
                     Occupancy_.fetch_add(1, std::memory_order_acq_rel);
-                    Backing_[idx].notify_all();
+                    BackingPtr[idx].notify_all();
                     return {PublishStatus::OK, idx};
                 }
                 
@@ -449,13 +450,13 @@ public:
         for (size_t i = 0; i < n; i++)
         {
             size_t idx = (reserved_base + i) % Capacity_;
-            packed64_t cur = Backing_[idx].load(MoLoad_);
+            packed64_t cur = BackingPtr[idx].load(MoLoad_);
             if (PackedCell64_t::StateFromSTRL(PackedCell64_t::ExtractSTRL(cur)) != ST_IDLE)
             {
                 return {PublishStatus::FULL, idx};
             }
             packed64_t expected = cur;
-            if (!Backing_[idx].compare_exchange_strong(expected, items[i], EXsuccess_, EXfailure_))
+            if (!BackingPtr[idx].compare_exchange_strong(expected, items[i], EXsuccess_, EXfailure_))
             {
                 return {PublishStatus::FULL, idx};
             }
@@ -465,7 +466,7 @@ public:
             }
             Occupancy_.fetch_add(1, std::memory_order_acq_rel);
         }
-        Backing_[reserved_base % Capacity_].notify_all();
+        BackingPtr[reserved_base % Capacity_].notify_all();
         return {PublishStatus::OK, reserved_base % Capacity_};  
     }
 
@@ -522,7 +523,7 @@ public:
         int scans = 0;
         while (scans < static_cast<int>(scan_limit))
         {
-            packed64_t cur = Backing_[idx].load(MoLoad_);
+            packed64_t cur = BackingPtr[idx].load(MoLoad_);
             strl16_t csr = PackedCell64_t::ExtractSTRL(cur);
             if (PackedCell64_t::StateFromSTRL(csr) == ST_PUBLISHED)
             {
@@ -532,7 +533,7 @@ public:
                 {
                     packed64_t desired = PackedCell64_t::SetSTRLInPacked(cur, PackedCell64_t::MakeSTRL(ST_CLAIMED, relbyte));
                     packed64_t expected = cur;
-                    if (Backing_[idx].compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_))
+                    if (BackingPtr[idx].compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_))
                     {
                         out_idx = idx;
                         out_observed = cur;
@@ -565,7 +566,7 @@ public:
         uint16_t prod_seq16 = static_cast<uint16_t>((ProducerCursor_.load(MoLoad_)) & 0xFFFFu); // why 0xFFFFu ??
         while (scans < static_cast<int>(scan_limit) && cand_buf.size() < std::min<size_t>(Cfg_.MaxGather, tls_cap))
         {
-            packed64_t cur_2 = Backing_[idx].load(MoLoad_);
+            packed64_t cur_2 = BackingPtr[idx].load(MoLoad_);
             strl16_t csr_2 = PackedCell64_t::ExtractSTRL(cur_2);
             if (PackedCell64_t::StateFromSTRL(csr_2) == ST_PUBLISHED)
             {
@@ -619,7 +620,7 @@ public:
         );
         //continue from here
         packed64_t expected = best_candidate.Obs;
-        if (Backing_[best_candidate.Idx].compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_))
+        if (BackingPtr[best_candidate.Idx].compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_))
         {
             out_idx = best_candidate.Idx;
             out_observed = best_candidate.Obs;
@@ -627,7 +628,7 @@ public:
         }
         else
         {
-            packed64_t latest = Backing_[best_candidate.Idx].load(MoLoad_);
+            packed64_t latest = BackingPtr[best_candidate.Idx].load(MoLoad_);
             ApplyBackoffForSlot(latest, best_candidate.Idx);
             return false;
         }
@@ -665,7 +666,7 @@ public:
         idx = start % Capacity_;
         while (scans < scan_limit && buffer_count < std::min<size_t>(Cfg_.MaxGather, tls_cap))
         {
-            packed64_t cur = Backing_[idx].load(MoLoad_);
+            packed64_t cur = BackingPtr[idx].load(MoLoad_);
             strl16_t csr = PackedCell64_t::ExtractSTRL(cur);
             if (PackedCell64_t::StateFromSTRL(csr) == ST_PUBLISHED)
             {
@@ -712,13 +713,13 @@ public:
             Candidate_CO_& c = buffer[i];
             packed64_t desired = PackedCell64_t::SetSTRLInPacked(c.Obs, PackedCell64_t::MakeSTRL(ST_CLAIMED, PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(c.Obs))));
             packed64_t expected = c.Obs;
-            if (Backing_[c.Idx].compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_))
+            if (BackingPtr[c.Idx].compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_))
             {
                 out.emplace_back(c.Idx, c.Obs);
             }
             else
             {
-                packed64_t latest = Backing_[c.Idx].load(MoLoad_);
+                packed64_t latest = BackingPtr[c.Idx].load(MoLoad_);
                 ApplyBackoffForSlot(latest, c.Idx);
                 in_claimbatch_spin.SpinOnce();
             }
@@ -746,7 +747,7 @@ public:
         CommitPayloadBasedMODE_(payload, committed, idx);
         if (committed != PackedCell64_t::MakeInitialPacked(MODE))
         {
-            Backing_[idx].notify_all();
+            BackingPtr[idx].notify_all();
         }        
     }
     
@@ -756,12 +757,12 @@ public:
         {
             return;
         }
-        packed64_t oldv = Backing_[idx].load(MoLoad_);
+        packed64_t oldv = BackingPtr[idx].load(MoLoad_);
         packed64_t committed = 0;
         CommitPayloadBasedMODE_(oldv, committed, idx);
         if (committed != PackedCell64_t::MakeInitialPacked(MODE))
         {
-            Backing_[idx].notify_all();
+            BackingPtr[idx].notify_all();
         }
     }
 
@@ -785,10 +786,10 @@ public:
         {
             return 0;
         }
-        packed64_t prev = Backing_[idx].load(MoLoad_);
-        Backing_[idx].store(PackedCell64_t::MakeInitialPacked(MODE), MoStoreSeq_);
+        packed64_t prev = BackingPtr[idx].load(MoLoad_);
+        BackingPtr[idx].store(PackedCell64_t::MakeInitialPacked(MODE), MoStoreSeq_);
         Occupancy_.fetch_sub(1, std::memory_order_acq_rel);
-        Backing_[idx].notify_all();
+        BackingPtr[idx].notify_all();
         return prev;
         
     }
@@ -819,7 +820,7 @@ public:
         {
             return false;
         }
-        packed64_t oldv = Backing_[idx].load(MoLoad_);
+        packed64_t oldv = BackingPtr[idx].load(MoLoad_);
         while (true)
         {
             val32_t v = 0; clk16_t clk16 = 0; tag8_t st = 0; tag8_t rel = 0;
@@ -827,7 +828,7 @@ public:
             clk16_t n_clk16 = static_cast<clk16_t>(clk16 + delta);
             packed64_t desired = PackedCell64_t::PackV32x_64(v, n_clk16, ST_PUBLISHED, rel);
             packed64_t expect = oldv;
-            if (Backing_[idx].compare_exchange_strong(expect, desired, EXsuccess_, EXfailure_))
+            if (BackingPtr[idx].compare_exchange_strong(expect, desired, EXsuccess_, EXfailure_))
             {
                 if (n_clk16 < clk16 && RegionSize_)
                 {
@@ -835,7 +836,7 @@ public:
                     std::atomic_ref<packed64_t>aref(RegionEpoch_[r]);
                     aref.fetch_add(1, std::memory_order_acq_rel);
                 }
-                Backing_[idx].notify_all();
+                BackingPtr[idx].notify_all();
                 out_new = desired;
                 return true;
             }
@@ -851,18 +852,18 @@ public:
         }
         if (timeout_ms < 0)
         {
-            Backing_[idx].wait(expected);
+            BackingPtr[idx].wait(expected);
             return true;
         }
         auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
         while (std::chrono::steady_clock::now() < deadline)
         {
-            packed64_t cur = Backing_[idx].load(MoLoad_);
+            packed64_t cur = BackingPtr[idx].load(MoLoad_);
             if (cur != expected)
             {
                 return true;
             }
-            Backing_[idx].wait(expected);
+            BackingPtr[idx].wait(expected);
         }
         return false;
     }
@@ -883,7 +884,7 @@ public:
             while((std::chrono::steady_clock::now() - start) < dur)
             {
                 CpuRelaxHint();
-                packed64_t cur = Backing_[idx].load(MoLoad_);
+                packed64_t cur = BackingPtr[idx].load(MoLoad_);
                 if (cur != observed)
                 {
                     break;
@@ -893,12 +894,12 @@ public:
         }
         else if (decision.Action == PAct::PARK_FOR_US)
         {
-            Backing_[idx].wait(observed);
+            BackingPtr[idx].wait(observed);
             return;
         }
         else
         {
-            Backing_[idx].wait(observed);
+            BackingPtr[idx].wait(observed);
             return;
         }
     }
@@ -968,7 +969,7 @@ public:
             uint8_t accum = 0;
             for (size_t i = base; i < end; i++)
             {
-                packed64_t p = Backing_[i].load(MoLoad_);
+                packed64_t p = BackingPtr[i].load(MoLoad_);
                 tag8_t relbyte = static_cast<tag8_t>(PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(p)));
                 accum |= PackedCell64_t::RelMaskBSetFromRelation(relbyte);
             }
@@ -1002,7 +1003,7 @@ public:
             size_t i = 0;
             while (i < Capacity_)
             {
-                packed64_t p = Backing_[i].load(MoLoad_);
+                packed64_t p = BackingPtr[i].load(MoLoad_);
                 tag8_t relbyte = PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(p));
                 if ((PackedCell64_t::RelMaskBSetFromRelation(relbyte) & rel_mas_low5) == 0)
                 {
@@ -1012,7 +1013,7 @@ public:
                 size_t s = i++;
                 while (i < Capacity_)
                 {
-                    packed64_t q = Backing_[i].load(MoLoad_);
+                    packed64_t q = BackingPtr[i].load(MoLoad_);
                     if ((PackedCell64_t::RelMaskBSetFromRelation(PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(q))) & rel_mas_low5) == 0)
                     {
                         break;
@@ -1053,7 +1054,7 @@ public:
                 size_t i = base;
                 while(i < end)
                 {
-                    packed64_t p = Backing_[i].load(MoLoad_);
+                    packed64_t p = BackingPtr[i].load(MoLoad_);
                     strl16_t sr = PackedCell64_t::ExtractSTRL(p);
                     tag8_t relbyte = PackedCell64_t::RelationFromSTRL(sr);
                     if ((PackedCell64_t::RelMaskBSetFromRelation(relbyte) & rel_mas_low5) == 0)
@@ -1064,7 +1065,7 @@ public:
                     size_t s = i++;
                     while (i < end)
                     {
-                        packed64_t q = Backing_[i].load(MoLoad_);
+                        packed64_t q = BackingPtr[i].load(MoLoad_);
                         if ((PackedCell64_t::RelMaskBSetFromRelation(PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(q))) & rel_mas_low5) == 0)
                         {
                             break;
@@ -1105,7 +1106,7 @@ public:
         out.reserve(MAX_VAL);
         for (size_t i = 0; i < Capacity_; i++)
         {
-            packed64_t p = Backing_[i].load(MoLoad_);
+            packed64_t p = BackingPtr[i].load(MoLoad_);
             tag8_t st = PackedCell64_t::StateFromSTRL(PackedCell64_t::ExtractSTRL(p));
             if (st == st_filter)
             {

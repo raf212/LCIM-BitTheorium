@@ -624,7 +624,6 @@ public:
 
     packed64_t ClaimBatch(tag8_t rel_mask_low5, std::vector<std::pair<size_t, packed64_t>>& out, size_t max_count) noexcept
     {
-        uint8_t this_prio = 4;
         out.clear();
         if (!IfAnyValid_() || max_count == 0)
         {
@@ -721,7 +720,8 @@ public:
         clk16_t in_cb_clk16 = 0;
         GetNewClock16ForThread(mt, in_cb_clk16);
 
-        packed64_t size_of_batch = PackedCell64_t::PackV32x_64(static_cast<val32_t>(out.size()),in_cb_clk16, ST_PUBLISHED, PackedCell64_t::PackRel8x_t(REL_NONE, this_prio));
+        strl16_t sob_strl = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, REL_NONE, REL_NONE);
+        packed64_t size_of_batch = PackedCell64_t::ComposeValue32x_64(static_cast<val32_t>(out.size()), in_cb_clk16, sob_strl);
         return size_of_batch;
     }
     
@@ -785,7 +785,7 @@ public:
     inline packed64_t ComputeEffectivePriority(uint16_t slot_seq16, uint16_t prod_seq16) noexcept
     {
         
-        uint8_t prio_of_this = 4;
+        strl16_t pb_sr = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, REL_NONE, REL_NONE);
         uint16_t age = static_cast<uint16_t>(prod_seq16 - slot_seq16);
         int age_bonus = std::min<int>(MAX_PRIORITY, (age >> 8)); //why the bit shift and why MAX_PRIORITY??(MAX_PRIORITY==7) 
         size_t mt = ADSAThreadLocalMID_();
@@ -793,11 +793,11 @@ public:
         {
             clk16_t cep_clk16 = 0;
             GetNewClock16ForThread(mt, cep_clk16);
-            packed64_t  packed_bonus = PackedCell64_t::PackV32x_64(static_cast<uint32_t>(age_bonus), cep_clk16, ST_PUBLISHED, PackedCell64_t::PackRel8x_t(REL_NONE, prio_of_this));
+            packed64_t packed_bonus = PackedCell64_t::ComposeValue32x_64(static_cast<val32_t>(age_bonus), cep_clk16, pb_sr);
             return packed_bonus;
         }
         clk16_t clk16 = 0;
-        packed64_t  packed_bonus = PackedCell64_t::PackV32x_64(static_cast<uint32_t>(age_bonus), clk16, ST_PUBLISHED, PackedCell64_t::PackRel8x_t(REL_NONE, prio_of_this));
+        packed64_t  packed_bonus = PackedCell64_t::ComposeValue32x_64(static_cast<val32_t>(age_bonus), clk16, pb_sr);
         return packed_bonus;
     }
 

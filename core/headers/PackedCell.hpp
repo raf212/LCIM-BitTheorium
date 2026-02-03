@@ -171,10 +171,6 @@ namespace AtomicCScompact
 
 
         //old functions
-        static inline tag8_t PackRel8x_t(tag8_t rel_mask_5, tag8_t priority_3) noexcept
-        {
-            return static_cast<tag8_t>(((priority_3 & RELATION_PRIORITY) << MASK_OF_RELBIT) | (rel_mask_5 & RELATION_MASK_5));
-        }
 
         static inline bool RelationMatches(tag8_t slot_rel, tag8_t rel_mask) noexcept
         {

@@ -97,7 +97,8 @@ int main() {
     // publish an item with REL_NODE0 and try claim with REL_NODE0 mask
     // -------------------
     // Prepare payload with REL_NODE0
-    packed64_t payload_node0 = PackedCell64_t::PackV32x_64(42u, 1u, ST_PUBLISHED, PackedCell64_t::PackRel8x_t(REL_NODE0, 3));
+    strl16_t n0_sr = MakeSTRL4_t(3, ST_PUBLISHED, REL_NODE0, REL_NONE);
+    packed64_t payload_node0 = PackedCell64_t::ComposeValue32x_64(42u, 1u, n0_sr);
     PublishResult p3 = dsa_v32.PublishPackedOfADSA(payload_node0);
     LOG("Published payload_node0 idx=" + std::to_string(p3.index));
     size_t out_idx = SIZE_MAX;
@@ -118,7 +119,8 @@ int main() {
     // ClaimOne relation mismatch (expected fail)
     // Publish REL_NONE and try ClaimOne(REL_ALL_LOW5) -> should fail (intentional behaviour)
     // -------------------
-    packed64_t payload_none = PackedCell64_t::PackV32x_64(99u, 2u, ST_PUBLISHED, PackedCell64_t::PackRel8x_t(REL_NONE, 0));
+    strl16_t drn_sr = MakeSTRL4_t(0, ST_PUBLISHED, REL_NONE, REL_NONE);
+    packed64_t payload_none = PackedCell64_t::ComposeValue32x_64(99u, 2u, drn_sr);
     PublishResult p4 = dsa_v32.PublishPackedOfADSA(payload_none);
     LOG("Published payload_none idx=" + std::to_string(p4.index));
     size_t out_idx2 = SIZE_MAX;
@@ -133,7 +135,8 @@ int main() {
     // publish several items with REL_NODE1
     std::vector<packed64_t> many;
     for (uint32_t i = 0; i < 10; ++i) {
-        packed64_t pa = PackedCell64_t::PackV32x_64(100 + i, static_cast<clk16_t>(i+10), ST_PUBLISHED, PackedCell64_t::PackRel8x_t(REL_NODE1, 2));
+        strl16_t pa_sr = MakeSTRL4_t(2, ST_PUBLISHED, REL_NODE1, REL_NONE);
+        packed64_t pa = PackedCell64_t::ComposeValue32x_64(100 + i, static_cast<clk16_t>(i + 10), pa_sr);
         dsa_v32.PublishPackedOfADSA(pa);
         many.push_back(pa);
     }
@@ -153,7 +156,8 @@ int main() {
     // TryIncrementClk16LowLevel test
     // -------------------
     // publish a value to idx_inc directly via PublishPackedOfADSA to set clk
-    packed64_t ppub = PackedCell64_t::PackV32x_64(0xABCu, 0xFFF0u, ST_PUBLISHED, PackedCell64_t::PackRel8x_t(REL_SELF, 1));
+    strl16_t ppub_sr = MakeSTRL4_t(1, ST_PUBLISHED, REL_SELF, REL_NONE);
+    packed64_t ppub = PackedCell64_t::ComposeValue32x_64(0xABCu, 0xFFF0u, ppub_sr);
     PublishResult presIdx = dsa_v32.PublishPackedOfADSA(ppub);
     LOG("Published for increment test idx=" + std::to_string(presIdx.index));
     packed64_t out_new = 0;
@@ -182,8 +186,9 @@ int main() {
     // pick slot S
     size_t aba_slot = 3;
     // Make A and B distinct published words
-    packed64_t A = PackedCell64_t::PackV32x_64(0xAAu, clk16_t(0x1234), ST_PUBLISHED, PackedCell64_t::PackRel8x_t(REL_SELF, 1));
-    packed64_t B = PackedCell64_t::PackV32x_64(0xBBu, clk16_t(0x2222), ST_PUBLISHED, PackedCell64_t::PackRel8x_t(REL_SELF, 1));
+    strl16_t ab_sr = MakeSTRL4_t(1, ST_PUBLISHED, REL_SELF, REL_NONE);
+    packed64_t A = PackedCell64_t::ComposeValue32x_64(0xAAu, clk16_t(0x1234), ab_sr);
+    packed64_t B = PackedCell64_t::ComposeValue32x_64(0xBBu, clk16_t(0x2222), ab_sr);
     dsa_v32.CommitIdxWithPayload(aba_slot, A); // install A as committed (store)
     dsa_v32.BackingPtr[aba_slot].store(A, MoStoreSeq_); // ensure published A
     dsa_v32.BackingPtr[aba_slot].notify_all();
@@ -218,7 +223,8 @@ int main() {
     size_t prev = dsa_v32.AttachThreadMasterClockID(mid);
     LOG("Attached thread master clock id (prev=" + std::to_string(prev) + ")");
     // Now publish with DSA: item should pick up master clock when AttachThreadMasterClockID used in producer path
-    packed64_t master_pub = PackedCell64_t::PackV32x_64(777u, 0u, ST_PUBLISHED, PackedCell64_t::PackRel8x_t(REL_NODE0, 5));
+    strl16_t mp_sr = MakeSTRL4_t(5, ST_PUBLISHED, REL_NODE0, REL_NONE);
+    packed64_t master_pub = PackedCell64_t::ComposeValue32x_64(777u, 0u, mp_sr);
     PublishResult pmc = dsa_v32.PublishPackedOfADSA(master_pub);
     LOG("Published master_pub idx=" + std::to_string(pmc.index));
     CHECK(pmc.status == PublishStatus::OK, "Publish with MasterClockConf attached ok");
@@ -235,10 +241,11 @@ int main() {
 
     auto producer = [&](unsigned id) {
         for (unsigned i = 0; i < PER_PROD; ++i) {
-            packed64_t p = PackedCell64_t::PackV32x_64(static_cast<uint32_t>(id*1000 + i),
+            strl16_t p_sr = MakeSTRL4_t(1, ST_PUBLISHED, REL_NONE, REL_PATTERN);
+            packed64_t p = PackedCell64_t::ComposeValue32x_64(static_cast<uint32_t>(id*1000 + i),
                                                        static_cast<clk16_t>(i & 0xFFFF),
-                                                       ST_PUBLISHED,
-                                                       PackedCell64_t::PackRel8x_t(REL_ALL_LOW5, 1));
+                                                    p_sr
+                                                    );
             auto r = dsa_v32.PublishPackedOfADSA(p);
             if (r.status == PublishStatus::OK) produced.fetch_add(1, std::memory_order_relaxed);
             else {
@@ -284,7 +291,8 @@ int main() {
     AtomicAdaptiveBackoff::PCBCfg cfg;
     AtomicAdaptiveBackoff ab(cfg, PackedMode::MODE_VALUE32, Timer48());
     // simulate payload with an old clock
-    packed64_t oldpub = PackedCell64_t::PackV32x_64(1u, clk16_t(0x1000), ST_PUBLISHED, PackedCell64_t::PackRel8x_t(REL_SELF, 1));
+    strl16_t op_sr = MakeSTRL4_t(1, ST_PUBLISHED, REL_SELF, REL_NONE);
+    packed64_t oldpub = PackedCell64_t::ComposeValue32x_64(1u, clk16_t(0x1000), op_sr);
     auto dec = ab.DecideForSlot(oldpub);
     LOG(std::string("Dec.Action=") + std::to_string((int)dec.Action) + " SuggestedUs=" + std::to_string(dec.SuggestedUs) + " Haz=" + std::to_string(dec.EstHazPerSec));
 

@@ -41,6 +41,24 @@ namespace AtomicCScompact
             return p;
         }
 
+        static inline packed64_t ComposeValue32x_64(val32_t v, clk16_t clk, strl16_t strl)
+        {
+            packed64_t p = (packed64_t(v) & MaskBits(VALBITS));
+            p = SetCLK16InPacked<PackedMode::MODE_VALUE32>(p, clk);
+            p = SetSTRLInPacked(p, strl);
+            return p;
+        }
+        
+        template <PackedMode MODE>
+        static inline packed64_t SetCLK16InPacked(packed64_t p, clk16_t clk16)
+        {
+            static_assert(MODE == PackedMode::MODE_VALUE32, "SetCLK16InPacked only valid for MODE_VALUE32");
+            constexpr packed64_t clk16_mask = (MaskBits(CLK_B16) << VALBITS);
+            p &= ~clk16_mask;
+            p |= (packed64_t(clk16 & MaskBits(CLK_B16)) << VALBITS);
+            return p;
+        }
+
         static inline packed64_t PackCLK48x_64(uint64_t clk, tag8_t st, tag8_t rel) noexcept {
             packed64_t p = (packed64_t(clk) & MaskBits(CLK_B48));
             p |= (packed64_t(rel)  & MaskBits(RELBITS))  << CLK_B48;
@@ -199,20 +217,8 @@ namespace AtomicCScompact
             return PriorityFromRelation(RelationFromSTRL(strl));
         }
 
-        static inline packed64_t ModifyPriorityRelInPacked(packed64_t p, tag8_t prio3) noexcept
-        {
-            strl16_t old = ExtractSTRL(p);
-            tag8_t old_rel = RelationFromSTRL(old);
-            tag8_t new_rel = PackRel8x_t(RelMaskBSetFromRelation(old_rel), prio3);
-            return SetSTRLInPacked(p, PackSTRL16x_t(StateFromSTRL(old), new_rel));
-        }
-        static inline packed64_t ModifyRelationMaskSetInPacked(packed64_t p, tag8_t rel_mask_5) noexcept
-        {
-            strl16_t old = ExtractSTRL(p);
-            tag8_t old_rel = RelationFromSTRL(old);
-            tag8_t new_rel = PackRel8x_t(rel_mask_5, PriorityFromRelation(old_rel));
-            return SetSTRLInPacked(p, PackSTRL16x_t(StateFromSTRL(old), new_rel));
-        }
+
+
         static inline packed64_t SetState(packed64_t p, tag8_t st) noexcept
         {
             strl16_t old = ExtractSTRL(p);

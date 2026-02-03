@@ -81,7 +81,7 @@ int main()
             {
                 packed64_t cur = slot.load(MoLoad_);
                 strl16_t sr = PackedCell64_t::ExtractSTRL(cur);
-                tag8_t st = PackedCell64_t::StateFromSTRL(sr);
+                tag8_t st = ExtractLocalityFromSTRL(sr);
                 if (st == ST_IDLE)
                 {
                     uint64_t now_ticks = abac_v32.PublicTimer48.NowTicks();
@@ -138,7 +138,7 @@ int main()
             }
             packed64_t cur = slot.load(MoLoad_);
             strl16_t sr = PackedCell64_t::ExtractSTRL(cur);
-            tag8_t st = PackedCell64_t::StateFromSTRL(sr);
+            tag8_t st = ExtractLocalityFromSTRL(sr);
             if (st == ST_PUBLISHED)
             {
                 tag8_t rel = PackedCell64_t::RelationFromSTRL(sr);
@@ -167,7 +167,7 @@ int main()
                             CpuRelaxHint();
                             packed64_t cur2 = slot.load(MoLoad_);
                             strl16_t sr2 = PackedCell64_t::ExtractSTRL(cur2);
-                            if (PackedCell64_t::StateFromSTRL(sr2) != ST_CLAIMED)
+                            if (ExtractLocalityFromSTRL(sr2) != ST_CLAIMED)
                             {
                                 break;
                             }
@@ -241,7 +241,7 @@ int main()
             {
                 packed64_t cur = slot.load(MoLoad_);
                 strl16_t sr = PackedCell64_t::ExtractSTRL(cur);
-                tag8_t st = PackedCell64_t::StateFromSTRL(sr);
+                tag8_t st = ExtractLocalityFromSTRL(sr);
                 tag8_t rel = PackedCell64_t::RelationFromSTRL(sr);
                 std::ostringstream oss;
                 oss << "*** WATCHDOG: no progress 2s -- completed=" << completed_count.load()

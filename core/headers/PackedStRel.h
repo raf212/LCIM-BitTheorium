@@ -40,7 +40,6 @@ namespace AtomicCScompact {
     #define RELATION_PRIORITY 0x07u
     #define ID_HASH_GOLDEN_CONST 0x9E3779B97F4A7C15ull 
     #define ATOMIC_THRESHOLD 64u
-    #define SIZE_OF_BYTE_IN_BITS 8u
 
     static constexpr unsigned MASK16B_HIGH8B_0 = 0xFF00u;
 
@@ -97,8 +96,8 @@ namespace AtomicCScompact {
         strl16_t ro = static_cast<strl16_t>(rel_offset & STRL_DIVISION_MASK_4);
 
         strl16_t strl = static_cast<strl16_t>(
-            (prio << (SIZE_OF_BYTE_IN_BITS + STRL_DIVISION_CONST))
-            | (loc << SIZE_OF_BYTE_IN_BITS)
+            (prio << (LN_OF_BYTE_IN_BITS + STRL_DIVISION_CONST))
+            | (loc << LN_OF_BYTE_IN_BITS)
             | (rm << STRL_DIVISION_CONST)
             |ro
         );
@@ -107,12 +106,12 @@ namespace AtomicCScompact {
 
     inline constexpr tag8_t ExtractPriorityFromSTRL(strl16_t strl) noexcept
     {
-        return static_cast<tag8_t>((strl >> (SIZE_OF_BYTE_IN_BITS + STRL_DIVISION_CONST)) & STRL_DIVISION_MASK_4);
+        return static_cast<tag8_t>((strl >> (LN_OF_BYTE_IN_BITS + STRL_DIVISION_CONST)) & STRL_DIVISION_MASK_4);
     }
     
     inline constexpr tag8_t ExtractLocalityFromSTRL(strl16_t strl) noexcept
     {
-        return static_cast<tag8_t>((strl >> SIZE_OF_BYTE_IN_BITS) & STRL_DIVISION_MASK_4);
+        return static_cast<tag8_t>((strl >> LN_OF_BYTE_IN_BITS) & STRL_DIVISION_MASK_4);
     }
 
     inline constexpr tag8_t ExtractRelMaskFromSTRL(strl16_t strl) noexcept

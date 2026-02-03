@@ -369,9 +369,7 @@ public:
     PCBDecision DecideForSlot(packed64_t slot_payload, std::optional<uint64_t>now_ticks_opt = std::nullopt) const noexcept
     {
         uint64_t now = now_ticks_opt.value_or(PublicTimer48.NowTicks());
-        strl16_t sr = PackedCell64_t::ExtractSTRL(slot_payload);
-        tag8_t relbyte = PackedCell64_t::RelationFromSTRL(sr);
-        int8_t priority = static_cast<int8_t>(PackedCell64_t::PriorityFromRelation(relbyte));
+        int8_t priority = static_cast<int8_t>(PackedCell64_t::ExtractPriorityFromPacked(slot_payload));
         uint64_t pub_ticks = ReconstructPublishTicks_(now, slot_payload);
         uint64_t age_ticks = (now - pub_ticks) & MaskBits(TOTAL_LOW);
         uint64_t age_us = age_ticks / 1000u;

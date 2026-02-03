@@ -40,6 +40,7 @@ namespace AtomicCScompact {
     #define RELATION_PRIORITY 0x07u
     #define ID_HASH_GOLDEN_CONST 0x9E3779B97F4A7C15ull 
     #define ATOMIC_THRESHOLD 64u
+    #define DEFAULT_INTERNAL_PRIORITY 8u
 
     static constexpr unsigned MASK16B_HIGH8B_0 = 0xFF00u;
 

@@ -141,8 +141,7 @@ int main()
             tag8_t st = ExtractLocalityFromSTRL(sr);
             if (st == ST_PUBLISHED)
             {
-                tag8_t rel = PackedCell64_t::RelationFromSTRL(sr);
-                packed64_t desired = PackedCell64_t::SetSTRLInPacked(cur, PackedCell64_t::PackSTRL16x_t(ST_CLAIMED, rel));
+                packed64_t desired = PackedCell64_t::SetLocalityInPacked(cur, ST_PUBLISHED);
                 packed64_t expected  = cur;
                 if (slot.compare_exchange_weak(expected, desired, EXsuccess_, EXfailure_))
                 {
@@ -293,7 +292,7 @@ int main()
         std::thread consumer([&]{
             packed64_t expected = slot.load(MoLoad_);
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
-            packed64_t desired = PackedCell64_t::SetSTRLInPacked(expected, PackedCell64_t::PackSTRL16x_t(ST_CLAIMED, PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(expected))));
+            packed64_t desired = PackedCell64_t::SetLocalityInPacked(expected, ST_CLAIMED);
             bool ok = slot.compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_);
             std::ostringstream oss;
             oss << "[ABA-NATIVE] Consumer CAS Result : " << (ok ? "SUCCESS (ABA EXPLOITED)" : "FAILED ->To Exploit") << "\n";

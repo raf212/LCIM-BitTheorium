@@ -525,7 +525,7 @@ public:
                 tag8_t slot_rel_mask = PackedCell64_t::RelMaskBSetFromRelation(relbyte);
                 if ((slot_rel_mask & rel_mask_low_5) != 0)
                 {
-                    packed64_t desired = PackedCell64_t::SetSTRLInPacked(cur, PackedCell64_t::MakeSTRL(ST_CLAIMED, relbyte));
+                    packed64_t desired = PackedCell64_t::SetLocalityInPacked(cur, ST_CLAIMED);
                     packed64_t expected = cur;
                     if (BackingPtr[idx].compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_))
                     {
@@ -604,14 +604,8 @@ public:
         }
         Candidate_CO_ best_candidate = cand_buf[best];
 
-        // packed64_t desired = PackedCell64_t::SetSTRLInPacked(best_candidate, PackedCell64_t::MakeSTRL(ST_CLAIMED, PackedCell64_t::RelationFromSTRL(best_candidate.Obs)));
-        packed64_t desired = PackedCell64_t::SetSTRLInPacked(
-            best_candidate.Obs,
-            PackedCell64_t::MakeSTRL(
-                ST_CLAIMED,
-                PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(best_candidate.Obs))
-            )
-        );
+        packed64_t desired = PackedCell64_t::SetLocalityInPacked(best_candidate.Obs, ST_CLAIMED);
+
         //continue from here
         packed64_t expected = best_candidate.Obs;
         if (BackingPtr[best_candidate.Idx].compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_))
@@ -705,7 +699,7 @@ public:
         for (size_t i = 0; i < k; i++)
         {
             Candidate_CO_& c = buffer[i];
-            packed64_t desired = PackedCell64_t::SetSTRLInPacked(c.Obs, PackedCell64_t::MakeSTRL(ST_CLAIMED, PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(c.Obs))));
+            packed64_t desired = PackedCell64_t::SetLocalityInPacked(c.Obs, ST_CLAIMED);
             packed64_t expected = c.Obs;
             if (BackingPtr[c.Idx].compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_))
             {
@@ -810,8 +804,6 @@ public:
     bool TryIncrementClk16LowLevel(size_t idx, uint16_t delta, packed64_t& out_new)
     {
         static_assert(MODE == PackedMode::MODE_VALUE32, "TryIncrementClk16LowLevel is only valid for MODE_VALUE32");\
-        static constexpr unsigned PRIO_TIC16 = 8u;
-
         if (!IfIdxValid(idx))
         {
             return false;
@@ -823,7 +815,7 @@ public:
             val32_t v = PackedCell64_t::ExtractValue32(oldv);
             clk16_t clk16 = PackedCell64_t::ExtractClk16(oldv);
             clk16_t n_clk16 = static_cast<clk16_t>(clk16 + delta);
-            strl16_t n_strl = MakeSTRL4_t(PRIO_TIC16, ST_PUBLISHED, REL_NONE, REL_NONE);
+            strl16_t n_strl = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, REL_NONE, REL_NONE);
 
             packed64_t desired = PackedCell64_t::ComposeValue32x_64(v, n_clk16, n_strl);
             packed64_t expect = oldv;

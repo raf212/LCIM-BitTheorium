@@ -175,16 +175,6 @@ namespace AtomicCScompact
         {
             return static_cast<tag8_t>(((priority_3 & RELATION_PRIORITY) << MASK_OF_RELBIT) | (rel_mask_5 & RELATION_MASK_5));
         }
-        static inline strl16_t PackSTRL16x_t(tag8_t st, tag8_t rel) noexcept
-        {
-            return static_cast<strl16_t>((static_cast<strl16_t>(st) << STBITS) | (static_cast<strl16_t>(rel)));
-        }
-
-        static inline strl16_t MakeSTRL(tag8_t st, tag8_t rel) noexcept
-        {
-            return static_cast<strl16_t>((static_cast<strl16_t>(st) << STBITS) | static_cast<strl16_t>(rel));
-        }
-        
 
         static inline bool RelationMatches(tag8_t slot_rel, tag8_t rel_mask) noexcept
         {

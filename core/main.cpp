@@ -192,7 +192,7 @@ int main() {
     std::thread aba_cons([&]{
         packed64_t expected = dsa_v32.BackingPtr[aba_slot].load(MoLoad_);
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
-        packed64_t desired = PackedCell64_t::SetSTRLInPacked(expected, PackedCell64_t::MakeSTRL(ST_CLAIMED, PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(expected))));
+        packed64_t desired = PackedCell64_t::SetLocalityInPacked(expected, ST_CLAIMED);
         bool ok = dsa_v32.BackingPtr[aba_slot].compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_);
         LOG(std::string("[ABA] Consumer CAS result: ") + (ok ? "SUCCESS (ABA EXPLOITED)" : "FAILED -> not exploited"));
         consumer_done.store(true);

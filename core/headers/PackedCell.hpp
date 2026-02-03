@@ -47,43 +47,17 @@ namespace AtomicCScompact
             p |= (packed64_t(st) & MaskBits(STBITS)) << (CLK_B48 + RELBITS);
             return p;
         }
-        static inline tag8_t PackRel8x_t(tag8_t rel_mask_5, tag8_t priority_3) noexcept
-        {
-            return static_cast<tag8_t>(((priority_3 & RELATION_PRIORITY) << MASK_OF_RELBIT) | (rel_mask_5 & RELATION_MASK_5));
-        }
-        static inline strl16_t PackSTRL16x_t(tag8_t st, tag8_t rel) noexcept
-        {
-            return static_cast<strl16_t>((static_cast<strl16_t>(st) << STBITS) | (static_cast<strl16_t>(rel)));
-        }
+
         static inline packed64_t SetSTRLInPacked(packed64_t p, strl16_t strl) noexcept
         {
             constexpr packed64_t top_mask = MaskBits(STRL_B16) << (TOTAL_LOW);
             p = (p & ~top_mask) | ((packed64_t(strl & MaskBits(STRL_B16))) << (TOTAL_LOW));
             return p;
         }
-        static inline packed64_t MakeCommitFromPayloadV32(packed64_t payload) noexcept
-        {
-            val32_t v = ExtractValue32(payload);
-            clk16_t clk = ExtractClk16(payload);
-            tag8_t rel = RelationFromSTRL(ExtractSTRL(payload));
-            return PackV32x_64(v, clk, ST_COMPLETE, rel);
-        }
-        static inline packed64_t MakeCommitFromPayloadCLK48(packed64_t payload) noexcept
-        {
-            uint64_t clk48 = ExtractClk48(payload);
-            tag8_t rel = RelationFromSTRL(ExtractSTRL(payload));
-            return PackCLK48x_64(clk48, ST_COMPLETE, rel);
-        }
 
-        static inline strl16_t MakeSTRL(tag8_t st, tag8_t rel) noexcept
+        static inline strl16_t ExtractSTRL(packed64_t p) noexcept
         {
-            return static_cast<strl16_t>((static_cast<strl16_t>(st) << STBITS) | static_cast<strl16_t>(rel));
-        }
-        
-
-        static inline bool RelationMatches(tag8_t slot_rel, tag8_t rel_mask) noexcept
-        {
-            return ((static_cast<strl16_t>(slot_rel) & static_cast<uint8_t>(rel_mask)) != 0);
+            return static_cast<strl16_t>((p >> TOTAL_LOW) & MaskBits(STRL_B16));
         }
 
         static inline val32_t ExtractValue32(packed64_t p) noexcept
@@ -99,10 +73,107 @@ namespace AtomicCScompact
         {
             return static_cast<uint64_t>(p & MaskBits(CLK_B48));
         }
-        static inline strl16_t ExtractSTRL(packed64_t p) noexcept
+
+
+        static inline tag8_t ExtractPriorityFromPacked(packed64_t p) noexcept
         {
-            return static_cast<strl16_t>((p >> TOTAL_LOW) & MaskBits(STRL_B16));
+            return ExtractPriorityFromSTRL(ExtractSTRL(p));
         }
+
+        static inline tag8_t ExtractLocalityFromPacked(packed64_t p) noexcept
+        {
+            return ExtractLocalityFromSTRL(ExtractSTRL(p));
+        }
+
+        static inline tag8_t ExtractRelMaskFromPacked(packed64_t p) noexcept
+        {
+            return ExtractRelMaskFromSTRL(ExtractSTRL(p));
+        }
+
+        static inline tag8_t ExtractRelOffsetFromPacked(packed64_t p) noexcept
+        {
+            return ExtractRelOffsetFromSTRL(ExtractSTRL(p));
+        }
+
+        static inline tag8_t GetFullRelationFromPacked(packed64_t p) noexcept
+        {
+            strl16_t sr = ExtractSTRL(p);
+            tag8_t rel_mask = ExtractRelMaskFromSTRL(sr);
+            tag8_t rel_offset = ExtractRelOffsetFromSTRL(sr);
+            return MakeRelByte(rel_mask, rel_offset);
+        }
+
+        static inline packed64_t SetPriorityInPacked(packed64_t p, tag8_t priority)
+        {
+            if (priority > MAX_PRIORITY)
+            {
+                priority = MAX_PRIORITY; // priority will be capped if more than 15;
+            }
+            strl16_t sr = ExtractSTRL(p);
+            tag8_t locality = ExtractLocalityFromSTRL(sr);
+            tag8_t rm = ExtractRelMaskFromSTRL(sr);
+            tag8_t ro = ExtractRelOffsetFromSTRL(sr);
+
+            strl16_t new_strl = MakeSTRL4_t(priority, locality, rm, ro);
+            return SetSTRLInPacked(p, new_strl);
+            
+        }
+
+        static inline packed64_t SetLocalityInPacked(packed64_t p, tag8_t local_state) noexcept
+        {
+            strl16_t sr = ExtractSTRL(p);
+            tag8_t prio = ExtractPriorityFromSTRL(sr);
+            tag8_t rm = ExtractRelMaskFromSTRL(sr);
+            tag8_t ro = ExtractRelOffsetFromSTRL(sr);
+
+            strl16_t new_strl = MakeSTRL4_t(prio, local_state, rm, ro);
+            return SetSTRLInPacked(p, new_strl);
+        }
+
+        static inline packed64_t SetRelMaskInPacked(packed64_t p, tag8_t rel_mask) noexcept
+        {
+            strl16_t sr = ExtractSTRL(p);
+            tag8_t prio = ExtractPriorityFromSTRL(sr);
+            tag8_t loc = ExtractLocalityFromSTRL(sr);
+            tag8_t ro = ExtractRelOffsetFromSTRL(sr);
+
+            strl16_t new_strl = MakeSTRL4_t(prio, loc, rel_mask, ro);
+            return SetSTRLInPacked(p, new_strl);
+        }
+
+        static inline packed64_t SetRelOffsetInPacked(packed64_t p, tag8_t rel_offset) noexcept
+        {
+            strl16_t sr = ExtractSTRL(p);
+            tag8_t prio = ExtractPriorityFromSTRL(sr);
+            tag8_t loc = ExtractLocalityFromSTRL(sr);
+            tag8_t rm = ExtractRelMaskFromSTRL(sr);
+            strl16_t new_strl = MakeSTRL4_t(prio, loc, rm, rel_offset);
+            return SetSTRLInPacked(p, new_strl);
+        }
+
+
+        //old functions
+        static inline tag8_t PackRel8x_t(tag8_t rel_mask_5, tag8_t priority_3) noexcept
+        {
+            return static_cast<tag8_t>(((priority_3 & RELATION_PRIORITY) << MASK_OF_RELBIT) | (rel_mask_5 & RELATION_MASK_5));
+        }
+        static inline strl16_t PackSTRL16x_t(tag8_t st, tag8_t rel) noexcept
+        {
+            return static_cast<strl16_t>((static_cast<strl16_t>(st) << STBITS) | (static_cast<strl16_t>(rel)));
+        }
+
+        static inline strl16_t MakeSTRL(tag8_t st, tag8_t rel) noexcept
+        {
+            return static_cast<strl16_t>((static_cast<strl16_t>(st) << STBITS) | static_cast<strl16_t>(rel));
+        }
+        
+
+        static inline bool RelationMatches(tag8_t slot_rel, tag8_t rel_mask) noexcept
+        {
+            return ((static_cast<strl16_t>(slot_rel) & static_cast<uint8_t>(rel_mask)) != 0);
+        }
+
+
         static inline tag8_t StateFromSTRL(strl16_t strl) noexcept
         {
             return static_cast<tag8_t>((strl >> LN_OF_BYTE_IN_BITS) & MASK_8_BIT);
@@ -169,19 +240,7 @@ namespace AtomicCScompact
             st = StateFromSTRL(sr);
             rel = RelationFromSTRL(sr);
         }
-        template<bool IsValue32>
-        static inline packed64_t MakeCommittedFromPayload(packed64_t payload)
-        {
-            if constexpr (IsValue32)
-            {
-                return MakeCommitFromPayloadV32(payload);
-            }
-            else
-            {
-                return MakeCommitFromPayloadCLK48(payload);
-            }
-            
-        }
+
         template<typename T>
         static inline T AsValue(packed64_t p) noexcept
         {

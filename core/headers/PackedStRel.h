@@ -154,7 +154,7 @@ namespace AtomicCScompact {
         return ((slot_rm & (relmask & STRL_DIVISION_MASK_4)) != 0);
     }
 static constexpr tag8_t REL_ALL_LOW5    = 0x1F; // all low-5 relation bits
-static constexpr uint8_t MAX_PRIORITY   = 7;
+static constexpr uint8_t MAX_PRIORITY   = 15u;
 
 
 

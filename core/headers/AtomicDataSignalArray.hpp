@@ -154,14 +154,8 @@ private:
             committed = PackedCell64_t::MakeInitialPacked(MODE);
             return;
         }
-        if constexpr (MODE == PackedMode::MODE_VALUE32)
-        {
-            committed = PackedCell64_t::MakeCommitFromPayloadV32(payload);
-        }
-        else if constexpr (MODE == PackedMode::MODE_CLKVAL48)
-        {
-            committed = PackedCell64_t::MakeCommitFromPayloadCLK48(payload);
-        }
+        committed = PackedCell64_t::SetLocalityInPacked(payload, ST_COMPLETE);
+
         BackingPtr[idx].store(committed, MoStoreSeq_);
         if (RegionSize_)
         {

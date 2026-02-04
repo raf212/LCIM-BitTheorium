@@ -49,6 +49,13 @@ namespace AtomicCScompact
             return p;
         }
         
+        static inline packed64_t ComposeCLK48x_64(uint64_t clk48, strl16_t strl) noexcept
+        {
+            packed64_t p = (packed64_t(clk48) & MaskBits(CLK_B48));
+            p = SetSTRLInPacked(p, strl);
+            return p;
+        }
+
         template <PackedMode MODE>
         static inline packed64_t SetCLK16InPacked(packed64_t p, clk16_t clk16)
         {
@@ -76,6 +83,12 @@ namespace AtomicCScompact
         static inline strl16_t ExtractSTRL(packed64_t p) noexcept
         {
             return static_cast<strl16_t>((p >> TOTAL_LOW) & MaskBits(STRL_B16));
+        }
+
+        static inline tag8_t ExtractFullRelFromPacked(packed64_t p) noexcept
+        {
+            strl16_t strl = ExtractSTRL(p);
+            return static_cast<tag8_t>(strl & MASK_8_BIT);
         }
 
         static inline val32_t ExtractValue32(packed64_t p) noexcept
@@ -172,66 +185,11 @@ namespace AtomicCScompact
 
         //old functions
 
-        static inline bool RelationMatches(tag8_t slot_rel, tag8_t rel_mask) noexcept
-        {
-            return ((static_cast<strl16_t>(slot_rel) & static_cast<uint8_t>(rel_mask)) != 0);
-        }
-
-
-        static inline tag8_t StateFromSTRL(strl16_t strl) noexcept
-        {
-            return static_cast<tag8_t>((strl >> LN_OF_BYTE_IN_BITS) & MASK_8_BIT);
-        }
-        static inline tag8_t RelationFromSTRL(strl16_t strl) noexcept
-        {
-            return static_cast<tag8_t>(strl & MASK_8_BIT);
-        }
         static inline tag8_t RelMaskBSetFromRelation(tag8_t rel_bit) noexcept
         {
             return static_cast<tag8_t>(rel_bit & RELATION_MASK_5);
         }
-        static inline tag8_t PriorityFromRelation(tag8_t rel_bit) noexcept
-        {
-            return static_cast<tag8_t>((rel_bit >> MASK_OF_RELBIT) & RELATION_PRIORITY);
-        }
-        static inline tag8_t RelationMaskBSetFromSTRL(strl16_t strl) noexcept
-        {
-            return RelMaskBSetFromRelation(RelationFromSTRL(strl));
-        }
-        static inline tag8_t PriorityRelFromSTRL(strl16_t strl) noexcept
-        {
-            return PriorityFromRelation(RelationFromSTRL(strl));
-        }
 
-
-
-        static inline packed64_t SetState(packed64_t p, tag8_t st) noexcept
-        {
-            strl16_t old = ExtractSTRL(p);
-            strl16_t sr = static_cast<strl16_t>((static_cast<strl16_t>(st) << LN_OF_BYTE_IN_BITS) | (old & MASK_8_BIT));
-            return SetSTRLInPacked(p, sr);
-        }
-        static inline packed64_t SetRelation(packed64_t p, tag8_t rel) noexcept
-        {
-            strl16_t old = ExtractSTRL(p);
-            strl16_t sr = static_cast<strl16_t>(static_cast<strl16_t>((StateFromSTRL(old)) << STBITS) | static_cast<strl16_t>(rel));
-            return SetSTRLInPacked(p, sr);
-        }
-        static inline void UnpackV32x_64(packed64_t p, val32_t& v, clk16_t& clk, tag8_t& st, tag8_t& rel) noexcept
-        {
-            v = ExtractValue32(p);
-            clk = ExtractClk16(p);
-            strl16_t sr = ExtractSTRL(p);
-            st = StateFromSTRL(sr);
-            rel = RelationFromSTRL(sr);
-        }
-        static inline void UnpackCLK48x_64(packed64_t p, uint64_t& clk48, tag8_t& st, tag8_t& rel) noexcept
-        {
-            clk48 = ExtractClk48(p);
-            strl16_t sr = ExtractSTRL(p);
-            st = StateFromSTRL(sr);
-            rel = RelationFromSTRL(sr);
-        }
 
         template<typename T>
         static inline T AsValue(packed64_t p) noexcept

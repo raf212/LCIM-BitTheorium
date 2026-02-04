@@ -159,7 +159,7 @@ private:
         BackingPtr[idx].store(committed, MoStoreSeq_);
         if (RegionSize_)
         {
-            UpdateRegionRelForIndex(idx, PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(committed)));
+            UpdateRegionRelForIndex(idx, ExtractRelMaskFromSTRL(PackedCell64_t::ExtractSTRL(BackingPtr[idx].load(MoLoad_))));
         }
     }
 
@@ -321,35 +321,34 @@ public:
         if constexpr (MODE == PackedMode::MODE_VALUE32)
         {
             strl16_t sr = PackedCell64_t::ExtractSTRL(item);
-            tag8_t relbyte = PackedCell64_t::RelationFromSTRL(sr);
             val32_t v = PackedCell64_t::ExtractValue32(item);
-
+            strl16_t newv_strl = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, ExtractRelMaskFromSTRL(sr), ExtractRelOffsetFromSTRL(sr));
             size_t mt = ADSAThreadLocalMID_();
             if (MasterClkConfigaration_ && (mt != 0))
             {
                 packed64_t mp = MasterClkConfigaration_->ReadMasterClockPacked(mt);
                 packed64_t mc = PackedCell64_t::ExtractClk48(mp);
                 clk16_t clk16 = static_cast<clk16_t>((mc >> (Cfg_.TimerDownShift + CLK48TO16_PACKED_ERROR)) & MaskBits(CLK_B16));
-                item = PackedCell64_t::PackV32x_64(v, clk16, ST_PUBLISHED, relbyte);
+                item = PackedCell64_t::ComposeValue32x_64(v, clk16, newv_strl);
             }
             else if (Cfg_.UseTimerStamp)
             {
                 packed64_t now = Adaptivebkof_.PublicTimer48.NowTicks();
                 clk16_t clk16 = static_cast<clk16_t>((now >> (Cfg_.TimerDownShift + CLK48TO16_PACKED_ERROR)) & MaskBits(CLK_B16));
-                item = PackedCell64_t::PackV32x_64(v, clk16, ST_PUBLISHED, relbyte);
+                item = PackedCell64_t::ComposeValue32x_64(v, clk16, newv_strl);
             }
             else
             {
                 clk16_t clk16 = static_cast<clk16_t>(seq);
-                item = PackedCell64_t::PackV32x_64(v, clk16, ST_PUBLISHED, relbyte);
+                item = PackedCell64_t::ComposeValue32x_64(v, clk16, newv_strl);
             }
         }
         else
         {
             packed64_t c48 = PackedCell64_t::ExtractClk48(item);
             strl16_t sr = PackedCell64_t::ExtractSTRL(c48);
-            tag8_t relbyte = PackedCell64_t::RelationFromSTRL(sr);
-            item = PackedCell64_t::PackCLK48x_64(c48, ST_PUBLISHED, relbyte);
+            strl16_t nclk_sr = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, ExtractRelMaskFromSTRL(sr), ExtractRelOffsetFromSTRL(sr));
+            item = PackedCell64_t::ComposeCLK48x_64(c48, nclk_sr);
         }
 
         size_t start = seq;
@@ -380,17 +379,17 @@ public:
                         clk16_t oldclk = PackedCell64_t::ExtractClk16(to_write);
                         clk16_t nclk = static_cast<clk16_t>(oldclk + 1u);
                         strl16_t sr2 = PackedCell64_t::ExtractSTRL(to_write);
-                        tag8_t relbyte = PackedCell64_t::RelationFromSTRL(sr2);
-                        val32_t v = PackedCell64_t::ExtractValue32(to_write);
-                        to_write = PackedCell64_t::PackV32x_64(v, nclk, ST_PUBLISHED, relbyte);
+                        strl16_t newv_sr2 = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, ExtractRelMaskFromSTRL(sr2), ExtractRelOffsetFromSTRL(sr2));
+                        to_write = PackedCell64_t::SetCLK16InPacked<PackedMode::MODE_VALUE32>(to_write, nclk);
+                        to_write = PackedCell64_t::SetSTRLInPacked(to_write, newv_sr2);
                     }
                     else if constexpr (MODE == PackedMode::MODE_CLKVAL48)
                     {
                         packed64_t c48 = PackedCell64_t::ExtractClk48(to_write);
                         c48 = static_cast<packed64_t>((c48 + 1) & MaskBits(CLK_B48));
                         strl16_t sr2 = PackedCell64_t::ExtractClk16(to_write);
-                        tag8_t relbyte = PackedCell64_t::RelationFromSTRL(sr2);
-                        to_write = PackedCell64_t::PackCLK48x_64(c48, ST_PUBLISHED, relbyte);
+                        strl16_t newclk_sr2 = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, ExtractRelMaskFromSTRL(sr2), ExtractRelOffsetFromSTRL(sr2));
+                        to_write = PackedCell64_t::ComposeCLK48x_64(c48, newclk_sr2);
                     }
                 }
                 
@@ -399,7 +398,7 @@ public:
                 {
                     if (RegionSize_)
                     {
-                        UpdateRegionRelForIndex(idx, PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(to_write)));
+                        UpdateRegionRelForIndex(idx, ExtractRelMaskFromSTRL(PackedCell64_t::ExtractSTRL(to_write)));
                     }
                     Occupancy_.fetch_add(1, std::memory_order_acq_rel);
                     BackingPtr[idx].notify_all();
@@ -456,7 +455,7 @@ public:
             }
             if (RegionSize_)
             {
-                UpdateRegionRelForIndex(idx, PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(items[i])));
+                UpdateRegionRelForIndex(idx, ExtractRelMaskFromSTRL(PackedCell64_t::ExtractSTRL(BackingPtr[idx].load(MoLoad_))));
             }
             Occupancy_.fetch_add(1, std::memory_order_acq_rel);
         }
@@ -491,7 +490,7 @@ public:
         }
     }
 
-    bool ClaimOne(tag8_t rel_mask_low_5, size_t& out_idx, packed64_t& out_observed, int max_scan = -1) noexcept
+    bool ClaimOne(tag8_t given_rel_mask, size_t& out_idx, packed64_t& out_observed, int max_scan = -1) noexcept
     {
         if (!IfAnyValid_())
         {
@@ -518,12 +517,10 @@ public:
         while (scans < static_cast<int>(scan_limit))
         {
             packed64_t cur = BackingPtr[idx].load(MoLoad_);
-            strl16_t csr = PackedCell64_t::ExtractSTRL(cur);
-            if (ExtractLocalityFromSTRL(csr) == ST_PUBLISHED)
+            if (PackedCell64_t::ExtractLocalityFromPacked(cur) == ST_PUBLISHED)
             {
-                tag8_t relbyte = PackedCell64_t::RelationFromSTRL(csr);
-                tag8_t slot_rel_mask = PackedCell64_t::RelMaskBSetFromRelation(relbyte);
-                if ((slot_rel_mask & rel_mask_low_5) != 0)
+                tag8_t slot_rel_mask = PackedCell64_t::ExtractRelMaskFromPacked(cur);
+                if ((slot_rel_mask & given_rel_mask) != 0)
                 {
                     packed64_t desired = PackedCell64_t::SetLocalityInPacked(cur, ST_CLAIMED);
                     packed64_t expected = cur;
@@ -561,12 +558,10 @@ public:
         while (scans < static_cast<int>(scan_limit) && cand_buf.size() < std::min<size_t>(Cfg_.MaxGather, tls_cap))
         {
             packed64_t cur_2 = BackingPtr[idx].load(MoLoad_);
-            strl16_t csr_2 = PackedCell64_t::ExtractSTRL(cur_2);
-            if (ExtractLocalityFromSTRL(csr_2) == ST_PUBLISHED)
+            if (PackedCell64_t::ExtractLocalityFromPacked(cur_2) == ST_PUBLISHED)
             {
-                tag8_t relbyte = PackedCell64_t::RelationFromSTRL(csr_2);
-                tag8_t slot_rel_mask = PackedCell64_t::RelMaskBSetFromRelation(relbyte);
-                if ((slot_rel_mask & rel_mask_low_5) != 0)
+                tag8_t slot_rel_mask = PackedCell64_t::ExtractRelMaskFromPacked(cur_2);
+                if ((slot_rel_mask & given_rel_mask) != 0)
                 {
                     uint16_t slot_seq16 = 0;
                     if constexpr (MODE == PackedMode::MODE_VALUE32)
@@ -622,7 +617,7 @@ public:
         }
     }
 
-    packed64_t ClaimBatch(tag8_t rel_mask_low5, std::vector<std::pair<size_t, packed64_t>>& out, size_t max_count) noexcept
+    packed64_t ClaimBatch(tag8_t given_rel_mask, std::vector<std::pair<size_t, packed64_t>>& out, size_t max_count) noexcept
     {
         out.clear();
         if (!IfAnyValid_() || max_count == 0)
@@ -654,12 +649,10 @@ public:
         while (scans < scan_limit && buffer_count < std::min<size_t>(Cfg_.MaxGather, tls_cap))
         {
             packed64_t cur = BackingPtr[idx].load(MoLoad_);
-            strl16_t csr = PackedCell64_t::ExtractSTRL(cur);
-            if (ExtractLocalityFromSTRL(csr) == ST_PUBLISHED)
+            if (PackedCell64_t::ExtractLocalityFromPacked(cur) == ST_PUBLISHED)
             {
-                tag8_t relbyte = PackedCell64_t::RelationFromSTRL(csr);
-                tag8_t rel_mask_here = PackedCell64_t::RelMaskBSetFromRelation(relbyte);
-                if ((rel_mask_here & rel_mask_low5) != 0)
+                tag8_t rel_mask_here = PackedCell64_t::ExtractRelMaskFromPacked(cur);
+                if ((rel_mask_here & given_rel_mask) != 0)
                 {
                     uint16_t slot_seq16 = 0;
                     if constexpr (MODE == PackedMode::MODE_VALUE32)
@@ -895,22 +888,21 @@ public:
         }
     }
 
-    void UpdateRegionRelForIndex(size_t idx, tag8_t relbyte) noexcept
+    void UpdateRegionRelForIndex(size_t idx, tag8_t rel_mask) noexcept
     {
         if (RegionSize_ == 0)
         {
             return;
         }
         size_t r = idx / RegionSize_;
-        tag8_t mask5 = PackedCell64_t::RelMaskBSetFromRelation(relbyte);
         std::atomic_ref<tag8_t>aref8(RegionRel_[r]);
-        aref8.fetch_or(static_cast<tag8_t>(mask5), std::memory_order_acq_rel);
+        aref8.fetch_or(static_cast<tag8_t>(rel_mask), std::memory_order_acq_rel);
         size_t w = r / MAX_VAL;
         size_t b = r % MAX_VAL;
         uint64_t mask = (1ull << b);
         for (unsigned i = 0; i < LN_OF_BYTE_IN_BITS; i++)
         {
-            if (mask5 & (1u << i))
+            if (rel_mask & (1u << i))
             {
                 std::atomic_ref<packed64_t>aref(RelBitmaps_[i][w]);
                 aref.fetch_or(mask, std::memory_order_acq_rel);
@@ -961,8 +953,7 @@ public:
             for (size_t i = base; i < end; i++)
             {
                 packed64_t p = BackingPtr[i].load(MoLoad_);
-                tag8_t relbyte = static_cast<tag8_t>(PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(p)));
-                accum |= PackedCell64_t::RelMaskBSetFromRelation(relbyte);
+                accum |= PackedCell64_t::ExtractFullRelFromPacked(p);
             }
             RegionRel_[r] = accum;
             if (accum)
@@ -982,7 +973,7 @@ public:
         }
     }
 
-    std::vector<std::pair<size_t, size_t>> ScanRelRanges(tag8_t rel_mas_low5) const noexcept
+    std::vector<std::pair<size_t, size_t>> ScanRelRanges(tag8_t given_rel_mask) const noexcept
     {
         std::vector<std::pair<size_t, size_t>> out;
         if (!IfAnyValid_())
@@ -995,8 +986,7 @@ public:
             while (i < Capacity_)
             {
                 packed64_t p = BackingPtr[i].load(MoLoad_);
-                tag8_t relbyte = PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(p));
-                if ((PackedCell64_t::RelMaskBSetFromRelation(relbyte) & rel_mas_low5) == 0)
+                if ((PackedCell64_t::ExtractRelMaskFromPacked(p) & given_rel_mask) == 0)
                 {
                     ++i;
                     continue;
@@ -1005,7 +995,7 @@ public:
                 while (i < Capacity_)
                 {
                     packed64_t q = BackingPtr[i].load(MoLoad_);
-                    if ((PackedCell64_t::RelMaskBSetFromRelation(PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(q))) & rel_mas_low5) == 0)
+                    if ((PackedCell64_t::ExtractRelMaskFromPacked(q) & given_rel_mask) == 0)
                     {
                         break;
                     }
@@ -1020,7 +1010,7 @@ public:
         std::vector<uint64_t> combined(words, 0ull);
         for (unsigned bit = 0; bit < LN_OF_BYTE_IN_BITS; bit++)
         {
-            if (rel_mas_low5 &(1u << bit))
+            if (given_rel_mask &(1u << bit))
             {
                 for (size_t w = 0; w < words; w++)
                 {
@@ -1046,9 +1036,7 @@ public:
                 while(i < end)
                 {
                     packed64_t p = BackingPtr[i].load(MoLoad_);
-                    strl16_t sr = PackedCell64_t::ExtractSTRL(p);
-                    tag8_t relbyte = PackedCell64_t::RelationFromSTRL(sr);
-                    if ((PackedCell64_t::RelMaskBSetFromRelation(relbyte) & rel_mas_low5) == 0)
+                    if ((PackedCell64_t::ExtractRelMaskFromPacked(p) & given_rel_mask) == 0)
                     {
                         ++i;
                         continue;
@@ -1057,7 +1045,7 @@ public:
                     while (i < end)
                     {
                         packed64_t q = BackingPtr[i].load(MoLoad_);
-                        if ((PackedCell64_t::RelMaskBSetFromRelation(PackedCell64_t::RelationFromSTRL(PackedCell64_t::ExtractSTRL(q))) & rel_mas_low5) == 0)
+                        if ((PackedCell64_t::ExtractRelMaskFromPacked(q) & given_rel_mask) == 0)
                         {
                             break;
                         }

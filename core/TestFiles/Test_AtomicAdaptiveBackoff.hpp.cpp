@@ -241,7 +241,7 @@ int main()
                 packed64_t cur = slot.load(MoLoad_);
                 strl16_t sr = PackedCell64_t::ExtractSTRL(cur);
                 tag8_t st = ExtractLocalityFromSTRL(sr);
-                tag8_t rel = PackedCell64_t::RelationFromSTRL(sr);
+                tag8_t rel = PackedCell64_t::ExtractFullRelFromPacked(sr);
                 std::ostringstream oss;
                 oss << "*** WATCHDOG: no progress 2s -- completed=" << completed_count.load()
                     << " published=" << published_count.load() << " claimed=" << claimed_count.load()

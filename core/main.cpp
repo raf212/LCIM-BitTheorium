@@ -36,7 +36,7 @@ static std::string DumpPacked(packed64_t p) {
     std::ostringstream oss;
     strl16_t sr = PackedCell64_t::ExtractSTRL(p);
     tag8_t st = ExtractLocalityFromSTRL(sr);
-    tag8_t rel = PackedCell64_t::RelationFromSTRL(sr);
+    tag8_t rel = PackedCell64_t::ExtractFullRelFromPacked(sr);
     oss << "P=0x" << std::hex << p << std::dec
         << " st=" << int(st) << " rel=0x" << int(rel);
     if constexpr(true) {

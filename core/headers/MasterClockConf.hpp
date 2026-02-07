@@ -80,7 +80,7 @@ namespace AtomicCScompact
             MasterClockSlotsPtr = reinterpret_cast<std::atomic<packed64_t>*>(mem);
             //init atomics in-place
             uint64_t now = MasterTimer48.NowTicks();
-            packed64_t init_p = PackedCell64_t::PackCLK48x_64((now & MaskBits(CLK_B48)),ST_IDLE, REL_NONE);
+            packed64_t init_p = PackedCell64_t::ComposeCLK48x_64((now & MaskBits(CLK_B48)), MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_IDLE, REL_NONE, 0u, PC_MODE_CLK48));
 
             for (size_t i = 0; i < max_slots; i++)
             {
@@ -126,7 +126,7 @@ namespace AtomicCScompact
                 if (seed == 0)
                 {
                     uint64_t now = MasterTimer48.NowTicks();
-                    return PackedCell64_t::PackCLK48x_64((now & MaskBits(CLK_B48)), ST_PUBLISHED, REL_NONE);
+                    return PackedCell64_t::ComposeCLK48x_64((now & MaskBits(CLK_B48)),MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY,  ST_PUBLISHED, REL_NONE, 0u, PC_MODE_CLK48));
                 }
                 else
                 {

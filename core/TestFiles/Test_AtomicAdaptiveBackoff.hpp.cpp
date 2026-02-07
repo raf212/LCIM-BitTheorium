@@ -87,7 +87,7 @@ int main()
                     uint64_t now_ticks = abac_v32.PublicTimer48.NowTicks();
                     uint64_t down = (now_ticks >> cfg.DownShift);
                     clk16_t clk16 = static_cast<clk16_t>(down & MaskBits(CLK_B16));
-                    packed64_t publish = PackedCell64_t::PackV32x_64(static_cast<val32_t>(i), clk16, ST_PUBLISHED, REL_PAGE);
+                    packed64_t publish = PackedCell64_t::ComposeValue32x_64(static_cast<val32_t>(i), clk16, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, REL_PAGE, 0u));
                     packed64_t expected = cur;
                     if (slot.compare_exchange_strong(expected, publish, EXsuccess_, EXfailure_))
                     {
@@ -179,7 +179,7 @@ int main()
                         std::this_thread::sleep_for(std::chrono::milliseconds(proc_dist(lg)));
                     }
                     uint64_t now_ticks = abac_v32.PublicTimer48.NowTicks();
-                    packed64_t commit = PackedCell64_t::PackCLK48x_64((now_ticks & MaskBits(CLK_B48)), ST_COMPLETE, REL_PAGE);
+                    packed64_t commit = PackedCell64_t::ComposeCLK48x_64((now_ticks & MaskBits(CLK_B48)), MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_COMPLETE, REL_PAGE, 0u, 1u));
                     slot.store(commit, MoStoreSeq_);
                     slot.notify_all();
 
@@ -282,7 +282,7 @@ int main()
 
     //show native ABA
     {
-        packed64_t A = PackedCell64_t::PackV32x_64(0xAAu, clk16_t(0x1234), ST_PUBLISHED, REL_SELF);
+        packed64_t A = PackedCell64_t::ComposeValue32x_64(0xAAu, clk16_t(0x1234), MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, REL_SELF, 0u));
         slot.store(A, MoStoreSeq_);
         slot.notify_all();
 
@@ -301,7 +301,7 @@ int main()
         });
 
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        packed64_t B = PackedCell64_t::PackV32x_64(0xBBu, clk16_t(0x2222), ST_PUBLISHED, REL_SELF);
+        packed64_t B = PackedCell64_t::ComposeValue32x_64(0xBBu, clk16_t(0x2222), MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, REL_SELF, 0u));
         slot.store(B, MoStoreSeq_);
         slot.notify_all();
         slot.store(A, MoStoreSeq_);
@@ -323,7 +323,7 @@ int main()
     uint64_t now = abac_clk48.PublicTimer48.NowTicks();
     //simulate short ages -> Expect:SPIN_IMMIDIATE
     {
-        packed64_t payload = PackedCell64_t::PackCLK48x_64(((now - 1000) & MaskBits(CLK_B48)), ST_PUBLISHED, REL_PAGE);
+        packed64_t payload = PackedCell64_t::ComposeCLK48x_64(((now - 1000) & MaskBits(CLK_B48)), MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, REL_PAGE, 0u, 1u));
         for (int i = 0; i < 200; i++)
         {
             uint64_t observed_now = ((now - 500) + (i & 0xFF));
@@ -333,7 +333,7 @@ int main()
     }
     // Modarate AGE -> Expect::SPIN_FOR_US
     {
-        packed64_t payload = PackedCell64_t::PackCLK48x_64(((now - 2000000) & MaskBits(CLK_B48)), ST_PUBLISHED, REL_PAGE);
+        packed64_t payload = PackedCell64_t::ComposeCLK48x_64(((now - 2000000) & MaskBits(CLK_B48)), MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, REL_PAGE, 0u, 1u));
         for (int i = 0; i < 200; i++)
         {
             uint64_t observed_now = (now - 2000000) + 100 + (i & 0xFF); //modarate age
@@ -344,7 +344,7 @@ int main()
 
     //very large ages -> EXPECTED:: PARK_FOR_US
     {
-        packed64_t payload = PackedCell64_t::PackCLK48x_64(((now - (uint64_t)1e9) & MaskBits(CLK_B48)), ST_PUBLISHED, REL_PAGE);
+        packed64_t payload = PackedCell64_t::ComposeCLK48x_64(((now - (uint64_t)1e9) & MaskBits(CLK_B48)), MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, REL_PAGE, 0u, 1u));
         for (int i = 0; i < 200; i++)
         {
             uint64_t observed_now = (now - (uint64_t)1e9) + 100000 + (i & 0xFFF); //Very Large Age

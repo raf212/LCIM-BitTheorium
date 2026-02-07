@@ -1,7 +1,8 @@
 #pragma once
 
 #include "PackedStRel.h"
-
+#define PC_MODE_V32 0u
+#define PC_MODE_CLK48 1u
 
 namespace AtomicCScompact
 {
@@ -25,24 +26,24 @@ namespace AtomicCScompact
             packed64_t p = 0;
             if (mode == PackedMode::MODE_VALUE32)
             {
-                p = static_cast<packed64_t>(PackV32x_64(0u, 0u, ST_IDLE, REL_NONE));
+                p = static_cast<packed64_t>(ComposeValue32x_64(0u, 0u, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_IDLE, 0u, 0u, PC_MODE_V32)));
             }
             else if (mode == PackedMode::MODE_CLKVAL48)
             {
-                p = static_cast<packed64_t>(PackCLK48x_64(0u, ST_IDLE, REL_NONE));
+                p = static_cast<packed64_t>(ComposeCLK48x_64(0u, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_IDLE, 0u, 0u, PC_MODE_CLK48)));
             }
             return p;
         }
-        static inline packed64_t PackV32x_64(val32_t v, clk16_t clk, tag8_t st, tag8_t rel) noexcept {
-            packed64_t p = (packed64_t(v) & MaskBits(VALBITS));
-            p |= (packed64_t(clk) & MaskBits(CLK_B16)) << VALBITS;
-            p |= (packed64_t(rel)  & MaskBits(RELBITS))  << (VALBITS + CLK_B16);
-            p |= (packed64_t(st) & MaskBits(STBITS)) << (VALBITS + CLK_B16 + RELBITS);
-            return p;
-        }
 
-        static inline packed64_t ComposeValue32x_64(val32_t v, clk16_t clk, strl16_t strl)
+        static inline packed64_t ComposeValue32x_64(val32_t v, clk16_t clk, strl16_t strl) noexcept
         {
+            if(ExtractPCellTypeFromSTRL(strl) != PC_MODE_V32)
+            {
+                std::fputs(
+                    "FATAL-> STRL defined mode MODE_CLKVAL48::Composing->PackedMode::MODE_VALUE32\n",
+                    stderr
+                );  
+            }
             packed64_t p = (packed64_t(v) & MaskBits(VALBITS));
             p = SetCLK16InPacked<PackedMode::MODE_VALUE32>(p, clk);
             p = SetSTRLInPacked(p, strl);
@@ -51,6 +52,13 @@ namespace AtomicCScompact
         
         static inline packed64_t ComposeCLK48x_64(uint64_t clk48, strl16_t strl) noexcept
         {
+            if(ExtractPCellTypeFromSTRL(strl) != PC_MODE_CLK48)
+            {
+                std::fputs(
+                    "FATAL-> STRL defined mode MODE_VALUE32::Composing->PackedMode::MODE_CLKVAL48\n",
+                    stderr
+                );  
+            }
             packed64_t p = (packed64_t(clk48) & MaskBits(CLK_B48));
             p = SetSTRLInPacked(p, strl);
             return p;
@@ -63,13 +71,6 @@ namespace AtomicCScompact
             constexpr packed64_t clk16_mask = (MaskBits(CLK_B16) << VALBITS);
             p &= ~clk16_mask;
             p |= (packed64_t(clk16 & MaskBits(CLK_B16)) << VALBITS);
-            return p;
-        }
-
-        static inline packed64_t PackCLK48x_64(uint64_t clk, tag8_t st, tag8_t rel) noexcept {
-            packed64_t p = (packed64_t(clk) & MaskBits(CLK_B48));
-            p |= (packed64_t(rel)  & MaskBits(RELBITS))  << CLK_B48;
-            p |= (packed64_t(st) & MaskBits(STBITS)) << (CLK_B48 + RELBITS);
             return p;
         }
 
@@ -114,6 +115,20 @@ namespace AtomicCScompact
         static inline tag8_t ExtractLocalityFromPacked(packed64_t p) noexcept
         {
             return ExtractLocalityFromSTRL(ExtractSTRL(p));
+        }
+
+        static inline tag8_t ExtractPCellTypeFromPacked(packed64_t p) noexcept
+        {
+            return ExtractPCellTypeFromSTRL(ExtractSTRL(p));
+        }
+
+        static inline bool IsPackedCellVal32(packed64_t p) noexcept
+        {
+            if (ExtractPCellTypeFromPacked(p) == PC_MODE_V32)
+            {
+                return true;
+            }
+            return false;
         }
 
         static inline tag8_t ExtractRelMaskFromPacked(packed64_t p) noexcept
@@ -161,6 +176,23 @@ namespace AtomicCScompact
             return SetSTRLInPacked(p, new_strl);
         }
 
+        static inline packed64_t BlindModeSwitchOfPacked(PackedMode out_mode, packed64_t p) noexcept
+        {
+            strl16_t sr = ExtractSTRL(p);
+            tag8_t prio = ExtractPriorityFromSTRL(sr);
+            tag8_t loc = ExtractLocalityFromSTRL(sr);
+            tag8_t rm = ExtractRelMaskFromSTRL(sr);
+            tag8_t ro = ExtractRelOffsetFromSTRL(sr);
+            if (out_mode == PackedMode::MODE_CLKVAL48)
+            {
+                return ComposeCLK48x_64(ExtractClk48(p), MakeSTRL4_t(prio, loc, rm, ro, PC_MODE_CLK48));
+            }
+            else if (out_mode == PackedMode::MODE_VALUE32)
+            {
+                return ComposeValue32x_64(ExtractValue32(p), ExtractClk16(p), MakeSTRL4_t(prio, loc, rm, ro, PC_MODE_V32));
+            }
+        }
+
         static inline packed64_t SetRelMaskInPacked(packed64_t p, tag8_t rel_mask) noexcept
         {
             strl16_t sr = ExtractSTRL(p);
@@ -184,12 +216,6 @@ namespace AtomicCScompact
 
 
         //old functions
-
-        static inline tag8_t RelMaskBSetFromRelation(tag8_t rel_bit) noexcept
-        {
-            return static_cast<tag8_t>(rel_bit & RELATION_MASK_5);
-        }
-
 
         template<typename T>
         static inline T AsValue(packed64_t p) noexcept

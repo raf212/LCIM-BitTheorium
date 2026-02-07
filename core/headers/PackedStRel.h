@@ -61,7 +61,6 @@ namespace AtomicCScompact {
     static constexpr unsigned CLK48TO16_PACKED_ERROR = 16u;
 
     //STRL->[priority->4 | locality->3 | PackedCell Type->1 | relmask->4 | reloffset->4 ]-> = 16 bit->Bit distribution = [12 | 9 | 8 | 4 | 0 ]
-    static constexpr unsigned STRL_DIVISION_CONST = 4u;
     static constexpr unsigned STRL_PRIO_AND_REL_CONST = 4u;//depricated
     static constexpr unsigned PCTYPE_CONST = 1u;
     static constexpr unsigned LOCALITY_CONST = 3u;
@@ -72,9 +71,7 @@ namespace AtomicCScompact {
     static constexpr unsigned LOCALITY_SHIFT = PCTYPE_SHIFT + PCTYPE_CONST;
     static constexpr unsigned PRIORITY_SHIFT = LOCALITY_SHIFT + LOCALITY_CONST;
     //mask
-    static constexpr tag8_t STRL_DIVISION_MASK_4 = static_cast<tag8_t>((1u << STRL_DIVISION_CONST) - 1u); //depricated
-
-    static constexpr tag8_t STRL_PRIO_REL_MASK_4 = static_cast<tag8_t>((1u << STRL_DIVISION_CONST) - 1u);
+    static constexpr tag8_t STRL_PRIO_REL_MASK_4 = static_cast<tag8_t>((1u << STRL_PRIO_AND_REL_CONST) - 1u);
     static constexpr tag8_t PCTYPE_MASK = static_cast<tag8_t>((1u << PCTYPE_CONST) - 1u);
     static constexpr tag8_t LOCALITY_MASK = static_cast<tag8_t>((1u << LOCALITY_CONST) - 1u);
     
@@ -99,7 +96,7 @@ namespace AtomicCScompact {
     static constexpr tag8_t REL_PAGE        = 0x04;
     static constexpr tag8_t REL_PATTERN     = 0x08;
     static constexpr tag8_t REL_SELF        = 0x01; // reused
-    static constexpr tag8_t REL_ALL_LOW_4   = static_cast<tag8_t>(STRL_DIVISION_MASK_4);
+    static constexpr tag8_t REL_ALL_LOW_4   = static_cast<tag8_t>(STRL_PRIO_REL_MASK_4);
 
     inline constexpr strl16_t MakeSTRL4_t(tag8_t priority, tag8_t locality, tag8_t rel_mask, tag8_t rel_offset, tag8_t pc_type = 0) noexcept
     {
@@ -152,32 +149,30 @@ namespace AtomicCScompact {
     inline constexpr tag8_t MakeRelByte(tag8_t rel_mask, tag8_t rel_offset) noexcept
     {
         return static_cast<tag8_t>(
-            (static_cast<tag8_t>(rel_mask & STRL_DIVISION_MASK_4) << STRL_DIVISION_CONST)
-            | static_cast<tag8_t>(rel_offset & STRL_DIVISION_MASK_4)
+            (static_cast<tag8_t>(rel_mask & STRL_PRIO_REL_MASK_4) << STRL_PRIO_AND_REL_CONST)
+            | static_cast<tag8_t>(rel_offset & STRL_PRIO_REL_MASK_4)
         );
     }
 
     inline constexpr int8_t DecodeRelOffsetSigned(tag8_t reloffset) noexcept
     {
-        tag8_t r = reloffset & STRL_DIVISION_MASK_4;
-        if (r & (1u << (STRL_DIVISION_CONST -1)))
+        tag8_t r = reloffset & STRL_PRIO_REL_MASK_4;
+        if (r & (1u << (STRL_PRIO_AND_REL_CONST -1)))
         {
-            return static_cast<tag8_t>(static_cast<int8_t>(r) | static_cast<int8_t>(~((1 << STRL_DIVISION_CONST) - 1)));
+            return static_cast<tag8_t>(static_cast<int8_t>(r) | static_cast<int8_t>(~((1 << STRL_PRIO_AND_REL_CONST) - 1)));
         }
         return static_cast<int8_t>(r);
     }
 
     inline constexpr bool ISRelOffsetEscaped(tag8_t reloffset) noexcept
     {
-        return ((reloffset & STRL_DIVISION_MASK_4) == STRL_DIVISION_MASK_4);
+        return ((reloffset & STRL_PRIO_REL_MASK_4) == STRL_PRIO_REL_MASK_4);
     }
 
     inline constexpr bool DoseRelMatch(tag8_t slot_relbyte, tag8_t relmask) noexcept
     {
-        tag8_t slot_rm = static_cast<tag8_t>((slot_relbyte >> STRL_DIVISION_CONST) & STRL_DIVISION_MASK_4);
-        return ((slot_rm & (relmask & STRL_DIVISION_MASK_4)) != 0);
+        tag8_t slot_rm = static_cast<tag8_t>((slot_relbyte >> STRL_PRIO_AND_REL_CONST) & STRL_PRIO_REL_MASK_4);
+        return ((slot_rm & (relmask & STRL_PRIO_REL_MASK_4)) != 0);
     }
     
-static constexpr tag8_t REL_ALL_LOW5    = 0x1F; // all low-5 relation bits
-
 }

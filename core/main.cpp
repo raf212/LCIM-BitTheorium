@@ -117,7 +117,7 @@ int main() {
 
     // -------------------
     // ClaimOne relation mismatch (expected fail)
-    // Publish REL_NONE and try ClaimOne(REL_ALL_LOW5) -> should fail (intentional behaviour)
+    // Publish REL_NONE and try ClaimOne(REL_ALL_LOW_4) -> should fail (intentional behaviour)
     // -------------------
     strl16_t drn_sr = MakeSTRL4_t(0, ST_PUBLISHED, REL_NONE, REL_NONE);
     packed64_t payload_none = PackedCell64_t::ComposeValue32x_64(99u, 2u, drn_sr);
@@ -125,9 +125,9 @@ int main() {
     LOG("Published payload_none idx=" + std::to_string(p4.index));
     size_t out_idx2 = SIZE_MAX;
     packed64_t out_obs2 = 0;
-    bool claimed2 = dsa_v32.ClaimOne(REL_ALL_LOW5, out_idx2, out_obs2);
-    LOG(std::string("ClaimOne with REL_ALL_LOW5 on REL_NONE returned: ") + (claimed2 ? "true" : "false"));
-    CHECK(claimed2 == false, "ClaimOne should not match REL_NONE when caller requests REL_ALL_LOW5");
+    bool claimed2 = dsa_v32.ClaimOne(REL_ALL_LOW_4, out_idx2, out_obs2);
+    LOG(std::string("ClaimOne with REL_ALL_LOW_4 on REL_NONE returned: ") + (claimed2 ? "true" : "false"));
+    CHECK(claimed2 == false, "ClaimOne should not match REL_NONE when caller requests REL_ALL_LOW_4");
 
     // -------------------
     // ClaimBatch basic test
@@ -170,7 +170,7 @@ int main() {
     // -------------------
     try {
         dsa_v32.InitRegionIndex(16);
-        auto ranges_all = dsa_v32.ScanRelRanges(REL_ALL_LOW5);
+        auto ranges_all = dsa_v32.ScanRelRanges(REL_ALL_LOW_4);
         LOG("ScanRelRanges returned " + std::to_string(ranges_all.size()) + " ranges");
         // not asserting exact number: just ensure call works
         CHECK(true, "ScanRelRanges callable");
@@ -263,7 +263,7 @@ int main() {
         while (!produce_done.load(std::memory_order_acquire) ||
             consumed.load() < produced.load()) {
 
-            bool ok = dsa_v32.ClaimOne(REL_ALL_LOW5, out_i, o, 16);
+            bool ok = dsa_v32.ClaimOne(REL_ALL_LOW_4, out_i, o, 16);
             if (ok) {
                 dsa_v32.CommitIdxWithPayload(out_i, o);
                 dsa_v32.Recycle(out_i);

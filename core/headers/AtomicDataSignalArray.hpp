@@ -230,7 +230,7 @@ private:
         while (true)
         {
             entry->NextEntry_.store(head, MoStoreUnSeq_);
-            if (RetireHeadPtr_.compare_exchange_strong(head, e, EXsuccess_, EXfailure_))
+            if (RetireHeadPtr_.compare_exchange_strong(head, entry, EXsuccess_, EXfailure_))
             {
                 RetireCount_.fetch_add(1, std::memory_order_acq_rel);
                 return;
@@ -238,6 +238,8 @@ private:
         }
         
     }
+    //////////////////////////// continue/////////////////////////////
+
     //region
     size_t RegionSize_{0};
     size_t NumRegion_{0};

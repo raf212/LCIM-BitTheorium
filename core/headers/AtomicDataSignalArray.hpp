@@ -97,6 +97,7 @@ private:
     size_t Capacity_{0};
     bool Owned_{false};
     int UsedNode_{0};
+    unsigned RetireBatchThreshold_ {16};
 
     ADSAConfig Cfg_;
     //occupancy & cursor
@@ -238,7 +239,44 @@ private:
         }
         
     }
-    //////////////////////////// continue/////////////////////////////
+    
+    void TryReclaimRetire_() noexcept
+    {
+        size_t count = RetireCount_.load(MoLoad_);
+        if (count == 0)
+        {
+            return;
+        }
+        if (count < RetireBatchThreshold_)
+        {
+            return;
+        }
+
+        RelEntry_* stolen = RetireHeadPtr_.exchange(nullptr, std::memory_order_acq_rel);
+        if (!stolen)
+        {
+            RetireCount_.store(0, MoStoreSeq_);
+            return;
+        }
+        RetireCount_.store(0, MoStoreSeq_);
+
+        packed64_t pc_min_epoch = ComputeMinThreadEpoch_();
+        val32_t min_epoch32 = PackedCell64_t::ExtractValue32(pc_min_epoch);
+        RelEntry_* cur = stolen;
+        RelEntry_* keep_head = nullptr;
+        while (cur)
+        {
+            RelEntry_* next = cur->NextEntry_.load(std::memory_order_relaxed);
+            val32_t retire_epoch = PackedCell64_t::ExtractValue32(cur->RetireEpoch_.load(MoLoad_));
+            bool safe = false;
+            if (retire_epoch == 0)
+            {
+                //////// continue from here //////////--after task 2,3------
+                packed64_t new_epoch;
+            }
+            
+        }
+    }
 
     //region
     size_t RegionSize_{0};

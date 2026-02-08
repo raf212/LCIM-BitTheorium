@@ -191,6 +191,7 @@ namespace AtomicCScompact
             {
                 return ComposeValue32x_64(ExtractValue32(p), ExtractClk16(p), MakeSTRL4_t(prio, loc, rm, ro, PC_MODE_V32));
             }
+            return SetSTRLInPacked(0u, MakeSTRL4_t(MAX_PRIORITY, ST_EXCEPTION_BIT_FAULTY, 0u, 0u));
         }
 
         static inline packed64_t SetRelMaskInPacked(packed64_t p, tag8_t rel_mask) noexcept

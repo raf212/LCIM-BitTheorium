@@ -1,0 +1,1 @@
+1. To handle exception where BlindModeSwitchOfPacked can have Exception MODE new LOCALITY->ST_EXCEPTION_BIT_FAULTY::Introduced.

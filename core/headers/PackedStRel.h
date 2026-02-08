@@ -82,7 +82,7 @@ namespace AtomicCScompact {
     // locality (4-bit)
     static constexpr tag8_t ST_IDLE        = 0x0;
     static constexpr tag8_t ST_PUBLISHED   = 0x1;
-    static constexpr tag8_t ST_PENDING     = 0x2;
+    static constexpr tag8_t ST_EXCEPTION_BIT_FAULTY = 0x2;
     static constexpr tag8_t ST_CLAIMED     = 0x3;
     static constexpr tag8_t ST_PROCESSING  = 0x4;
     static constexpr tag8_t ST_COMPLETE    = 0x5;

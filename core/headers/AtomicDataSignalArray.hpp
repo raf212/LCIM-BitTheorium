@@ -35,6 +35,8 @@ struct ADSAConfig
     size_t MaxTlsCandidates = 4096;
     size_t ProducerBlockSize = 64;
     size_t RegionSize = 0;
+    size_t RelOffsetCapacity = 0;
+    unsigned RetireBatchThreshold = 16;
     static constexpr size_t MaxTLS = 8192;
 };
 
@@ -50,12 +52,47 @@ struct PublishResult
     PublishStatus status;
     size_t index;
 };
-
+// template should be removed
 template<PackedMode MODE>
 class AtomicDataSignalArray
 {
+private :
+//all will be removed
+    std::vector<packed64_t> RelOffSet_; // depricated
+
 public:
     std::atomic<packed64_t>* BackingPtr{nullptr};
+
+    struct QSBRGuard
+    {
+        AtomicDataSignalArray* Parent_;
+        bool Active_;
+        QSBRGuard(AtomicDataSignalArray* adsa_ptr = nullptr) noexcept :
+            Parent_(adsa_ptr), Active_(false)
+        {
+            if (Parent_)
+            {
+                Parent_->QSBREnterCritical_();
+                Active_ = true;
+            }
+        }
+        ~QSBRGuard() noexcept
+        {
+            if (Active_)
+            {
+                Parent_->QSBEExitCritical_();
+            }
+        }
+        QSBRGuard(const QSBRGuard&) = delete;
+        QSBRGuard& operator = (const QSBRGuard&) = delete;
+        QSBRGuard(QSBRGuard&& o) noexcept :
+            Parent_(o.Parent_), Active_(o.Active_)
+        {
+            o.Active_ = false;
+            o.Parent_ = nullptr;
+        }
+    };
+
 private:
     size_t Capacity_{0};
     bool Owned_{false};
@@ -69,8 +106,138 @@ private:
 
     //adaptivebackoff
     AtomicAdaptiveBackoff Adaptivebkof_;
+
+    struct RelEntry_
+    {
+        enum class Kind_ : uint8_t
+        {
+            CHILD_ADSA = 0,
+            PACKED_NODE = 1
+        };
+        Kind_ RelEntryKind_;
+        AtomicDataSignalArray* ChildADSAPtr_;
+        size_t ChildBaseIdx_;
+        packed64_t PackedCell_;
+        uint64_t RetireEpoch_;
+        std::atomic<RelEntry_*> NextEntry_;
+        RelEntry_(AtomicDataSignalArray* child = nullptr, size_t base = 0) noexcept :
+            RelEntryKind_(Kind_::CHILD_ADSA), ChildADSAPtr_(child), ChildBaseIdx_(base), PackedCell_(0), RetireEpoch_(0)
+        {}
+        RelEntry_(packed64_t p) noexcept :
+            RelEntryKind_(Kind_::PACKED_NODE), ChildADSAPtr_(nullptr), ChildBaseIdx_(0), PackedCell_(p), RetireEpoch_(0)
+        {}
+
+    };
+
     //re-offset
-    std::vector<packed64_t> RelOffSet_;
+    std::vector<std::atomic<std::uintptr_t>> RelOffsetArrayPtr_;
+    std::atomic<size_t> RelOffsetAlloc_{0};
+    size_t RelOffsetCapacity_{0};
+
+    //lock-free QSBR
+    std::atomic<packed64_t> GlobalEpoch_{1};
+
+    std::vector<std::atomic<packed64_t>> ThreadEpochs_;
+    static inline thread_local size_t QSBRThreadIdx_ = SIZE_MAX;
+    //Retire list stack
+    std::atomic<RelEntry_*> RetireHeadPtr_{nullptr};
+    std::atomic<size_t> RetireCount_{0};
+
+    packed64_t ComputeMinThreadEpoch_() const noexcept
+    {
+        val32_t min_epoch = std::numeric_limits<val32_t>::max;
+        for (size_t i = 0; i < ThreadEpochs_.size(); i++)
+        {
+            packed64_t pc = ThreadEpochs_[i].load(MoLoad_);
+            if (PackedCell64_t::ExtractLocalityFromPacked(pc) == ST_PUBLISHED)
+            {
+                val32_t v32 = PackedCell64_t::ExtractValue32(pc);
+                if (v32 == std::numeric_limits<val32_t>::max)
+                {
+                    continue;
+                }
+                if (v32 < min_epoch)
+                {
+                    min_epoch = v32;
+                }
+            }
+        }
+        strl16_t sr = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, 0u, 0u);
+        return PackedCell64_t::ComposeValue32x_64(min_epoch, 0u, sr);
+    }
+    
+    size_t RegisterThreadFromQSBRImplimentation_() noexcept
+    {
+        if (QSBRThreadIdx_ != SIZE_MAX)
+        {
+            return QSBRThreadIdx_;
+        }
+        const val32_t cur_epoch = PackedCell64_t::ExtractValue32(GlobalEpoch_.load(MoLoad_));
+        for (size_t i = 0; i < ThreadEpochs_.size(); i++)
+        {
+            packed64_t expected = ThreadEpochs_[i].load(std::memory_order_relaxed);
+            tag8_t loc = PackedCell64_t::ExtractLocalityFromPacked(expected);
+            if (loc == ST_CLAIMED)
+            {
+                continue;
+            }
+            packed64_t claimed = expected;
+            claimed = PackedCell64_t::SetLocalityInPacked(claimed, ST_CLAIMED);
+            if (!ThreadEpochs_[i].compare_exchange_strong(
+                expected, claimed, EXsuccess_, EXfailure_
+            ))
+            {
+                continue;
+            }
+            packed64_t published = PackedCell64_t::ComposeValue32x_64(cur_epoch, PackedCell64_t::ExtractClk16(claimed), PackedCell64_t::ExtractSTRL(claimed));
+            published = PackedCell64_t::SetLocalityInPacked(published, ST_PUBLISHED);
+            ThreadEpochs_[i].store(published, MoStoreSeq_);
+            QSBRThreadIdx_ = i;
+            return i;
+        }
+        return SIZE_MAX;
+    }
+    
+    inline void QSBREnterCritical_() noexcept
+    {
+        if (QSBRThreadIdx_ == SIZE_MAX)
+        {
+            (void) RegisterThreadFromQSBRImplimentation_();
+        }
+        packed64_t g_epoch = GlobalEpoch_.load(MoLoad_);
+        g_epoch = PackedCell64_t::SetPriorityInPacked(g_epoch, MAX_PRIORITY);
+        g_epoch = PackedCell64_t::SetLocalityInPacked(g_epoch, ST_PUBLISHED);
+
+        ThreadEpochs_[QSBRThreadIdx_].store(g_epoch, MoStoreSeq_);
+    }
+
+    inline void QSBEExitCritical_() noexcept
+    {
+        if (QSBRThreadIdx_ == SIZE_MAX)
+        {
+            return;
+        }
+        packed64_t te = PackedCell64_t::ComposeValue32x_64(
+            (std::numeric_limits<val32_t>::max),
+            MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, 0u, 0u)
+        );
+        ThreadEpochs_[QSBRThreadIdx_].store(te, MoStoreSeq_);
+    }
+
+    void RetirePushLocked_(RelEntry_* entry) noexcept
+    {
+        RelEntry_* head = RetireHeadPtr_.load(MoLoad_);
+        while (true)
+        {
+            entry->NextEntry_.store(head, MoStoreUnSeq_);
+            if (RetireHeadPtr_.compare_exchange_strong(head, e, EXsuccess_, EXfailure_))
+            {
+                RetireCount_.fetch_add(1, std::memory_order_acq_rel);
+                return;
+            }
+        }
+        
+    }
     //region
     size_t RegionSize_{0};
     size_t NumRegion_{0};

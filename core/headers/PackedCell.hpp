@@ -21,16 +21,16 @@ namespace AtomicCScompact
 
     struct PackedCell64_t 
     {
-        static inline packed64_t MakeInitialPacked(PackedMode mode) noexcept
+        static inline packed64_t MakeInitialPacked(PackedMode mode, PackedCellDataType pcdata_type = PackedCellDataType::UnsignedPCellDataType) noexcept
         {
             packed64_t p = 0;
             if (mode == PackedMode::MODE_VALUE32)
             {
-                p = static_cast<packed64_t>(ComposeValue32x_64(0u, 0u, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_IDLE, 0u, 0u, PC_MODE_V32)));
+                p = static_cast<packed64_t>(ComposeValue32x_64(0u, 0u, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_IDLE, 0u, 0u, PC_MODE_V32, pcdata_type)));
             }
             else if (mode == PackedMode::MODE_CLKVAL48)
             {
-                p = static_cast<packed64_t>(ComposeCLK48x_64(0u, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_IDLE, 0u, 0u, PC_MODE_CLK48)));
+                p = static_cast<packed64_t>(ComposeCLK48x_64(0u, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_IDLE, 0u, 0u, PC_MODE_CLK48, pcdata_type)));
             }
             return p;
         }
@@ -141,12 +141,9 @@ namespace AtomicCScompact
             return ExtractRelOffsetFromSTRL(ExtractSTRL(p));
         }
 
-        static inline tag8_t GetFullRelationFromPacked(packed64_t p) noexcept
+        static inline PackedCellDataType ExtractPCellDataTypeFromPacked(packed64_t p) noexcept
         {
-            strl16_t sr = ExtractSTRL(p);
-            tag8_t rel_mask = ExtractRelMaskFromSTRL(sr);
-            tag8_t rel_offset = ExtractRelOffsetFromSTRL(sr);
-            return MakeRelByte(rel_mask, rel_offset);
+            return static_cast<PackedCellDataType>(ExtractPCellDataTypeFromSTRL(ExtractSTRL(p)));
         }
 
         static inline packed64_t SetPriorityInPacked(packed64_t p, tag8_t priority)
@@ -157,10 +154,11 @@ namespace AtomicCScompact
             }
             strl16_t sr = ExtractSTRL(p);
             tag8_t locality = ExtractLocalityFromSTRL(sr);
+            tag8_t pctype = ExtractPCellTypeFromSTRL(sr);
             tag8_t rm = ExtractRelMaskFromSTRL(sr);
             tag8_t ro = ExtractRelOffsetFromSTRL(sr);
-
-            strl16_t new_strl = MakeSTRL4_t(priority, locality, rm, ro);
+            PackedCellDataType pcdata_type = ExtractPCellDataTypeFromSTRL(sr);
+            strl16_t new_strl = MakeSTRL4_t(priority, locality, rm, ro, pctype, pcdata_type);
             return SetSTRLInPacked(p, new_strl);
             
         }
@@ -169,10 +167,11 @@ namespace AtomicCScompact
         {
             strl16_t sr = ExtractSTRL(p);
             tag8_t prio = ExtractPriorityFromSTRL(sr);
+            tag8_t pctype = ExtractPCellTypeFromSTRL(sr);
             tag8_t rm = ExtractRelMaskFromSTRL(sr);
             tag8_t ro = ExtractRelOffsetFromSTRL(sr);
-
-            strl16_t new_strl = MakeSTRL4_t(prio, local_state, rm, ro);
+            PackedCellDataType pcdata_type = ExtractPCellDataTypeFromSTRL(sr);
+            strl16_t new_strl = MakeSTRL4_t(prio, local_state, rm, ro, pctype, pcdata_type);
             return SetSTRLInPacked(p, new_strl);
         }
 
@@ -183,15 +182,16 @@ namespace AtomicCScompact
             tag8_t loc = ExtractLocalityFromSTRL(sr);
             tag8_t rm = ExtractRelMaskFromSTRL(sr);
             tag8_t ro = ExtractRelOffsetFromSTRL(sr);
+            PackedCellDataType pcdata_type = ExtractPCellDataTypeFromSTRL(sr);
             if (out_mode == PackedMode::MODE_CLKVAL48)
             {
-                return ComposeCLK48x_64(ExtractClk48(p), MakeSTRL4_t(prio, loc, rm, ro, PC_MODE_CLK48));
+                return ComposeCLK48x_64(ExtractClk48(p), MakeSTRL4_t(prio, loc, rm, ro, PC_MODE_CLK48, pcdata_type));
             }
             else if (out_mode == PackedMode::MODE_VALUE32)
             {
-                return ComposeValue32x_64(ExtractValue32(p), ExtractClk16(p), MakeSTRL4_t(prio, loc, rm, ro, PC_MODE_V32));
+                return ComposeValue32x_64(ExtractValue32(p), ExtractClk16(p), MakeSTRL4_t(prio, loc, rm, ro, PC_MODE_V32, pcdata_type));
             }
-            return SetSTRLInPacked(0u, MakeSTRL4_t(MAX_PRIORITY, ST_EXCEPTION_BIT_FAULTY, 0u, 0u));
+            return SetSTRLInPacked(0u, MakeSTRL4_t(MAX_PRIORITY, ST_EXCEPTION_BIT_FAULTY, 0u, 0u, 0u, PackedCellDataType::UnsignedPCellDataType));
         }
 
         static inline packed64_t SetRelMaskInPacked(packed64_t p, tag8_t rel_mask) noexcept
@@ -199,9 +199,10 @@ namespace AtomicCScompact
             strl16_t sr = ExtractSTRL(p);
             tag8_t prio = ExtractPriorityFromSTRL(sr);
             tag8_t loc = ExtractLocalityFromSTRL(sr);
+            tag8_t pctype = ExtractPCellTypeFromSTRL(sr);
             tag8_t ro = ExtractRelOffsetFromSTRL(sr);
-
-            strl16_t new_strl = MakeSTRL4_t(prio, loc, rel_mask, ro);
+            PackedCellDataType pcdata_type = ExtractPCellDataTypeFromSTRL(sr);
+            strl16_t new_strl = MakeSTRL4_t(prio, loc, rel_mask, ro, pctype, pcdata_type);
             return SetSTRLInPacked(p, new_strl);
         }
 
@@ -210,11 +211,24 @@ namespace AtomicCScompact
             strl16_t sr = ExtractSTRL(p);
             tag8_t prio = ExtractPriorityFromSTRL(sr);
             tag8_t loc = ExtractLocalityFromSTRL(sr);
+            tag8_t pctype = ExtractPCellTypeFromSTRL(sr);
             tag8_t rm = ExtractRelMaskFromSTRL(sr);
-            strl16_t new_strl = MakeSTRL4_t(prio, loc, rm, rel_offset);
+            PackedCellDataType pcdata_type = static_cast<PackedCellDataType>(ExtractPCellDataTypeFromSTRL(sr));
+            strl16_t new_strl = MakeSTRL4_t(prio, loc, rm, rel_offset, pctype, pcdata_type);
             return SetSTRLInPacked(p, new_strl);
         }
 
+        static inline packed64_t SetPCellDataTypeInPacked(packed64_t p, PackedCellDataType pc_dtype)
+        {
+            strl16_t sr = ExtractSTRL(p);
+            tag8_t prio = ExtractPriorityFromSTRL(sr);
+            tag8_t loc = ExtractLocalityFromSTRL(sr);
+            tag8_t pctype = ExtractPCellTypeFromSTRL(sr);
+            tag8_t rm = ExtractRelMaskFromSTRL(sr);
+            tag8_t ro = ExtractRelOffsetFromSTRL(sr);
+            strl16_t new_strl = MakeSTRL4_t(prio, loc, rm, ro, pctype, pc_dtype);
+            return SetSTRLInPacked(p, new_strl);
+        }
 
         //old functions
 

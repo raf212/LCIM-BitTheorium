@@ -50,9 +50,7 @@ PYBIND11_MODULE(atomiccim_bind, m) {
     m.def("extract_pcelltype_from_strl", [](uint16_t strl) { return ExtractPCellTypeFromSTRL(static_cast<strl16_t>(strl)); });
     m.def("extract_relmask_from_strl", [](uint16_t strl) { return ExtractRelMaskFromSTRL(static_cast<strl16_t>(strl)); });
     m.def("extract_reloffset_from_strl", [](uint16_t strl) { return ExtractRelOffsetFromSTRL(static_cast<strl16_t>(strl)); });
-    m.def("make_rel_byte", [](uint8_t rel_mask, uint8_t rel_offset) { return MakeRelByte(rel_mask, rel_offset); });
     m.def("decode_reloffset_signed", [](uint8_t ro) { return DecodeRelOffsetSigned(ro); });
-    m.def("is_reloffset_escaped", [](uint8_t ro) { return ISRelOffsetEscaped(ro); });
     m.def("dose_rel_match", [](uint8_t slot_relbyte, uint8_t relmask) { return DoseRelMatch(slot_relbyte, relmask); });
 
     // -------------------------
@@ -86,8 +84,6 @@ PYBIND11_MODULE(atomiccim_bind, m) {
     m.def("is_packed_cell_val32", [](uint64_t p) -> bool { return PackedCell64_t::IsPackedCellVal32(static_cast<packed64_t>(p)); });
     m.def("extract_relmask_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractRelMaskFromPacked(static_cast<packed64_t>(p)); });
     m.def("extract_reloffset_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractRelOffsetFromPacked(static_cast<packed64_t>(p)); });
-    m.def("get_full_relation_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::GetFullRelationFromPacked(static_cast<packed64_t>(p)); });
-
     // setters that return new packed value
     m.def("set_priority_in_packed", [](uint64_t p, uint8_t priority) -> uint64_t {
         return PackedCell64_t::SetPriorityInPacked(static_cast<packed64_t>(p), priority);

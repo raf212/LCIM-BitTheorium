@@ -26,16 +26,16 @@ namespace AtomicCScompact
             packed64_t p = 0;
             if (mode == PackedMode::MODE_VALUE32)
             {
-                p = static_cast<packed64_t>(ComposeValue32x_64(0u, 0u, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_IDLE, 0u, 0u, PC_MODE_V32, pcdata_type)));
+                p = static_cast<packed64_t>(ComposeValue32u_64(0u, 0u, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_IDLE, 0u, 0u, PC_MODE_V32, pcdata_type)));
             }
             else if (mode == PackedMode::MODE_CLKVAL48)
             {
-                p = static_cast<packed64_t>(ComposeCLK48x_64(0u, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_IDLE, 0u, 0u, PC_MODE_CLK48, pcdata_type)));
+                p = static_cast<packed64_t>(ComposeCLK48u_64(0u, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_IDLE, 0u, 0u, PC_MODE_CLK48, pcdata_type)));
             }
             return p;
         }
 
-        static inline packed64_t ComposeValue32x_64(val32_t v, clk16_t clk, strl16_t strl) noexcept
+        static inline packed64_t ComposeValue32u_64(val32_t v, clk16_t clk, strl16_t strl) noexcept
         {
             if(ExtractPCellTypeFromSTRL(strl) != PC_MODE_V32)
             {
@@ -49,8 +49,9 @@ namespace AtomicCScompact
             p = SetSTRLInPacked(p, strl);
             return p;
         }
+
         
-        static inline packed64_t ComposeCLK48x_64(uint64_t clk48, strl16_t strl) noexcept
+        static inline packed64_t ComposeCLK48u_64(uint64_t clk48, strl16_t strl) noexcept
         {
             if(ExtractPCellTypeFromSTRL(strl) != PC_MODE_CLK48)
             {
@@ -185,11 +186,11 @@ namespace AtomicCScompact
             PackedCellDataType pcdata_type = ExtractPCellDataTypeFromSTRL(sr);
             if (out_mode == PackedMode::MODE_CLKVAL48)
             {
-                return ComposeCLK48x_64(ExtractClk48(p), MakeSTRL4_t(prio, loc, rm, ro, PC_MODE_CLK48, pcdata_type));
+                return ComposeCLK48u_64(ExtractClk48(p), MakeSTRL4_t(prio, loc, rm, ro, PC_MODE_CLK48, pcdata_type));
             }
             else if (out_mode == PackedMode::MODE_VALUE32)
             {
-                return ComposeValue32x_64(ExtractValue32(p), ExtractClk16(p), MakeSTRL4_t(prio, loc, rm, ro, PC_MODE_V32, pcdata_type));
+                return ComposeValue32u_64(ExtractValue32(p), ExtractClk16(p), MakeSTRL4_t(prio, loc, rm, ro, PC_MODE_V32, pcdata_type));
             }
             return SetSTRLInPacked(0u, MakeSTRL4_t(MAX_PRIORITY, ST_EXCEPTION_BIT_FAULTY, 0u, 0u, 0u, PackedCellDataType::UnsignedPCellDataType));
         }

@@ -164,7 +164,7 @@ private:
             }
         }
         strl16_t sr = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, 0u, 0u);
-        return PackedCell64_t::ComposeValue32x_64(min_epoch, 0u, sr);
+        return PackedCell64_t::ComposeValue32u_64(min_epoch, 0u, sr);
     }
     
     size_t RegisterThreadFromQSBRImplimentation_() noexcept
@@ -190,7 +190,7 @@ private:
             {
                 continue;
             }
-            packed64_t published = PackedCell64_t::ComposeValue32x_64(cur_epoch, PackedCell64_t::ExtractClk16(claimed), PackedCell64_t::ExtractSTRL(claimed));
+            packed64_t published = PackedCell64_t::ComposeValue32u_64(cur_epoch, PackedCell64_t::ExtractClk16(claimed), PackedCell64_t::ExtractSTRL(claimed));
             published = PackedCell64_t::SetLocalityInPacked(published, ST_PUBLISHED);
             ThreadEpochs_[i].store(published, MoStoreSeq_);
             QSBRThreadIdx_ = i;
@@ -218,7 +218,7 @@ private:
         {
             return;
         }
-        packed64_t te = PackedCell64_t::ComposeValue32x_64(
+        packed64_t te = PackedCell64_t::ComposeValue32u_64(
             (std::numeric_limits<val32_t>::max),
             MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, 0u, 0u)
         );
@@ -536,18 +536,18 @@ public:
                 packed64_t mp = MasterClkConfigaration_->ReadMasterClockPacked(mt);
                 packed64_t mc = PackedCell64_t::ExtractClk48(mp);
                 clk16_t clk16 = static_cast<clk16_t>((mc >> (Cfg_.TimerDownShift + CLK48TO16_PACKED_ERROR)) & MaskBits(CLK_B16));
-                item = PackedCell64_t::ComposeValue32x_64(v, clk16, newv_strl);
+                item = PackedCell64_t::ComposeValue32u_64(v, clk16, newv_strl);
             }
             else if (Cfg_.UseTimerStamp)
             {
                 packed64_t now = Adaptivebkof_.PublicTimer48.NowTicks();
                 clk16_t clk16 = static_cast<clk16_t>((now >> (Cfg_.TimerDownShift + CLK48TO16_PACKED_ERROR)) & MaskBits(CLK_B16));
-                item = PackedCell64_t::ComposeValue32x_64(v, clk16, newv_strl);
+                item = PackedCell64_t::ComposeValue32u_64(v, clk16, newv_strl);
             }
             else
             {
                 clk16_t clk16 = static_cast<clk16_t>(seq);
-                item = PackedCell64_t::ComposeValue32x_64(v, clk16, newv_strl);
+                item = PackedCell64_t::ComposeValue32u_64(v, clk16, newv_strl);
             }
         }
         else
@@ -555,7 +555,7 @@ public:
             packed64_t c48 = PackedCell64_t::ExtractClk48(item);
             strl16_t sr = PackedCell64_t::ExtractSTRL(c48);
             strl16_t nclk_sr = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, ExtractRelMaskFromSTRL(sr), ExtractRelOffsetFromSTRL(sr));
-            item = PackedCell64_t::ComposeCLK48x_64(c48, nclk_sr);
+            item = PackedCell64_t::ComposeCLK48u_64(c48, nclk_sr);
         }
 
         size_t start = seq;
@@ -596,7 +596,7 @@ public:
                         c48 = static_cast<packed64_t>((c48 + 1) & MaskBits(CLK_B48));
                         strl16_t sr2 = PackedCell64_t::ExtractClk16(to_write);
                         strl16_t newclk_sr2 = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, ExtractRelMaskFromSTRL(sr2), ExtractRelOffsetFromSTRL(sr2));
-                        to_write = PackedCell64_t::ComposeCLK48x_64(c48, newclk_sr2);
+                        to_write = PackedCell64_t::ComposeCLK48u_64(c48, newclk_sr2);
                     }
                 }
                 
@@ -921,7 +921,7 @@ public:
         GetNewClock16ForThread(mt, in_cb_clk16);
 
         strl16_t sob_strl = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, REL_NONE, REL_NONE);
-        packed64_t size_of_batch = PackedCell64_t::ComposeValue32x_64(static_cast<val32_t>(out.size()), in_cb_clk16, sob_strl);
+        packed64_t size_of_batch = PackedCell64_t::ComposeValue32u_64(static_cast<val32_t>(out.size()), in_cb_clk16, sob_strl);
         return size_of_batch;
     }
     
@@ -993,11 +993,11 @@ public:
         {
             clk16_t cep_clk16 = 0;
             GetNewClock16ForThread(mt, cep_clk16);
-            packed64_t packed_bonus = PackedCell64_t::ComposeValue32x_64(static_cast<val32_t>(age_bonus), cep_clk16, pb_sr);
+            packed64_t packed_bonus = PackedCell64_t::ComposeValue32u_64(static_cast<val32_t>(age_bonus), cep_clk16, pb_sr);
             return packed_bonus;
         }
         clk16_t clk16 = 0;
-        packed64_t  packed_bonus = PackedCell64_t::ComposeValue32x_64(static_cast<val32_t>(age_bonus), clk16, pb_sr);
+        packed64_t  packed_bonus = PackedCell64_t::ComposeValue32u_64(static_cast<val32_t>(age_bonus), clk16, pb_sr);
         return packed_bonus;
     }
 
@@ -1017,7 +1017,7 @@ public:
             clk16_t n_clk16 = static_cast<clk16_t>(clk16 + delta);
             strl16_t n_strl = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, REL_NONE, REL_NONE);
 
-            packed64_t desired = PackedCell64_t::ComposeValue32x_64(v, n_clk16, n_strl);
+            packed64_t desired = PackedCell64_t::ComposeValue32u_64(v, n_clk16, n_strl);
             packed64_t expect = oldv;
             if (BackingPtr[idx].compare_exchange_strong(expect, desired, EXsuccess_, EXfailure_))
             {

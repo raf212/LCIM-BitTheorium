@@ -65,11 +65,11 @@ PYBIND11_MODULE(atomiccim_bind, m) {
 
     // Compose helpers (work with python ints)
     m.def("compose_value32", [](uint32_t v, uint16_t clk16, uint16_t strl) {
-        return static_cast<uint64_t>(PackedCell64_t::ComposeValue32x_64(static_cast<val32_t>(v), static_cast<clk16_t>(clk16), static_cast<strl16_t>(strl)));
+        return static_cast<uint64_t>(PackedCell64_t::ComposeValue32u_64(static_cast<val32_t>(v), static_cast<clk16_t>(clk16), static_cast<strl16_t>(strl)));
     }, py::arg("value32"), py::arg("clk16"), py::arg("strl"));
 
     m.def("compose_clk48", [](uint64_t clk48, uint16_t strl) {
-        return static_cast<uint64_t>(PackedCell64_t::ComposeCLK48x_64(clk48, static_cast<strl16_t>(strl)));
+        return static_cast<uint64_t>(PackedCell64_t::ComposeCLK48u_64(clk48, static_cast<strl16_t>(strl)));
     }, py::arg("clk48"), py::arg("strl"));
 
     // Extractors

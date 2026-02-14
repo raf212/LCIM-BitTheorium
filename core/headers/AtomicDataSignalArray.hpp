@@ -587,7 +587,7 @@ public:
                         clk16_t nclk = static_cast<clk16_t>(oldclk + 1u);
                         strl16_t sr2 = PackedCell64_t::ExtractSTRL(to_write);
                         strl16_t newv_sr2 = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, ExtractRelMaskFromSTRL(sr2), ExtractRelOffsetFromSTRL(sr2));
-                        to_write = PackedCell64_t::SetCLK16InPacked<PackedMode::MODE_VALUE32>(to_write, nclk);
+                        to_write = PackedCell64_t::SetCLK16InPacked(to_write, nclk);
                         to_write = PackedCell64_t::SetSTRLInPacked(to_write, newv_sr2);
                     }
                     else if constexpr (MODE == PackedMode::MODE_CLKVAL48)

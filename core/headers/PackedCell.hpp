@@ -1,4 +1,4 @@
-#pragma once
+ #pragma once
 
 #include "PackedStRel.h"
 #define PC_MODE_V32 0u
@@ -6,11 +6,7 @@
 
 namespace AtomicCScompact
 {
-    enum class PackedMode : int
-    {
-        MODE_VALUE32 = 0,
-        MODE_CLKVAL48 = 1
-    };
+
     static inline constexpr packed64_t MaskBits(unsigned n) noexcept
     {
         if (n == NO_VAL) return packed64_t(0);
@@ -45,11 +41,137 @@ namespace AtomicCScompact
                 );  
             }
             packed64_t p = (packed64_t(v) & MaskBits(VALBITS));
-            p = SetCLK16InPacked<PackedMode::MODE_VALUE32>(p, clk);
+            p = SetCLK16InPacked(p, clk);
+            p = SetSTRLInPacked(p, strl);
+            return p;
+        }
+        
+        template <typename pcdt32>
+        static inline packed64_t ComposeValue32X_64(pcdt32 value32, clk16_t clk, strl16_t strl) noexcept
+        {
+            PackedCellDataType expected_pcdt = PCellTypeCheckUser<pcdt32>();
+            static_assert(sizeof(pcdt32) <= (VALBITS / LN_OF_BYTE_IN_BITS), "Data Type length should be less than 32 bits\n");
+            PackedMode pcmode = static_cast<PackedMode>(ExtractPCellTypeFromSTRL(strl));
+            if (pcmode != PackedMode::MODE_VALUE32)
+            {
+                return ComposeValue32X_64(0u, 0u, MakeSTRL4_t(MAX_PRIORITY, ST_EXCEPTION_BIT_FAULTY, 0u, 0u, 0u, PackedCellDataType::UnsignedPCellDataType));
+            }
+            PackedCellDataType strl_pcdt = ExtractPCellDataTypeFromSTRL(strl);
+            assert(strl_pcdt == expected_pcdt && "STRL PackedCellDataType mismatch; ComposeValue32X_64 == MODE_VALUE32\n");
+
+            val32_t valbits32 = 0u;
+            valbits32 = BitCastMaybe<val32_t>(value32);
+            packed64_t p = (packed64_t(valbits32) & MaskBits(VALBITS));
+            p = SetCLK16InPacked(p, clk);
             p = SetSTRLInPacked(p, strl);
             return p;
         }
 
+        template <typename pcdt32_48>
+        static inline packed64_t ComposeCLKVal48X_64(pcdt32_48 value48, strl16_t strl) noexcept
+        {
+            PackedCellDataType expected_pcdt = PCellTypeCheckUser<pcdt32_48>();
+            static_assert(sizeof(pcdt32_48) <= (CLK_B48 / LN_OF_BYTE_IN_BITS), "Passed Datat Type length should be less than 48 bits\n");
+            PackedMode pcmode = static_cast<PackedMode>(ExtractPCellTypeFromSTRL(strl));
+            if (pcmode != PackedMode::MODE_CLKVAL48)
+            {
+                return ComposeCLKVal48X_64(0u, MakeSTRL4_t(MAX_PRIORITY, ST_EXCEPTION_BIT_FAULTY, 0u, 0u, 0u, PackedCellDataType::UnsignedPCellDataType));
+            }
+            PackedCellDataType strl_pcdt = ExtractPCellDataTypeFromSTRL(strl);
+            assert(strl_pcdt == expected_pcdt && "STRL PackedCellDataType mismatch; ComposeCLKVal48X_64 == MODE_CLKVAL48");
+            uint64_t clkval48 = 0ull;
+            clkval48 = BitCastMaybe<uint64_t>(value48);
+            packed64_t p = (packed64_t(clkval48) & MaskBits(CLK_B48));
+            p = SetSTRLInPacked(p, strl);
+            return p;
+        }
+
+        template <typename pcdt>
+        static inline pcdt ExtractAnyPackedValueX(packed64_t p) noexcept
+        {
+            PackedCellDataType expected_pcdt = PCellTypeCheckUser<pcdt>();
+            strl16_t sr = ExtractSTRL(p);
+            PackedMode pcmode = static_cast<PackedMode>(ExtractPCellTypeFromSTRL(sr));
+            if (pcmode == PackedMode::MODE_VALUE32)
+            {
+                static_assert(sizeof(pcdt) <= (VALBITS / LN_OF_BYTE_IN_BITS), "Data Type length should be less than 32 bits\n");
+            }
+            else
+            {
+                static_assert(sizeof(pcdt) <= (VALBITS / LN_OF_BYTE_IN_BITS), "Data Type length should be less than 32 bits\n");
+            }
+            PackedCellDataType actual_pcdt = ExtractPCellDataTypeFromSTRL(sr);
+            assert(actual_pcdt == expected_pcdt && "Packed Cell data type dosent match Requested datatype");
+
+            if constexpr (std::is_floating_point_v<pcdt>)
+            {
+                if (pcmode == PackedMode::MODE_VALUE32)
+                {
+                    val32_t bits32 = ExtractValue32(p);
+                    pcdt out;
+                    out = BitCastMaybe<pcdt>(bits32);
+                    return out;
+                }
+                else
+                {
+                    uint64_t low48 = (ExtractClk48(p) & MaskBits(CLK_B48));
+                    pcdt out;
+                    uint64_t clk48 = low48;
+                    std::memcpy(&out, &clk48, sizeof(pcdt));
+                    return out;
+                }
+                
+            }
+            else if constexpr (std::is_integral_v<pcdt> && std::is_signed_v<pcdt>)
+            {
+                if (pcmode == PackedMode::MODE_VALUE32)
+                {
+                    val32_t valbits32 = ExtractValue32(p);
+                    constexpr unsigned number_of_bits_valbits32 = sizeof(pcdt) * LN_OF_BYTE_IN_BITS;
+                    val32_t masked_valbits32 = valbits32 & static_cast<val32_t>(MaskBits(number_of_bits_valbits32));
+                    int32_t signed_valbits32;
+                    if constexpr (number_of_bits_valbits32 == VALBITS)
+                    {
+                        signed_valbits32 = static_cast<int>(masked_valbits32);
+                    }
+                    else
+                    {
+                        int shift = VALBITS - static_cast<int>(number_of_bits_valbits32);
+                        signed_valbits32 = (static_cast<int32_t>(masked_valbits32) << shift) >> shift;
+                    }
+                    return static_cast<pcdt>(signed_valbits32);
+                }
+                else
+                {
+                    uint64_t low48 = (ExtractClk48(p) & MaskBits(CLK_B48));
+                    uint64_t masked_clk48 = (low48 & MaskBits(sizeof(pcdt) * LN_OF_BYTE_IN_BITS));
+                    if constexpr (sizeof(pcdt) == LN_OF_BYTE_IN_BITS)
+                    {
+                        return static_cast<pcdt>(static_cast<int64_t>(masked_clk48));
+                    }
+                    else
+                    {
+                        uint64_t sign_bit = (uint64_t(1) << ((sizeof(pcdt) * 8) - 1));
+                        int64_t signed64 = (masked_clk48 ^ sign_bit);
+                        signed64 -=  sign_bit;
+                        return static_cast<pcdt>(signed64);
+                    }
+                }
+            }
+            else
+            {
+                if (pcmode == PackedMode::MODE_VALUE32)
+                {
+                    val32_t valbits32 = ExtractValue32(p);
+                    return static_cast<pcdt>(valbits32 & MaskBits(sizeof(pcdt) * LN_OF_BYTE_IN_BITS));
+                }
+                else
+                {
+                    uint64_t clk48_low = (ExtractClk48(p) & MaskBits(CLK_B48));
+                    return static_cast<pcdt>(clk48_low & MaskBits(sizeof(pcdt) * LN_OF_BYTE_IN_BITS));
+                }
+            }
+        }
         
         static inline packed64_t ComposeCLK48u_64(uint64_t clk48, strl16_t strl) noexcept
         {
@@ -65,10 +187,8 @@ namespace AtomicCScompact
             return p;
         }
 
-        template <PackedMode MODE>
         static inline packed64_t SetCLK16InPacked(packed64_t p, clk16_t clk16)
         {
-            static_assert(MODE == PackedMode::MODE_VALUE32, "SetCLK16InPacked only valid for MODE_VALUE32");
             constexpr packed64_t clk16_mask = (MaskBits(CLK_B16) << VALBITS);
             p &= ~clk16_mask;
             p |= (packed64_t(clk16 & MaskBits(CLK_B16)) << VALBITS);

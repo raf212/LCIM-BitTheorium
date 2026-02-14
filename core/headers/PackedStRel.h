@@ -113,6 +113,45 @@ namespace AtomicCScompact {
         FloatPCellDataType = 2,
         CharPCellDataType = 3
     };
+
+    enum class PackedMode : int
+    {
+        MODE_VALUE32 = 0,
+        MODE_CLKVAL48 = 1
+    };
+
+    template <typename pcdt32>
+    static inline PackedCellDataType PCellTypeCheckUser()
+    {
+        static_assert(std::is_trivially_copyable_v<pcdt32>, "Passed value Must be Trivially Copyable ");
+        PackedCellDataType expected_pcdt;
+        if constexpr (std::is_floating_point_v<pcdt32>)
+        {
+            expected_pcdt = PackedCellDataType::FloatPCellDataType;
+        }
+        else if constexpr (std::is_integral_v<pcdt32> && std::is_signed_v<pcdt32> 
+            && !std::is_same_v<pcdt32, char> && !std::is_same_v<pcdt32, signed char>
+        )
+        {
+            expected_pcdt = PackedCellDataType::IntPCellDataType;
+        }
+        else if constexpr (std::is_integral_v<pcdt32> && std::is_unsigned_v<pcdt32> 
+            && !std::is_same_v<pcdt32, unsigned char>
+        )
+        {
+            expected_pcdt = PackedCellDataType::UnsignedPCellDataType;
+        }
+        else if constexpr (std::is_same_v<pcdt32, char> || std::is_same_v<pcdt32, signed char> || std::is_same_v<pcdt32, unsigned char>)
+        {
+            expected_pcdt = PackedCellDataType::CharPCellDataType;
+        }
+        else
+        {
+            expected_pcdt = PackedCellDataType::UnsignedPCellDataType;
+        }
+        return expected_pcdt;
+    }
+
     inline constexpr strl16_t MakeSTRL4_t(tag8_t priority, tag8_t locality, tag8_t rel_mask, tag8_t rel_offset, tag8_t pc_type = 0, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
     {
         if (pc_type > 1u)
@@ -184,4 +223,11 @@ namespace AtomicCScompact {
         return ((slot_rm & (relmask & RELMASK_MASK)) != 0);
     }
     
+
+    template <typename To, typename From>
+    inline To BitCastMaybe(const From& from_address)
+    {
+        return std::bit_cast<To>(from_address);
+    }
+
 }

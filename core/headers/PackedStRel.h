@@ -20,6 +20,7 @@
 #include <stdexcept>
 #include <memory>
 #include <latch> // For std::latch (C++20)
+#include <bit>
 
 #if defined(_MSC_VER)
     #include <intrin.h>
@@ -104,7 +105,7 @@ namespace AtomicCScompact {
     static constexpr tag8_t REL_PAGE        = 0x04;
     static constexpr tag8_t REL_PATTERN     = 0x08;
     static constexpr tag8_t REL_SELF        = 0x01; // reused
-    static constexpr tag8_t REL_ALL_LOW_4   = static_cast<tag8_t>(PRIORITY_MASK);
+    static constexpr tag8_t REL_ALL_LOW_4   = static_cast<tag8_t>(RELMASK_MASK);
 
     enum class PackedCellDataType : unsigned
     {
@@ -219,7 +220,7 @@ namespace AtomicCScompact {
 
     inline constexpr bool DoseRelMatch(tag8_t slot_relbyte, tag8_t relmask) noexcept
     {
-        tag8_t slot_rm = static_cast<tag8_t>((slot_relbyte >> RELMASK_LEN) & RELMASK_MASK);
+        tag8_t slot_rm = static_cast<tag8_t>((slot_relbyte >> RELOFFSET_SHIFT) & RELMASK_MASK);
         return ((slot_rm & (relmask & RELMASK_MASK)) != 0);
     }
     
@@ -227,7 +228,22 @@ namespace AtomicCScompact {
     template <typename To, typename From>
     inline To BitCastMaybe(const From& from_address)
     {
-        return std::bit_cast<To>(from_address);
+        To out;
+        if constexpr (sizeof(To) == sizeof(From))
+        {
+            return std::bit_cast<To>(from_address);
+        }
+        else if constexpr (sizeof(To) < sizeof(From))
+        {
+            std::memcpy(&out, &from_address, sizeof(To));
+            return out;
+        }
+        else
+        {
+            std::memset(&out, 0, sizeof(To));
+            std::memcpy(&out, &from_address, sizeof(From));
+            return out;
+        }
     }
 
 }

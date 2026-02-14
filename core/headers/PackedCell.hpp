@@ -54,7 +54,7 @@ namespace AtomicCScompact
             PackedMode pcmode = static_cast<PackedMode>(ExtractPCellTypeFromSTRL(strl));
             if (pcmode != PackedMode::MODE_VALUE32)
             {
-                return ComposeValue32X_64(0u, 0u, MakeSTRL4_t(MAX_PRIORITY, ST_EXCEPTION_BIT_FAULTY, 0u, 0u, 0u, PackedCellDataType::UnsignedPCellDataType));
+                return ComposeValue32u_64(0u, 0u, MakeSTRL4_t(MAX_PRIORITY, ST_EXCEPTION_BIT_FAULTY, 0u, 0u, 0u, PackedCellDataType::UnsignedPCellDataType)); // assert(false)->is an option
             }
             PackedCellDataType strl_pcdt = ExtractPCellDataTypeFromSTRL(strl);
             assert(strl_pcdt == expected_pcdt && "STRL PackedCellDataType mismatch; ComposeValue32X_64 == MODE_VALUE32\n");
@@ -75,7 +75,7 @@ namespace AtomicCScompact
             PackedMode pcmode = static_cast<PackedMode>(ExtractPCellTypeFromSTRL(strl));
             if (pcmode != PackedMode::MODE_CLKVAL48)
             {
-                return ComposeCLKVal48X_64(0u, MakeSTRL4_t(MAX_PRIORITY, ST_EXCEPTION_BIT_FAULTY, 0u, 0u, 0u, PackedCellDataType::UnsignedPCellDataType));
+                return ComposeCLK48u_64(0u, MakeSTRL4_t(MAX_PRIORITY, ST_EXCEPTION_BIT_FAULTY, 0u, 0u, 0u, PackedCellDataType::UnsignedPCellDataType)); // assert(false)->is an option
             }
             PackedCellDataType strl_pcdt = ExtractPCellDataTypeFromSTRL(strl);
             assert(strl_pcdt == expected_pcdt && "STRL PackedCellDataType mismatch; ComposeCLKVal48X_64 == MODE_CLKVAL48");
@@ -98,7 +98,7 @@ namespace AtomicCScompact
             }
             else
             {
-                static_assert(sizeof(pcdt) <= (VALBITS / LN_OF_BYTE_IN_BITS), "Data Type length should be less than 32 bits\n");
+                static_assert(sizeof(pcdt) <= (CLK_B48 / LN_OF_BYTE_IN_BITS), "Data Type length should be less than 32 bits\n");
             }
             PackedCellDataType actual_pcdt = ExtractPCellDataTypeFromSTRL(sr);
             assert(actual_pcdt == expected_pcdt && "Packed Cell data type dosent match Requested datatype");
@@ -114,7 +114,7 @@ namespace AtomicCScompact
                 }
                 else
                 {
-                    uint64_t low48 = (ExtractClk48(p) & MaskBits(CLK_B48));
+                    uint64_t low48 = (ExtractClk48(p) & MaskBits(CLK_B48)); //only correct if clk48 stored 0 extended
                     pcdt out;
                     uint64_t clk48 = low48;
                     std::memcpy(&out, &clk48, sizeof(pcdt));

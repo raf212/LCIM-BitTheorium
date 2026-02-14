@@ -39,11 +39,29 @@ PYBIND11_MODULE(atomiccim_bind, m) {
     m.attr("REL_NODE1") = REL_NODE1;
     m.attr("REL_PAGE") = REL_PAGE;
     m.attr("REL_PATTERN") = REL_PATTERN;
+    
+    // expose PackedCellDataType
+    // --- register enum BEFORE using it as a default arg ---
+    py::enum_<PackedCellDataType>(m, "PackedCellDataType")
+        .value("Unsigned", PackedCellDataType::UnsignedPCellDataType)
+        .value("SignedInt", PackedCellDataType::IntPCellDataType)
+        .value("Float", PackedCellDataType::FloatPCellDataType)
+        .value("Char", PackedCellDataType::CharPCellDataType)
+        .export_values();
+
 
     // Expose small helpers from PackedStRel.h
-    m.def("make_strl4", [](uint8_t priority, uint8_t locality, uint8_t rel_mask, uint8_t rel_offset, uint8_t pc_type) {
-        return MakeSTRL4_t(priority, locality, rel_mask, rel_offset, pc_type);
-    }, py::arg("priority"), py::arg("locality"), py::arg("rel_mask"), py::arg("rel_offset"), py::arg("pc_type") = 0);
+    m.def("make_strl4", 
+        [](uint8_t priority, uint8_t locality, uint8_t rel_mask, uint8_t rel_offset, uint8_t pc_type, PackedCellDataType pcdt) -> uint16_t {
+            return MakeSTRL4_t(priority, locality, rel_mask, rel_offset, pc_type, pcdt);
+        },
+        py::arg("priority"),
+        py::arg("locality"),
+        py::arg("rel_mask"),
+        py::arg("rel_offset"),
+        py::arg("pc_type") = 0,
+        py::arg("pc_dtype") = PackedCellDataType::UnsignedPCellDataType
+    );
 
     m.def("extract_priority_from_strl", [](uint16_t strl) { return ExtractPriorityFromSTRL(static_cast<strl16_t>(strl)); });
     m.def("extract_locality_from_strl", [](uint16_t strl) { return ExtractLocalityFromSTRL(static_cast<strl16_t>(strl)); });
@@ -64,13 +82,48 @@ PYBIND11_MODULE(atomiccim_bind, m) {
     m.def("mask_bits", [](unsigned n) -> uint64_t { return MaskBits(n); }, py::arg("n"));
 
     // Compose helpers (work with python ints)
-    m.def("compose_value32", [](uint32_t v, uint16_t clk16, uint16_t strl) {
+    m.def("compose_clk48_u48", [](uint64_t clk48, uint16_t strl) {
+        return static_cast<uint64_t>(PackedCell64_t::ComposeCLK48u_64(clk48, static_cast<strl16_t>(strl)));
+    }, py::arg("clk48"), py::arg("strl"));
+
+    m.def("compose_clk48_f32", [](float v, uint16_t strl) -> uint64_t {
+        return static_cast<uint64_t>(PackedCell64_t::ComposeCLKVal48X_64<float>(v, static_cast<strl16_t>(strl)));
+    });
+
+    // ---------- instantiate ComposeValue32X_64 for typical types ----------
+    m.def("compose_value32_u32", [](uint32_t v, uint16_t clk16, uint16_t strl) {
         return static_cast<uint64_t>(PackedCell64_t::ComposeValue32u_64(static_cast<val32_t>(v), static_cast<clk16_t>(clk16), static_cast<strl16_t>(strl)));
     }, py::arg("value32"), py::arg("clk16"), py::arg("strl"));
 
-    m.def("compose_clk48", [](uint64_t clk48, uint16_t strl) {
-        return static_cast<uint64_t>(PackedCell64_t::ComposeCLK48u_64(clk48, static_cast<strl16_t>(strl)));
-    }, py::arg("clk48"), py::arg("strl"));
+
+    m.def("compose_value32_i32", [](int32_t v, uint16_t clk16, uint16_t strl) -> uint64_t {
+        return static_cast<uint64_t>(PackedCell64_t::ComposeValue32X_64<int32_t>(v, static_cast<clk16_t>(clk16), static_cast<strl16_t>(strl)));
+    }, py::arg("value32"), py::arg("clk16"), py::arg("strl"));
+
+    m.def("compose_value32_f32", [](float v, uint16_t clk16, uint16_t strl) -> uint64_t {
+        return static_cast<uint64_t>(PackedCell64_t::ComposeValue32X_64<float>(v, static_cast<clk16_t>(clk16), static_cast<strl16_t>(strl)));
+    }, py::arg("value32"), py::arg("clk16"), py::arg("strl"));
+
+    // ---------- instantiate ExtractAnyPackedValueX for common types ----------
+    m.def("extract_any_u32", [](uint64_t packed) -> uint32_t {
+        return PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(static_cast<packed64_t>(packed));
+    });
+
+    m.def("extract_any_i32", [](uint64_t packed) -> int32_t {
+        return PackedCell64_t::ExtractAnyPackedValueX<int32_t>(static_cast<packed64_t>(packed));
+    });
+
+    m.def("extract_any_f32", [](uint64_t packed) -> float {
+        return PackedCell64_t::ExtractAnyPackedValueX<float>(static_cast<packed64_t>(packed));
+    });
+
+    // smaller ints
+    m.def("extract_any_u16", [](uint64_t packed) -> uint16_t {
+        return PackedCell64_t::ExtractAnyPackedValueX<uint16_t>(static_cast<packed64_t>(packed));
+    });
+    m.def("extract_any_i16", [](uint64_t packed) -> int16_t {
+        return PackedCell64_t::ExtractAnyPackedValueX<int16_t>(static_cast<packed64_t>(packed));
+    });
 
     // Extractors
     m.def("extract_strl", [](uint64_t p) -> uint16_t { return PackedCell64_t::ExtractSTRL(static_cast<packed64_t>(p)); });
@@ -107,6 +160,7 @@ PYBIND11_MODULE(atomiccim_bind, m) {
         std::memcpy(buf, &p, sizeof(p));
         return py::bytes(buf, sizeof(buf));
     });
+
 
     // -------------------------
     // AtomicAdaptiveBackoff & helpers

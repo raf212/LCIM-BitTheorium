@@ -844,7 +844,7 @@ public:
         {
             return 0;
         }
-        size_t scan_limit = min(Capacity_, std::max<size_t>(available + 16, max_count * 8));
+        size_t scan_limit = std::min(Capacity_, std::max<size_t>(available + 16, max_count * 8));
         size_t tls_cap = std::min<size_t>(Cfg_.MaxTlsCandidates, Cfg_.MaxTLS);
         thread_local Candidate_CO_ tls_buf[Cfg_.MaxTLS];
         std::vector<Candidate_CO_> buffer;
@@ -1155,7 +1155,7 @@ public:
         for (size_t r = 0; r < NumRegion_; r++)
         {
             size_t base = r * RegionSize_;
-            size_t end = min(Capacity_, base + RegionSize_);
+            size_t end = std::min(Capacity_, base + RegionSize_);
             uint8_t accum = 0;
             for (size_t i = base; i < end; i++)
             {
@@ -1238,7 +1238,7 @@ public:
                     break;
                 }
                 size_t base = region_idx * RegionSize_;
-                size_t end = min(Capacity_, base + RegionSize_);
+                size_t end = std::min(Capacity_, base + RegionSize_);
                 size_t i = base;
                 while(i < end)
                 {

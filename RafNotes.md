@@ -8,8 +8,8 @@
     <b><i>IsThisPackedCellFaulty(pack64_t p)</i></b>
 4. At This point Adding (unsigned <-> int <-> float) convertion should be explicitly accomodate <b>Explicit ComposeValue32u_64 & ComposeValue32u_64 with int32 and float32 input parameters</b>
 5. I need 2 functionf one each for each type of packed cell AtomicIncrementOrDecrementOfPCPreInitiated() It will use typename for both signed and unsigned
-
-
+6. Probalbly generalizing ST_EXCEPTION_BIT_FAULTY with a default function and default chacker 
+7. Probably finding better search algorithm for RegisterThreadForQSBRImplementation_()
 
 
 

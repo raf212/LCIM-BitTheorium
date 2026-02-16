@@ -338,4 +338,28 @@ namespace AtomicCScompact
         return any_signaled;
     }
 
+    void AdaptivePackedCellContainer::BackgroundReclaimerMainThread_() noexcept
+    {
+        unsigned interval_ms = std::max<unsigned>(1u, APCContainerCfg_.BackgroundEpochAdvanceMS);
+        std::unique_lock<std::mutex>lk(BackgroundMutex_);
+        while (!BackgroundThreadStop_)
+        {
+            BackgroundCondVar_.wait_for(lk, std::chrono::milliseconds(interval_ms), [this] {
+                return BackgroundThreadStop_;
+            });
+
+            if (BackgroundThreadStop_)
+            {
+                break;
+            }
+            GlobalEpoch_.fetch_add(1, std::memory_order_acq_rel);
+            PollDeviceFencesOnce_();
+            TryReclaimRetired_();
+        }
+    }
+
+
+
+
+    
 }

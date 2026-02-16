@@ -95,7 +95,8 @@ private:
     std::atomic<uint64_t> TotalCasFailure_{0};
     //logging hook
     std::function<void(const char*, const char*)> APCLogger_;
-    //general
+    //mc
+    MasterClockConf* MasterClockConfPtr_{nullptr};
 
 
     uint64_t ComputeMinThreadEpoch() const noexcept;
@@ -137,6 +138,36 @@ private:
     void TryReclaimRetired_() noexcept;
 
     bool PollDeviceFencesOnce_() noexcept;
+    
+    void BackgroundReclaimerMainThread_() noexcept;
+    //reloffset pointer helper
+    static constexpr val32_t PTR_FLAG32_ = (1u << 31);
+    static constexpr val32_t PTR_HALF_HEAD_ = (1u << 30);
+    static constexpr val32_t PTR_HALF_TAIL_ = (1u << 29);
+    static constexpr val32_t PTR_INDEX_MASK_ = 0x7FFFFFFFu;
+
+    inline constexpr bool IsPointerValue32_(val32_t value) noexcept
+    {
+        return ((value & PTR_FLAG32_) != 0);
+    }
+
+    inline constexpr val32_t MakePointerValue32_(uint32_t idx) noexcept
+    {
+        return static_cast<val32_t>((idx & PTR_INDEX_MASK_) | PTR_FLAG32_);
+    }
+
+    inline constexpr uint32_t DecodePointerIdx_(val32_t value) noexcept
+    {
+        return static_cast<uint32_t>(value & PTR_INDEX_MASK_);
+    }
+    //region/index
+    size_t RegionSize_{0};
+    size_t NumRegion_{0};
+    std::vector<std::atomic<uint8_t>> RegionRel_;
+    std::vector<std::vector<uint64_t>> RelBitmaps_;
+    std::vector<std::atomic<uint64_t>> RegionEpoch_;
+
+
 public:
     AdaptivePackedCellContainer(/* args */);
     ~AdaptivePackedCellContainer();

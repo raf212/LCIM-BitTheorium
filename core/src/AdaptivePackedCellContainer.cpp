@@ -57,4 +57,211 @@ namespace AtomicCScompact
         }
     };
     
+    struct AdaptivePackedCellContainer::RelEntry_
+    {
+        enum class APCKind : uint8_t
+        {
+            CHILD_CONTAINER = 0,
+            PACKED_NODE = 1,
+            HEAP_NODE = 2
+        };
+
+        APCKind Kind;
+        AdaptivePackedCellContainer* ChildContainerPtr;
+        size_t ChildBaseIdx;
+        packed64_t RelEntryPacked;
+
+        void* HeapPtr;
+        size_t HeapSize;
+
+        PackedCellDataType RECellDType;
+
+        FinalizerKind_ KindFinalizer;
+        std::function<void(RelEntry_*)> FinalizerPtr;
+        DeviceFence_ APCDeviceFence;
+        std::atomic<uint64_t> RetireEpoch;
+        std::atomic<RelEntry_*> NextPtr;
+
+        //child container constructor
+        RelEntry_(AdaptivePackedCellContainer* apc_container = nullptr, size_t base = 0) noexcept :
+            Kind(APCKind::CHILD_CONTAINER), ChildContainerPtr(apc_container), ChildBaseIdx(base), RelEntryPacked(0),
+            HeapPtr(nullptr), HeapSize(0), RECellDType(PackedCellDataType::UnsignedPCellDataType),
+            KindFinalizer(FinalizerKind_::NONE), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr)
+        {}
+        //packed cell constructor
+        RelEntry_(packed64_t p) noexcept :
+            Kind(APCKind::PACKED_NODE), ChildContainerPtr(nullptr), ChildBaseIdx(0), RelEntryPacked(p),
+            HeapPtr(0), RECellDType(PackedCellDataType::UnsignedPCellDataType),
+            KindFinalizer(FinalizerKind_::NONE), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr)
+        {}
+        //heap constructor
+        RelEntry_(void* heap_ptr, size_t heap_size, PackedCellDataType pc_dtype) noexcept :
+            Kind(APCKind::HEAP_NODE), ChildContainerPtr(nullptr), ChildBaseIdx(0), RelEntryPacked(0),
+            HeapPtr(heap_ptr), HeapSize(heap_size), RECellDType(pc_dtype),
+            KindFinalizer(FinalizerKind_::HOST), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr)
+        {}
+    };
+    
+    void AdaptivePackedCellContainer::RetirePushLocked_(RelEntry_* rel_entry_ptr) noexcept
+    {
+        RelEntry_* head = RetireHead_.load(MoLoad_);
+        while (true)
+        {
+            rel_entry_ptr->NextPtr.store(head, MoStoreUnSeq_);
+            if (RetireHead_.compare_exchange_strong(head, rel_entry_ptr, EXsuccess_, std::memory_order_acquire))
+            {
+                size_t cur = RetireCount_.fetch_add(1, std::memory_order_acq_rel) + 1;
+                size_t prev_max = RetireQueDepthMax_.load(std::memory_order_relaxed);
+                while (cur > prev_max && RetireQueDepthMax_.compare_exchange_weak(prev_max, cur, std::memory_order_relaxed))
+                {
+                    /* code */
+                }
+                TotalRetired_.fetch_add(1, std::memory_order_relaxed);
+                return;
+            }
+            else
+            {
+                TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
+            }
+        }
+    }
+
+    bool AdaptivePackedCellContainer::DeviceFenceSatisfied_(const RelEntry_& rel_entry_address) noexcept
+    {
+        if (!rel_entry_address.APCDeviceFence.HandleDeviceFencePtr)
+        {
+            return true;
+        }
+        if (!rel_entry_address.APCDeviceFence.IsSignaled)
+        {
+            return false;
+        }
+        bool signaled = false;
+        try
+        {
+            signaled = rel_entry_address.APCDeviceFence.IsSignaled(rel_entry_address.APCDeviceFence.HandleDeviceFencePtr);
+        }
+        catch(...)
+        {
+            signaled = false;
+        }
+        
+        return signaled;
+    }
+
+    void AdaptivePackedCellContainer::TryReclaimRetired_() noexcept
+    {
+        size_t retire_count = RetireCount_.load(MoLoad_);
+        if (retire_count == 0 || retire_count < RetireBatchThreshold_)
+        {
+            return;
+        }
+        RelEntry_* stolen = RetireHead_.exchange(nullptr, std::memory_order_acq_rel);
+        if (!stolen)
+        {
+            RetireCount_.store(0, MoStoreSeq_);
+            return;
+        }
+        RetireCount_.store(0, MoStoreSeq_);
+        uint64_t min_epoch = ComputeMinThreadEpoch();
+        RelEntry_* cur_relentry = stolen;
+        RelEntry_* keep_head = nullptr;
+        RelEntry_* keep_tail = nullptr;
+        size_t track_count = 0;
+
+        while (cur_relentry)
+        {
+            RelEntry_* next_relentry = cur_relentry->NextPtr.load(std::memory_order_relaxed);
+            uint64_t cur_retire_epoch = cur_relentry->RetireEpoch.load(MoLoad_);
+            bool  can_reclaim = false;
+            if (cur_retire_epoch == 0)
+            {
+                uint64_t now_epoch = GlobalEpoch_.load(MoLoad_);
+                cur_relentry->RetireEpoch.store(now_epoch, MoStoreSeq_);
+                can_reclaim = false;
+            }
+            else
+            {
+                if (min_epoch != std::numeric_limits<uint64_t>::max())
+                {
+                    if (DeviceFenceSatisfied_(*cur_relentry))
+                    {
+                        can_reclaim = true;
+                    }
+                    else
+                    {
+                        can_reclaim = false;
+                    }
+                }
+                else
+                {
+                    can_reclaim = false;
+                }
+            }
+            if (can_reclaim)
+            {
+                if (cur_relentry->FinalizerPtr)
+                {
+                    try 
+                    {
+                        cur_relentry->FinalizerPtr(cur_relentry);
+                    }
+                    catch (...)
+                    {
+                        if (APCLogger_)
+                        {
+                            APCLogger_("TryReclaimRetired_()", "RelEntry finalizer threw an exception::cur_relentry->FinalizerPtr");
+                        }
+                    }
+                }
+
+                if (cur_relentry->Kind == RelEntry_::APCKind::HEAP_NODE && cur_relentry->HeapPtr)
+                {
+                    ::operator delete(cur_relentry->HeapPtr, std::align_val_t{alignof(std::max_align_t)});
+                    TotalReclaimedBytes_.fetch_add(cur_relentry->HeapSize, std::memory_order_relaxed);
+                    cur_relentry->HeapPtr = nullptr;
+                }
+                TotalReclaimed_.fetch_add(1, std::memory_order_relaxed);
+                delete cur_relentry;
+            }
+            else
+            {
+                cur_relentry->NextPtr.store(nullptr, MoStoreUnSeq_);
+                if (!keep_head)
+                {
+                    keep_head = cur_relentry;
+                    keep_tail = cur_relentry;
+                }
+                else
+                {
+                    keep_tail->NextPtr.store(cur_relentry, MoStoreUnSeq_);
+                    keep_tail = cur_relentry;
+                }
+                ++track_count;
+            }
+            cur_relentry = next_relentry;
+        }
+        if (!keep_head)
+        {
+            return;
+        }
+
+        RelEntry_* head_relentry = RetireHead_.load(MoLoad_);
+        while (true)
+        {
+            keep_tail->NextPtr.store(head_relentry, MoStoreUnSeq_);
+            if (RetireHead_.compare_exchange_strong(head_relentry, keep_head, EXsuccess_, std::memory_order_acquire))
+            {
+                RetireCount_.fetch_add(1, std::memory_order_acq_rel);
+                break;
+            }
+            else
+            {
+                TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
+            }
+        }
+    }
+
+
+
 }

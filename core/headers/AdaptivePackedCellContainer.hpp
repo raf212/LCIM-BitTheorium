@@ -65,53 +65,10 @@ private:
     };
     struct DeviceFence_
     {
-        void* handle = nullptr;
+        void* HandleDeviceFencePtr = nullptr;
         std::function<bool(void*)> IsSignaled;
     };
-    struct RelEntry_
-    {
-        enum class APCKind : uint8_t
-        {
-            CHILD_CONTAINER = 0,
-            PACKED_NODE = 1,
-            HEAP_NODE = 2
-        };
-
-        APCKind Kind;
-        AdaptivePackedCellContainer* ChildContainerPtr;
-        size_t ChildBaseIdx;
-        packed64_t RelEntryPacked;
-
-        void* HeapPtr;
-        size_t HeapSize;
-
-        PackedCellDataType RECellDType;
-
-        FinalizerKind_ KindFinalizer;
-        std::function<void(RelEntry_*)> FinalizerPtr;
-        DeviceFence_ APCDeviceFence;
-        std::atomic<uint64_t> RetireEpoch;
-        std::atomic<RelEntry_*> NextPtr;
-
-        //child container constructor
-        RelEntry_(AdaptivePackedCellContainer* apc_container = nullptr, size_t base = 0) noexcept :
-            Kind(APCKind::CHILD_CONTAINER), ChildContainerPtr(apc_container), ChildBaseIdx(base), RelEntryPacked(0),
-            HeapPtr(nullptr), HeapSize(0), RECellDType(PackedCellDataType::UnsignedPCellDataType),
-            KindFinalizer(FinalizerKind_::NONE), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr)
-        {}
-        //packed cell constructor
-        RelEntry_(packed64_t p) noexcept :
-            Kind(APCKind::PACKED_NODE), ChildContainerPtr(nullptr), ChildBaseIdx(0), RelEntryPacked(p),
-            HeapPtr(0), RECellDType(PackedCellDataType::UnsignedPCellDataType),
-            KindFinalizer(FinalizerKind_::NONE), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr)
-        {}
-        //heap constructor
-        RelEntry_(void* heap_ptr, size_t heap_size, PackedCellDataType pc_dtype) noexcept :
-            Kind(APCKind::HEAP_NODE), ChildContainerPtr(nullptr), ChildBaseIdx(0), RelEntryPacked(0),
-            HeapPtr(heap_ptr), HeapSize(heap_size), RECellDType(pc_dtype),
-            KindFinalizer(FinalizerKind_::HOST), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr)
-        {}
-    };
+    struct RelEntry_;
     //reloffset
     std::vector<std::atomic<std::uintptr_t>> RelOffset_;
     std::atomic<size_t> RelOffsetAlloc_{0};
@@ -124,6 +81,7 @@ private:
     //retire
     std::atomic<RelEntry_*> RetireHead_{nullptr};
     std::atomic<size_t> RetireCount_{0};
+    unsigned RetireBatchThreshold_{16};
     //reclaimation
     std::thread BackgroundThread_;
     std::mutex BackgroundMutex_;
@@ -136,7 +94,9 @@ private:
     std::atomic<uint64_t> TotalReclaimedBytes_{0};
     std::atomic<uint64_t> TotalCasFailure_{0};
     //logging hook
-    std::function<void(const char*)> APCLogger_;
+    std::function<void(const char*, const char*)> APCLogger_;
+    //general
+
 
     uint64_t ComputeMinThreadEpoch() const noexcept
     {
@@ -164,7 +124,7 @@ private:
         }
         uint64_t sentinal = std::numeric_limits<uint64_t>::max();
         uint64_t cur_epoch = GlobalEpoch_.load(MoLoad_);
-        for (size_t i = 0; i < ThreadEpochs_[i]; i++)
+        for (size_t i = 0; i < ThreadEpochs_.size(); i++)
         {
             uint64_t val = ThreadEpochs_[i].load(std::memory_order_relaxed);
             if (val == sentinal)
@@ -210,6 +170,12 @@ private:
         }
         ThreadEpochs_[QSBRThreadIdx_].store(std::numeric_limits<uint64_t>::max(), MoStoreSeq_);
     }
+
+    void RetirePushLocked_(RelEntry_* rel_entry_ptr) noexcept;
+
+    static bool DeviceFenceSatisfied_(const RelEntry_& rel_entry_address) noexcept;
+
+    void TryReclaimRetired_() noexcept;
 public:
     AdaptivePackedCellContainer(/* args */);
     ~AdaptivePackedCellContainer();

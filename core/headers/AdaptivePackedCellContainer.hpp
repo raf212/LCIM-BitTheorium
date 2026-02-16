@@ -43,6 +43,10 @@ class AdaptivePackedCellContainer
 {
 public:
     std::atomic<packed64_t>* BackingPtr{nullptr};
+
+    struct QSBRGuard;
+    
+    struct RelEntryGuard;
 private:
     size_t Capacity_{0};
     bool Owned_{false};
@@ -177,6 +181,34 @@ private:
             }
         }
         return SIZE_MAX;
+    }
+
+    inline void QSBRCurThreadRegisterIfNeed_() noexcept
+    {
+        if (QSBRThreadIdx_ == SIZE_MAX)
+        {
+            (void) RegisterThreadForQSBRImplementation_();
+        }
+    }
+
+    inline void QSBREnterCritical_() noexcept
+    {
+        QSBRCurThreadRegisterIfNeed_();
+        if (QSBRThreadIdx_ == SIZE_MAX)
+        {
+            return;
+        }
+        uint64_t epoch = GlobalEpoch_.load(MoLoad_);
+        ThreadEpochs_[QSBRThreadIdx_].store(epoch, MoStoreSeq_);
+    }
+
+    inline void QSBRExitCritical_() noexcept
+    {
+        if (QSBRThreadIdx_ == SIZE_MAX)
+        {
+            return;
+        }
+        ThreadEpochs_[QSBRThreadIdx_].store(std::numeric_limits<uint64_t>::max(), MoStoreSeq_);
     }
 public:
     AdaptivePackedCellContainer(/* args */);

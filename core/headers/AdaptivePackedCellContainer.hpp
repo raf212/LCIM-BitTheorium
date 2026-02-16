@@ -98,50 +98,9 @@ private:
     //general
 
 
-    uint64_t ComputeMinThreadEpoch() const noexcept
-    {
-        uint64_t min_epoch = std::numeric_limits<uint64_t>::max();
-        for (size_t i = 0; i < ThreadEpochs_.size(); i++)
-        {
-            uint64_t val = ThreadEpochs_[i].load(MoLoad_);
-            if (val == std::numeric_limits<uint64_t>::max())
-            {
-                continue;
-            }
-            if (val < min_epoch)
-            {
-                min_epoch = val;
-            }
-        }
-        return min_epoch;
-    }
+    uint64_t ComputeMinThreadEpoch() const noexcept;
 
-    size_t RegisterThreadForQSBRImplementation_() noexcept
-    {
-        if (QSBRThreadIdx_ != SIZE_MAX)
-        {
-            return QSBRThreadIdx_;
-        }
-        uint64_t sentinal = std::numeric_limits<uint64_t>::max();
-        uint64_t cur_epoch = GlobalEpoch_.load(MoLoad_);
-        for (size_t i = 0; i < ThreadEpochs_.size(); i++)
-        {
-            uint64_t val = ThreadEpochs_[i].load(std::memory_order_relaxed);
-            if (val == sentinal)
-            {
-                if (ThreadEpochs_[i].compare_exchange_strong(val, cur_epoch, EXsuccess_, EXfailure_))
-                {
-                    QSBRThreadIdx_ = i;
-                    return i;
-                }
-                else
-                {
-                    TotalCasFailure_.fetch_add(1, MoStoreUnSeq_);
-                }
-            }
-        }
-        return SIZE_MAX;
-    }
+    size_t RegisterThreadForQSBRImplementation_() noexcept;
 
     inline void QSBRCurThreadRegisterIfNeed_() noexcept
     {
@@ -176,6 +135,8 @@ private:
     static bool DeviceFenceSatisfied_(const RelEntry_& rel_entry_address) noexcept;
 
     void TryReclaimRetired_() noexcept;
+
+    bool PollDeviceFencesOnce_() noexcept;
 public:
     AdaptivePackedCellContainer(/* args */);
     ~AdaptivePackedCellContainer();

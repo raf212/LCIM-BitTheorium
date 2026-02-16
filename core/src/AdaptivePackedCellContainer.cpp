@@ -101,7 +101,52 @@ namespace AtomicCScompact
             KindFinalizer(FinalizerKind_::HOST), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr)
         {}
     };
+
+    uint64_t AdaptivePackedCellContainer::ComputeMinThreadEpoch() const noexcept
+    {
+        uint64_t min_epoch = std::numeric_limits<uint64_t>::max();
+        for (size_t i = 0; i < ThreadEpochs_.size(); i++)
+        {
+            uint64_t val = ThreadEpochs_[i].load(MoLoad_);
+            if (val == std::numeric_limits<uint64_t>::max())
+            {
+                continue;
+            }
+            if (val < min_epoch)
+            {
+                min_epoch = val;
+            }
+        }
+        return min_epoch;
+    }
     
+    size_t AdaptivePackedCellContainer::RegisterThreadForQSBRImplementation_() noexcept
+    {
+        if (QSBRThreadIdx_ != SIZE_MAX)
+        {
+            return QSBRThreadIdx_;
+        }
+        uint64_t sentinal = std::numeric_limits<uint64_t>::max();
+        uint64_t cur_epoch = GlobalEpoch_.load(MoLoad_);
+        for (size_t i = 0; i < ThreadEpochs_.size(); i++)
+        {
+            uint64_t val = ThreadEpochs_[i].load(std::memory_order_relaxed);
+            if (val == sentinal)
+            {
+                if (ThreadEpochs_[i].compare_exchange_strong(val, cur_epoch, EXsuccess_, EXfailure_))
+                {
+                    QSBRThreadIdx_ = i;
+                    return i;
+                }
+                else
+                {
+                    TotalCasFailure_.fetch_add(1, MoStoreUnSeq_);
+                }
+            }
+        }
+        return SIZE_MAX;
+    }
+
     void AdaptivePackedCellContainer::RetirePushLocked_(RelEntry_* rel_entry_ptr) noexcept
     {
         RelEntry_* head = RetireHead_.load(MoLoad_);
@@ -262,6 +307,35 @@ namespace AtomicCScompact
         }
     }
 
-
+    bool AdaptivePackedCellContainer::PollDeviceFencesOnce_() noexcept
+    {
+        bool any_signaled = false;
+        for (size_t i = 0; i < RelOffset_.size(); i++)
+        {
+            std::uintptr_t raw_reloffset_ptr = RelOffset_[i].load(MoLoad_);
+            if (!raw_reloffset_ptr)
+            {
+                continue;
+            }
+            RelEntry_* relentry_ptr = reinterpret_cast<RelEntry_*>(raw_reloffset_ptr);
+            if (relentry_ptr->APCDeviceFence.HandleDeviceFencePtr && relentry_ptr->APCDeviceFence.HandleDeviceFencePtr)
+            {
+                bool signal = false;
+                try 
+                {
+                    signal = relentry_ptr->APCDeviceFence.IsSignaled(relentry_ptr->APCDeviceFence.HandleDeviceFencePtr);
+                }
+                catch (...)
+                {
+                    signal = false;
+                }
+                if (signal)
+                {
+                    any_signaled = true;
+                }
+            }
+        }
+        return any_signaled;
+    }
 
 }

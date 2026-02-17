@@ -167,7 +167,29 @@ private:
     std::vector<std::vector<uint64_t>> RelBitmaps_;
     std::vector<std::atomic<uint64_t>> RegionEpoch_;
 
+    static inline thread_local std::vector<std::pair<size_t, packed64_t>> TLSCandidates_;
 
+    inline bool IfAnyValid_() const noexcept
+    {
+        return (BackingPtr && Capacity_ > 0);
+    }
+
+    inline bool IfIdxValid_(size_t idx) const noexcept
+    {
+        return (BackingPtr && idx < Capacity_);
+    }
+
+    PublishResult TryPublishPairedCellCLK48_(size_t start_idx, uint64_t ptr_value, tag8_t relmask = 0) noexcept;
+
+    std::optional<uint64_t>ExtractPairedSlot48Ptr_(size_t idx) const noexcept;
+
+    size_t RegisterRelPackedNode_(packed64_t packed_cell) noexcept;
+    
+    size_t RegisterRelHeapNode_(
+        void* heap_ptr, size_t heap_size, PackedCellDataType cell_dtype,
+        FinalizerKind_ fk = FinalizerKind_::HOST, std::function<void(RelEntry_*)> finalizer = nullptr,
+        DeviceFence_ apc_device_fence = {}
+    ) noexcept;
 public:
     AdaptivePackedCellContainer(/* args */);
     ~AdaptivePackedCellContainer();

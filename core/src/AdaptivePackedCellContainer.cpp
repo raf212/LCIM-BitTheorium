@@ -358,8 +358,170 @@ namespace AtomicCScompact
         }
     }
 
+    PublishResult AdaptivePackedCellContainer::TryPublishPairedCellCLK48_(size_t start_idx, uint64_t ptr_value, tag8_t relmask) noexcept
+    {
+        if (!IfAnyValid_())
+        {
+            return {PublishStatus::INVALID, SIZE_MAX};
+        }
+        size_t head = start_idx % Capacity_;
+        size_t tail = (head + 1) % Capacity_;
+        //read cur slot
+        packed64_t cur_head = BackingPtr[head].load(MoLoad_);
+        packed64_t cur_tail = BackingPtr[tail].load(MoLoad_);
+        tag8_t locality_head = PackedCell64_t::ExtractLocalityFromPacked(cur_head);
+        tag8_t locality_tail = PackedCell64_t::ExtractLocalityFromPacked(cur_tail);
 
+        if (locality_head != ST_IDLE || locality_tail != ST_IDLE)
+        {
+            return {PublishStatus::FULL, SIZE_MAX};
+        }
+        
+        packed64_t claimed_head = PackedCell64_t::SetLocalityInPacked(cur_head, ST_CLAIMED);
+        packed64_t claimed_tail = PackedCell64_t::SetLocalityInPacked(cur_tail, ST_CLAIMED);
 
+        uint64_t ptr_low48 = ptr_value & MaskBits(CLK_B48);
+        uint16_t ptr_high16 = static_cast<uint16_t>((ptr_value >> CLK_B48) & MaskBits(PTR_HIGH16));
+        packed64_t expected_head = cur_head;
+        if (!BackingPtr[head].compare_exchange_strong(expected_head, claimed_head, EXsuccess_, EXfailure_))
+        {
+            TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
+            return {PublishStatus::FULL, SIZE_MAX};
+        }
+        
+        packed64_t expected_tail = cur_tail;
+        if (!BackingPtr[tail].compare_exchange_strong(expected_tail, claimed_tail, EXsuccess_, EXfailure_))
+        {
+            //idle the lead 
+            packed64_t idle_head = PackedCell64_t::ComposeCLKVal48X_64(0u, PackedCell64_t::ExtractSTRL(cur_head));
+            BackingPtr[head].store(idle_head, MoStoreSeq_);
+            BackingPtr[head].notify_all();
+            TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
+            return {PublishStatus::FULL, SIZE_MAX};
+        }
+        
+        strl16_t sr_tail = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, relmask, RELOFFSET_TAIL_PTR, static_cast<unsigned>(PackedMode::MODE_CLKVAL48));
+
+        packed64_t tail_packed = PackedCell64_t::ComposeCLK48u_64(ptr_low48, sr_tail);
+
+        packed64_t head_packed = PackedCell64_t::ComposeCLK48u_64(ptr_high16, sr_tail);
+        head_packed = PackedCell64_t::SetRelOffsetInPacked(head_packed, REL_OFFSET_HEAD_PTR);
+        BackingPtr[tail].store(tail_packed, MoStoreSeq_);
+        BackingPtr[head].store(head_packed, MoStoreSeq_);
+        BackingPtr[head].notify_all();
+        Occupancy_.fetch_add(1, std::memory_order_acq_rel);
+        return {PublishStatus::OK, head};
+    }
+
+    std::optional<uint64_t>AdaptivePackedCellContainer::ExtractPairedSlot48Ptr_(size_t idx) const noexcept
+    {
+        if (!IfIdxValid_(idx))
+        {
+            return std::nullopt;
+        }
+        packed64_t packed_data = BackingPtr[idx].load(MoLoad_);
+        tag8_t locality = PackedCell64_t::ExtractLocalityFromPacked(packed_data);
+        tag8_t pctype = PackedCell64_t::ExtractPCellTypeFromPacked(packed_data);
+        if (locality != ST_PUBLISHED || pctype != static_cast<unsigned>(PackedMode::MODE_CLKVAL48))
+        {
+            return std::nullopt;
+        }
+        
+        tag8_t rel_offset = PackedCell64_t::ExtractRelOffsetFromPacked(packed_data);
+        size_t head_idx, tail_idx;
+        if (rel_offset == REL_OFFSET_HEAD_PTR)
+        {
+            head_idx = idx;
+            tail_idx = (idx + 1) % Capacity_;
+        }
+        else if (rel_offset == RELOFFSET_TAIL_PTR)
+        {
+            tail_idx = idx;
+            head_idx = idx - 1;
+            if (idx == 0)
+            {
+                head_idx = Capacity_ - 1;
+            }
+        }
+        else
+        {
+            return std::nullopt;
+        }
+        
+        packed64_t head_packed = BackingPtr[head_idx].load(MoLoad_);
+        packed64_t tail_packed = BackingPtr[tail_idx].load(MoLoad_);
+        if (PackedCell64_t::ExtractLocalityFromPacked(head_packed) != ST_PUBLISHED || PackedCell64_t::ExtractLocalityFromPacked(tail_packed))
+        {
+            std::nullopt;
+        }
+        uint64_t head_ptr_value = PackedCell64_t::ExtractClk48(head_packed);
+        uint64_t tail_ptr_value_low48 = PackedCell64_t::ExtractClk48(tail_packed);
+
+        uint64_t high16_ptr_value = head_ptr_value & MaskBits(PTR_HIGH16);
+
+        uint64_t raw_pointer = (static_cast<uint64_t>(high16_ptr_value) << CLK_B48) | (tail_ptr_value_low48 & MaskBits(CLK_B48));
+        return raw_pointer;
+    }
+
+    size_t AdaptivePackedCellContainer::RegisterRelPackedNode_(packed64_t packed_cell) noexcept
+    {
+        if (RelOffsetCapacity_ == 0)
+        {
+            return SIZE_MAX;
+        }
+        size_t old_reloffset_size = RelOffsetAlloc_.load(std::memory_order_relaxed);
+        while (true)
+        {
+            if (old_reloffset_size >= RelOffsetCapacity_)
+            {
+                return SIZE_MAX;
+            }
+            if (RelOffsetAlloc_.compare_exchange_weak(old_reloffset_size, old_reloffset_size + 1, EXsuccess_, EXfailure_))
+            {
+                break;
+            }
+            TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
+        }
+        size_t idx = old_reloffset_size;
+        RelEntry_* rel_entry_ptr = new RelEntry_(packed_cell);
+        std::uintptr_t raw_cell_ptr = reinterpret_cast<std::uintptr_t>(rel_entry_ptr);
+        RelOffset_[idx].store(raw_cell_ptr, MoStoreSeq_);
+        return idx;
+    }
+
+    size_t AdaptivePackedCellContainer::RegisterRelHeapNode_(
+        void* heap_ptr, size_t heap_size, PackedCellDataType cell_dtype,
+        FinalizerKind_ fk = FinalizerKind_::HOST, std::function<void(RelEntry_*)> finalizer = nullptr,
+        DeviceFence_ apc_device_fence = {}
+    ) noexcept
+    {
+        if (RelOffsetCapacity_ == 0)
+        {
+            return SIZE_MAX;
+        }
+        size_t old_rel_offset_size = RelOffsetAlloc_.load(std::memory_order_relaxed);
+        while (true)
+        {
+            if (old_rel_offset_size >= RelOffsetCapacity_)
+            {
+                return SIZE_MAX;
+            }
+            if (RelOffsetAlloc_.compare_exchange_weak(old_rel_offset_size, old_rel_offset_size + 1, EXsuccess_, EXfailure_))
+            {
+                break;
+            }
+            TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
+        }
+        size_t idx = old_rel_offset_size;
+        RelEntry_* rel_entry_ptr = new RelEntry_(heap_ptr, heap_size, cell_dtype);
+        rel_entry_ptr->KindFinalizer = fk;
+        rel_entry_ptr->FinalizerPtr = std::move(finalizer);
+        rel_entry_ptr->APCDeviceFence = std::move(apc_device_fence);
+        std::uintptr_t raw_cell_ptr = reinterpret_cast<std::uintptr_t>(rel_entry_ptr);
+        RelOffset_[idx].store(raw_cell_ptr, MoStoreSeq_);
+        return idx;
+        
+    }
 
     
 }

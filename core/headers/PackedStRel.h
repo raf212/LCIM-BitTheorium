@@ -39,6 +39,7 @@ namespace AtomicCScompact {
     #define ID_HASH_GOLDEN_CONST 0x9E3779B97F4A7C15ull 
     #define ATOMIC_THRESHOLD 64u
     #define DEFAULT_INTERNAL_PRIORITY 8u
+    #define PTR_HIGH16 16u
 
     static constexpr unsigned MASK16B_HIGH8B_0 = 0xFF00u;
 
@@ -104,6 +105,11 @@ namespace AtomicCScompact {
     static constexpr tag8_t REL_SELF        = 0x01; // reused
     static constexpr tag8_t REL_ALL_LOW_4   = static_cast<tag8_t>(RELMASK_MASK);
 
+    //reloffset encodings 
+    static constexpr tag8_t RELOFFSET_GENERIC_VALUE = 0;
+    static constexpr tag8_t RELOFFSET_TAIL_PTR = 1;
+    static constexpr tag8_t REL_OFFSET_HEAD_PTR = 2;
+    static constexpr tag8_t REL_OFFSET_STANDALONE48 = 3;
     enum class PackedCellDataType : unsigned
     {
         UnsignedPCellDataType = 0,

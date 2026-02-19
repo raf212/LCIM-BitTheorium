@@ -10,7 +10,7 @@
 5. I need 2 functionf one each for each type of packed cell AtomicIncrementOrDecrementOfPCPreInitiated() It will use typename for both signed and unsigned
 6. Probalbly generalizing ST_EXCEPTION_BIT_FAULTY with a default function and default chacker 
 7. Probably finding better search algorithm for RegisterThreadForQSBRImplementation_()
-
+8. Fix the current bugs first -210
 
 
 

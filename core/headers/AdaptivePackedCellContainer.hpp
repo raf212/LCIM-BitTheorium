@@ -49,6 +49,7 @@ public:
     struct RelEntryGuard;
 private:
     size_t Capacity_{0};
+    int UsedNode_ = 0;
     bool Owned_{false};
     ContainerConf APCContainerCfg_;
     std::atomic<size_t> Occupancy_{0};
@@ -190,18 +191,47 @@ private:
         FinalizerKind_ fk = FinalizerKind_::HOST, std::function<void(RelEntry_*)> finalizer = nullptr,
         DeviceFence_ apc_device_fence = {}
     ) noexcept;
+
+    RelEntryGuard AcquireRelEntry_(size_t idx) noexcept;
+
+    RelEntryGuard ClaimAndAcquireRelEntry_(size_t slot_idx, size_t reloffset_idx) noexcept;
+
+    void RetireRelEntryIdx_(size_t idx) noexcept;
+
+    void UpdateRegionRelForIdx_(size_t idx, tag8_t rel_mask) noexcept;
+
 public:
-    AdaptivePackedCellContainer(/* args */);
-    ~AdaptivePackedCellContainer();
+    AdaptivePackedCellContainer(/* args */) noexcept :
+        BackingPtr(nullptr), Capacity_(0), Owned_(false), UsedNode_(0), APCContainerCfg_(),
+        APCAdaptiveBackoff_(typename AtomicAdaptiveBackoff::PCBCfg{}, PackedMode::MODE_VALUE32),
+        RegionSize_(0), NumRegion_(0), MasterClockConfPtr_(nullptr)
+    {}
+    ~AdaptivePackedCellContainer()
+    {
+        {
+            std::lock_guard<std::mutex>lk(BackgroundMutex_);
+            BackgroundThreadStop_ = true;
+            BackgroundCondVar_.notify_all();
+        }
+        if (BackgroundThread_.joinable())
+        {
+            BackgroundThread_.join();
+        }
+        FreeAll();
+    }
+    AdaptivePackedCellContainer(const AdaptivePackedCellContainer&) = delete;
+    AdaptivePackedCellContainer& operator = (const AdaptivePackedCellContainer&) = delete;
+
+    void StartBackgroundReclaimerIfNeed();
+
+    void StopBackgroundReclaimer() noexcept;
+
+    void InitOwned(size_t acpacity, int node = REL_NODE0, ContainerConf container_cfg = {}, size_t allignment = MAX_VAL);
+
+    void FreeAll() noexcept;
+    
 };
 
-AdaptivePackedCellContainer::AdaptivePackedCellContainer(/* args */)
-{
-}
-
-AdaptivePackedCellContainer::~AdaptivePackedCellContainer()
-{
-}
 
 
 }

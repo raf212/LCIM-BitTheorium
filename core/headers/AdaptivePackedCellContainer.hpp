@@ -48,9 +48,9 @@ public:
     
     struct RelEntryGuard;
 private:
-    size_t Capacity_{0};
+    size_t ContainerCapacity_{0};
     int UsedNode_ = 0;
-    bool Owned_{false};
+    bool IsContainerOwned_{false};
     ContainerConf APCContainerCfg_;
     std::atomic<size_t> Occupancy_{0};
     std::atomic<size_t> ProducerCursor_{0};
@@ -73,7 +73,7 @@ private:
     //reloffset
     std::vector<std::atomic<std::uintptr_t>> RelOffset_;
     std::atomic<size_t> RelOffsetAlloc_{0};
-    size_t RelOffsetCapacity_{0};
+    size_t RelOffsetContainerCapacity_{0};
     //global epoch
     std::atomic<uint64_t>GlobalEpoch_{1};
     //epoch-table
@@ -172,12 +172,12 @@ private:
 
     inline bool IfAnyValid_() const noexcept
     {
-        return (BackingPtr && Capacity_ > 0);
+        return (BackingPtr && ContainerCapacity_ > 0);
     }
 
     inline bool IfIdxValid_(size_t idx) const noexcept
     {
-        return (BackingPtr && idx < Capacity_);
+        return (BackingPtr && idx < ContainerCapacity_);
     }
 
     PublishResult TryPublishPairedCellCLK48_(size_t start_idx, uint64_t ptr_value, tag8_t relmask = 0) noexcept;
@@ -200,10 +200,12 @@ private:
 
     void UpdateRegionRelForIdx_(size_t idx, tag8_t rel_mask) noexcept;
 
+    void InitZeroState_()noexcept;
+
 public:
     AdaptivePackedCellContainer(/* args */) noexcept :
-        BackingPtr(nullptr), Capacity_(0), Owned_(false), UsedNode_(0), APCContainerCfg_(),
-        APCAdaptiveBackoff_(typename AtomicAdaptiveBackoff::PCBCfg{}, PackedMode::MODE_VALUE32),
+        BackingPtr(nullptr), ContainerCapacity_(0), IsContainerOwned_(false), UsedNode_(0), APCContainerCfg_(),
+        APCAdaptiveBackoff_(AtomicAdaptiveBackoff::PCBCfg{}, PackedMode::MODE_VALUE32),
         RegionSize_(0), NumRegion_(0), MasterClockConfPtr_(nullptr)
     {}
     ~AdaptivePackedCellContainer()
@@ -229,6 +231,8 @@ public:
     void InitOwned(size_t acpacity, int node = REL_NODE0, ContainerConf container_cfg = {}, size_t allignment = MAX_VAL);
 
     void FreeAll() noexcept;
+
+    void InitRegionIdx(size_t region_size);
     
 };
 

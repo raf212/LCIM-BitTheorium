@@ -375,8 +375,8 @@ namespace AtomicCScompact
         {
             return {PublishStatus::INVALID, SIZE_MAX};
         }
-        size_t head = start_idx % Capacity_;
-        size_t tail = (head + 1) % Capacity_;
+        size_t head = start_idx % ContainerCapacity_;
+        size_t tail = (head + 1) % ContainerCapacity_;
         //read cur slot
         packed64_t cur_head = BackingPtr[head].load(MoLoad_);
         packed64_t cur_tail = BackingPtr[tail].load(MoLoad_);
@@ -443,7 +443,7 @@ namespace AtomicCScompact
         if (rel_offset == REL_OFFSET_HEAD_PTR)
         {
             head_idx = idx;
-            tail_idx = (idx + 1) % Capacity_;
+            tail_idx = (idx + 1) % ContainerCapacity_;
         }
         else if (rel_offset == RELOFFSET_TAIL_PTR)
         {
@@ -451,7 +451,7 @@ namespace AtomicCScompact
             head_idx = idx - 1;
             if (idx == 0)
             {
-                head_idx = Capacity_ - 1;
+                head_idx = ContainerCapacity_ - 1;
             }
         }
         else
@@ -476,14 +476,14 @@ namespace AtomicCScompact
 
     size_t AdaptivePackedCellContainer::RegisterRelPackedNode_(packed64_t packed_cell) noexcept
     {
-        if (RelOffsetCapacity_ == 0)
+        if (RelOffsetContainerCapacity_ == 0)
         {
             return SIZE_MAX;
         }
         size_t old_reloffset_size = RelOffsetAlloc_.load(std::memory_order_relaxed);
         while (true)
         {
-            if (old_reloffset_size >= RelOffsetCapacity_)
+            if (old_reloffset_size >= RelOffsetContainerCapacity_)
             {
                 return SIZE_MAX;
             }
@@ -506,14 +506,14 @@ namespace AtomicCScompact
         DeviceFence_ apc_device_fence
     ) noexcept
     {
-        if (RelOffsetCapacity_ == 0)
+        if (RelOffsetContainerCapacity_ == 0)
         {
             return SIZE_MAX;
         }
         size_t old_rel_offset_size = RelOffsetAlloc_.load(std::memory_order_relaxed);
         while (true)
         {
-            if (old_rel_offset_size >= RelOffsetCapacity_)
+            if (old_rel_offset_size >= RelOffsetContainerCapacity_)
             {
                 return SIZE_MAX;
             }
@@ -537,7 +537,7 @@ namespace AtomicCScompact
     AdaptivePackedCellContainer::RelEntryGuard AdaptivePackedCellContainer::AcquireRelEntry_(size_t idx) noexcept
     {
         QSBRGuard qsbr_guard(this);
-        if (idx >= RelOffsetCapacity_)
+        if (idx >= RelOffsetContainerCapacity_)
         {
             return RelEntryGuard(nullptr, std::move(qsbr_guard));
         }
@@ -552,7 +552,7 @@ namespace AtomicCScompact
 
     AdaptivePackedCellContainer::RelEntryGuard AdaptivePackedCellContainer::ClaimAndAcquireRelEntry_(size_t slot_idx, size_t reloffset_idx) noexcept
     {
-        if (slot_idx >= Capacity_ || reloffset_idx >= RelOffsetCapacity_)
+        if (slot_idx >= ContainerCapacity_ || reloffset_idx >= RelOffsetContainerCapacity_)
         {
             return RelEntryGuard(nullptr, QSBRGuard(this));
         }
@@ -569,7 +569,7 @@ namespace AtomicCScompact
 
     void AdaptivePackedCellContainer::RetireRelEntryIdx_(size_t idx) noexcept
     {
-        if (idx >= RelOffsetCapacity_)
+        if (idx >= RelOffsetContainerCapacity_)
         {
             return;
         }
@@ -610,9 +610,97 @@ namespace AtomicCScompact
 
     void AdaptivePackedCellContainer::StartBackgroundReclaimerIfNeed()
     {
-
+        if (APCContainerCfg_.BackgroundEpochAdvanceMS == 0)
+        {
+            return;
+        }
+        std::lock_guard<std::mutex>LK(BackgroundMutex_);
+        if (BackgroundThread_.joinable())
+        {
+            return;
+        }
+        BackgroundThreadStop_ = false;
+        BackgroundThread_ = std::thread([this]
+        {
+            BackgroundReclaimerMainThread_();
+        }
+        );                
     }
     
+    void AdaptivePackedCellContainer::StopBackgroundReclaimer() noexcept
+    {
+        {
+            std::lock_guard<std::mutex>lk(BackgroundMutex_);
+            BackgroundThreadStop_ = true;
+            BackgroundCondVar_.notify_all();
+        }
+        if (BackgroundThread_.joinable())
+        {
+            BackgroundThread_.join();
+        }
+    }
 
+    void AdaptivePackedCellContainer::InitOwned(size_t capacity, int node, ContainerConf container_cfg, size_t alignment)
+    {
+        FreeAll();
+        if (ContainerCapacity_)
+        {
+            throw std::invalid_argument("capacity == 0");
+        }
+        size_t bytes = sizeof(std::atomic<packed64_t>)* capacity;
+        void* memory_ptr = AllocNW::AlignedAllocONnode(alignment, bytes, node);
+        if (!memory_ptr)
+        {
+            throw std::bad_alloc();
+        }
+        BackingPtr = reinterpret_cast<std::atomic<packed64_t>*>(memory_ptr);
+        packed64_t idle_cell_mode_value32 = PackedCell64_t::MakeInitialPacked(PackedMode::MODE_VALUE32);
+        for (size_t i = 0; i < capacity; i++)
+        {
+            new (&BackingPtr[i]) std::atomic<packed64_t>(idle_cell_mode_value32);
+        }
+        ContainerCapacity_ = capacity;
+        IsContainerOwned_  = true;
+        APCContainerCfg_ = container_cfg;
+        RelOffsetContainerCapacity_ = (APCContainerCfg_.ReloffsetCapacity == 0 ? ContainerCapacity_ : APCContainerCfg_.ReloffsetCapacity);
+        RelOffset_.clear();
+        RelOffset_.reserve(RelOffsetContainerCapacity_);
+        for (size_t i = 0; i < RelOffsetContainerCapacity_; ++i)
+        {
+            RelOffset_.emplace_back(0u);
+        }
+        RelOffsetAlloc_.store(0, MoStoreSeq_);
+
+        RetireBatchThreshold_ = std::max<unsigned>(1, APCContainerCfg_.RetireBatchThreshold);
+        size_t tls_size = std::min<size_t>(APCContainerCfg_.MaxTlsCandidates ? APCContainerCfg_.MaxTlsCandidates : APCContainerCfg_.MAXTLS, APCContainerCfg_.MAXTLS);
+
+        ThreadEpochs_.clear();
+        ThreadEpochs_.reserve(tls_size);
+        for (size_t i = 0; i < tls_size; ++i)
+        {
+            ThreadEpochs_.emplace_back(std::numeric_limits<uint64_t>::max());
+        }
+        InitZeroState_();
+        if (APCContainerCfg_.RegionSize)
+        {
+            InitRegionIdx(APCContainerCfg_.RegionSize);
+        }
+        StartBackgroundReclaimerIfNeed();
+    }
+
+    void AdaptivePackedCellContainer::InitZeroState_() noexcept
+    {
+
+    }
+
+    void AdaptivePackedCellContainer::FreeAll() noexcept
+    {
+
+    }
+
+    void AdaptivePackedCellContainer::InitRegionIdx(size_t region_size)
+    {
+        (void)region_size;
+    }
 
 }

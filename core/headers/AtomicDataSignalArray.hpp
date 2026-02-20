@@ -94,8 +94,8 @@ public:
     };
 
 private:
-    size_t Capacity_{0};
-    bool Owned_{false};
+    size_t ContainerCapacity_{0};
+    bool IsContainerOwned_{false};
     int UsedNode_{0};
     unsigned RetireBatchThreshold_ {16};
 
@@ -133,7 +133,7 @@ private:
     //re-offset
     std::vector<std::atomic<std::uintptr_t>> RelOffsetArrayPtr_;
     std::atomic<size_t> RelOffsetAlloc_{0};
-    size_t RelOffsetCapacity_{0};
+    size_t RelOffsetContainerCapacity_{0};
 
     //lock-free QSBR
     std::atomic<packed64_t> GlobalEpoch_{1};
@@ -305,7 +305,7 @@ private:
         Occupancy_.store(0, MoStoreUnSeq_);
         ProducerCursor_.store(0, MoStoreUnSeq_);
         ConsumerCursor_.store(0, MoStoreUnSeq_);
-        RelOffSet_.assign(Capacity_, packed64_t(0));
+        RelOffSet_.assign(ContainerCapacity_, packed64_t(0));
     }
 
     void InitRelRegionAndBitmap_()
@@ -334,11 +334,11 @@ private:
 
     inline bool IfAnyValid_() const noexcept
     {
-        return BackingPtr && Capacity_ > 0;
+        return BackingPtr && ContainerCapacity_ > 0;
     }
     inline bool IfIdxValid(size_t idx) const noexcept
     {
-        return (BackingPtr && (idx < Capacity_));
+        return (BackingPtr && (idx < ContainerCapacity_));
     }
 
     inline void CommitPayloadBasedMODE_(packed64_t payload, packed64_t& committed, size_t idx) noexcept
@@ -372,7 +372,7 @@ private:
 
 public:
     AtomicDataSignalArray() noexcept :
-        BackingPtr(nullptr), Capacity_(0), Owned_(false), UsedNode_(0),
+        BackingPtr(nullptr), ContainerCapacity_(0), IsContainerOwned_(false), UsedNode_(0),
         Cfg_(), Adaptivebkof_(typename AtomicAdaptiveBackoff::PCBCfg{}, MODE),
         RegionSize_(0), NumRegion_(0), MasterClkConfigaration_(nullptr)
     {}
@@ -405,8 +405,8 @@ public:
         {
             new (&BackingPtr[i]) std::atomic<packed64_t>(idle); 
         }
-        Capacity_ = capacity;
-        Owned_ = true;
+        ContainerCapacity_ = capacity;
+        IsContainerOwned_ = true;
         UsedNode_ = node;
         Cfg_ = cfg;
 
@@ -431,8 +431,8 @@ public:
         }
 
         BackingPtr = backing;
-        Capacity_ = capacity;
-        Owned_ = false;
+        ContainerCapacity_ = capacity;
+        IsContainerOwned_ = false;
         UsedNode_ = -1;
         Cfg_ = cfg;
 
@@ -448,20 +448,20 @@ public:
     {
         if (BackingPtr)
         {
-            if (Owned_)
+            if (IsContainerOwned_)
             {
-                for (size_t i = 0; i < Capacity_; i++)
+                for (size_t i = 0; i < ContainerCapacity_; i++)
                 {
                     BackingPtr[i].~atomic<packed64_t>();
                 }
-                size_t bytes = sizeof(std::atomic<packed64_t>) * Capacity_;
+                size_t bytes = sizeof(std::atomic<packed64_t>) * ContainerCapacity_;
                 AllocNW::FreeONNode(static_cast<void*>(BackingPtr), bytes);
             }
         }
 
         BackingPtr = nullptr;
-        Capacity_ = 0;
-        Owned_ = false;
+        ContainerCapacity_ = 0;
+        IsContainerOwned_ = false;
         RelOffSet_.clear();
         //clear region
         for(auto& vec : RelBitmaps_)
@@ -507,7 +507,7 @@ public:
         thread_local size_t block_left = 0;
         if (block_left == 0)
         {
-            size_t block = std::min<size_t>(Cfg_.ProducerBlockSize, Capacity_);
+            size_t block = std::min<size_t>(Cfg_.ProducerBlockSize, ContainerCapacity_);
             block_base = ReserveProducerSlots(block);
             block_left = block;
         }
@@ -559,12 +559,12 @@ public:
         }
 
         size_t start = seq;
-        size_t idx = start % Capacity_;
+        size_t idx = start % ContainerCapacity_;
         uint64_t mix = (static_cast<uint64_t>((start) * ID_HASH_GOLDEN_CONST) ^(static_cast<uint64_t>(start >> 33)));       //Why 33??
         size_t step = 1;
-        if (Capacity_ > 1)
+        if (ContainerCapacity_ > 1)
         {
-            step = static_cast<size_t>((mix % (Capacity_ - 1)) + 1);
+            step = static_cast<size_t>((mix % (ContainerCapacity_ - 1)) + 1);
         }
         
         SpinBackoff spin_backoff;
@@ -617,15 +617,15 @@ public:
                 {
                     return { PublishStatus::FULL, SIZE_MAX};
                 }
-                if (probs >= static_cast<int>(Capacity_))
+                if (probs >= static_cast<int>(ContainerCapacity_))
                 {
                     return { PublishStatus::FULL, SIZE_MAX};
                 }
                 
                 idx += step;
-                if (idx >= Capacity_)
+                if (idx >= ContainerCapacity_)
                 {
-                    idx %= Capacity_;
+                    idx %= ContainerCapacity_;
                 }
             }   
         }
@@ -649,7 +649,7 @@ public:
         }
         for (size_t i = 0; i < n; i++)
         {
-            size_t idx = (reserved_base + i) % Capacity_;
+            size_t idx = (reserved_base + i) % ContainerCapacity_;
             packed64_t cur = BackingPtr[idx].load(MoLoad_);
             if (ExtractLocalityFromSTRL(PackedCell64_t::ExtractSTRL(cur)) != ST_IDLE)
             {
@@ -666,8 +666,8 @@ public:
             }
             Occupancy_.fetch_add(1, std::memory_order_acq_rel);
         }
-        BackingPtr[reserved_base % Capacity_].notify_all();
-        return {PublishStatus::OK, reserved_base % Capacity_};  
+        BackingPtr[reserved_base % ContainerCapacity_].notify_all();
+        return {PublishStatus::OK, reserved_base % ContainerCapacity_};  
     }
 
     PublishResult PublishBlockingPacked(packed64_t item, int timeout_ms = -1, uint16_t sleep_ms = 50) noexcept
@@ -676,7 +676,7 @@ public:
         auto start = steady_clock::now();
         while (true)
         {
-            PublishResult res = PublishPackedOfADSA(item, static_cast<int>(Capacity_));
+            PublishResult res = PublishPackedOfADSA(item, static_cast<int>(ContainerCapacity_));
             if (res.status == PublishResult::OK)
             {
                 return res;
@@ -704,12 +704,12 @@ public:
             return false;
         }
         size_t start = ConsumerCursor_.fetch_add(1, MoStoreUnSeq_);
-        size_t idx = start % Capacity_;
+        size_t idx = start % ContainerCapacity_;
         uint64_t mix = (static_cast<uint64_t>(start) * ID_HASH_GOLDEN_CONST) ^(static_cast<uint64_t>(start) >> 29); // why shift 29 bit ??
         size_t step = 1;
-        if (Capacity_ > 1)
+        if (ContainerCapacity_ > 1)
         {
-            step = static_cast<size_t>((mix % (Capacity_ - 1)) + 1);
+            step = static_cast<size_t>((mix % (ContainerCapacity_ - 1)) + 1);
         }
 
         size_t available = Occupancy_.load(MoLoad_);
@@ -717,7 +717,7 @@ public:
         {
             return false;
         }
-        size_t scan_limit = std::min<size_t>(Capacity_, std::max<size_t>(available + 8, Cfg_.ScanLimit));
+        size_t scan_limit = std::min<size_t>(ContainerCapacity_, std::max<size_t>(available + 8, Cfg_.ScanLimit));
         
         SpinBackoff spin_co;
         int scans = 0;
@@ -745,9 +745,9 @@ public:
             }
             ++scans;
             idx += step;
-            if (idx >= Capacity_)
+            if (idx >= ContainerCapacity_)
             {
-                idx = idx % Capacity_;
+                idx = idx % ContainerCapacity_;
             }
             if (max_scan >= 0 && scans >= max_scan)
             {
@@ -758,7 +758,7 @@ public:
         size_t tls_cap = std::min<size_t>(Cfg_.MaxTlsCandidates, Cfg_.MaxTLS);
         std::vector<Candidate_CO_> cand_buf;
         cand_buf.reserve(std::min<size_t>(Cfg_.MaxGather, tls_cap));
-        idx = start % Capacity_;
+        idx = start % ContainerCapacity_;
         scans = 0;
 
         uint16_t prod_seq16 = static_cast<uint16_t>((ProducerCursor_.load(MoLoad_)) & 0xFFFFu); // why 0xFFFFu ??
@@ -786,9 +786,9 @@ public:
             }
             ++scans;
             idx = idx + step;
-            if (idx >= Capacity_)
+            if (idx >= ContainerCapacity_)
             {
-                idx = idx % Capacity_;
+                idx = idx % ContainerCapacity_;
             }
         }
 
@@ -832,19 +832,19 @@ public:
             return 0;
         }
         size_t start = ConsumerCursor_.fetch_add(1, MoStoreUnSeq_);
-        size_t idx = start % Capacity_;
+        size_t idx = start % ContainerCapacity_;
         uint64_t mix = (static_cast<uint64_t>(start) * ID_HASH_GOLDEN_CONST) ^(static_cast<uint64_t>(start) >> 31); // why 31??
         size_t step = 1;
-        if (Capacity_ > 1)
+        if (ContainerCapacity_ > 1)
         {
-            step = static_cast<size_t>((mix % (Capacity_ - 1)) + 1);
+            step = static_cast<size_t>((mix % (ContainerCapacity_ - 1)) + 1);
         }
         size_t available = Occupancy_.load(MoLoad_);
         if (available == 0)
         {
             return 0;
         }
-        size_t scan_limit = std::min(Capacity_, std::max<size_t>(available + 16, max_count * 8));
+        size_t scan_limit = std::min(ContainerCapacity_, std::max<size_t>(available + 16, max_count * 8));
         size_t tls_cap = std::min<size_t>(Cfg_.MaxTlsCandidates, Cfg_.MaxTLS);
         thread_local Candidate_CO_ tls_buf[Cfg_.MaxTLS];
         std::vector<Candidate_CO_> buffer;
@@ -852,7 +852,7 @@ public:
         size_t buffer_count = 0;
         uint16_t producer_sequense16 = static_cast<uint16_t>(ProducerCursor_.load(MoLoad_) & 0xFFFFu); // why 0xFFFFu;
         size_t scans = 0;
-        idx = start % Capacity_;
+        idx = start % ContainerCapacity_;
         while (scans < scan_limit && buffer_count < std::min<size_t>(Cfg_.MaxGather, tls_cap))
         {
             packed64_t cur = BackingPtr[idx].load(MoLoad_);
@@ -878,9 +878,9 @@ public:
             }
             ++scans;
             idx = idx + step;
-            if (idx >= Capacity_)
+            if (idx >= ContainerCapacity_)
             {
-                idx = idx % Capacity_;
+                idx = idx % ContainerCapacity_;
             }
         }
         if (buffer.empty())
@@ -1150,12 +1150,12 @@ public:
             throw std::invalid_argument("region_size == 0");
         }
         RegionSize_ = region_size;
-        NumRegion_ = ((Capacity_ + RegionSize_ - 1) / RegionSize_);
+        NumRegion_ = ((ContainerCapacity_ + RegionSize_ - 1) / RegionSize_);
         InitRelRegionAndBitmap_();
         for (size_t r = 0; r < NumRegion_; r++)
         {
             size_t base = r * RegionSize_;
-            size_t end = std::min(Capacity_, base + RegionSize_);
+            size_t end = std::min(ContainerCapacity_, base + RegionSize_);
             uint8_t accum = 0;
             for (size_t i = base; i < end; i++)
             {
@@ -1190,7 +1190,7 @@ public:
         if (RegionSize_ == 0)
         {
             size_t i = 0;
-            while (i < Capacity_)
+            while (i < ContainerCapacity_)
             {
                 packed64_t p = BackingPtr[i].load(MoLoad_);
                 if ((PackedCell64_t::ExtractRelMaskFromPacked(p) & given_rel_mask) == 0)
@@ -1199,7 +1199,7 @@ public:
                     continue;
                 }
                 size_t s = i++;
-                while (i < Capacity_)
+                while (i < ContainerCapacity_)
                 {
                     packed64_t q = BackingPtr[i].load(MoLoad_);
                     if ((PackedCell64_t::ExtractRelMaskFromPacked(q) & given_rel_mask) == 0)
@@ -1238,7 +1238,7 @@ public:
                     break;
                 }
                 size_t base = region_idx * RegionSize_;
-                size_t end = std::min(Capacity_, base + RegionSize_);
+                size_t end = std::min(ContainerCapacity_, base + RegionSize_);
                 size_t i = base;
                 while(i < end)
                 {
@@ -1290,7 +1290,7 @@ public:
             return out;
         }
         out.reserve(MAX_VAL);
-        for (size_t i = 0; i < Capacity_; i++)
+        for (size_t i = 0; i < ContainerCapacity_; i++)
         {
             packed64_t p = BackingPtr[i].load(MoLoad_);
             tag8_t st = ExtractLocalityFromSTRL(PackedCell64_t::ExtractSTRL(p));

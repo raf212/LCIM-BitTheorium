@@ -77,7 +77,7 @@ namespace AtomicCScompact
         PackedCellDataType RECellDType;
 
         FinalizerKind_ KindFinalizer;
-        std::function<void(RelEntry_*)> FinalizerPtr;
+        std::function<void(void*)> FinalizerPtr;
         DeviceFence_ APCDeviceFence;
         std::atomic<uint64_t> RetireEpoch;
         std::atomic<RelEntry_*> NextPtr;
@@ -104,10 +104,14 @@ namespace AtomicCScompact
 
     uint64_t AdaptivePackedCellContainer::ComputeMinThreadEpoch() const noexcept
     {
-        uint64_t min_epoch = std::numeric_limits<uint64_t>::max();
-        for (size_t i = 0; i < ThreadEpochs_.size(); i++)
+        if (!ThreadEpochArray_)
         {
-            uint64_t val = ThreadEpochs_[i].load(MoLoad_);
+            return std::numeric_limits<uint64_t>::max();
+        }
+        uint64_t min_epoch = std::numeric_limits<uint64_t>::max();
+        for (size_t i = 0; i < ThreadEpochCapacity_; i++)
+        {
+            uint64_t val = ThreadEpochArray_[i].load(MoLoad_);
             if (val == std::numeric_limits<uint64_t>::max())
             {
                 continue;
@@ -116,8 +120,8 @@ namespace AtomicCScompact
             {
                 min_epoch = val;
             }
+            return min_epoch;
         }
-        return min_epoch;
     }
     
     size_t AdaptivePackedCellContainer::RegisterThreadForQSBRImplementation_() noexcept
@@ -126,14 +130,18 @@ namespace AtomicCScompact
         {
             return QSBRThreadIdx_;
         }
+        if (!ThreadEpochArray_)
+        {
+            return SIZE_MAX;
+        }
         uint64_t sentinal = std::numeric_limits<uint64_t>::max();
         uint64_t cur_epoch = GlobalEpoch_.load(MoLoad_);
-        for (size_t i = 0; i < ThreadEpochs_.size(); i++)
+        for (size_t i = 0; i < ThreadEpochCapacity_; i++)
         {
-            uint64_t val = ThreadEpochs_[i].load(std::memory_order_relaxed);
+            uint64_t val = ThreadEpochArray_[i].load(std::memory_order_relaxed);
             if (val == sentinal)
             {
-                if (ThreadEpochs_[i].compare_exchange_strong(val, cur_epoch, EXsuccess_, EXfailure_))
+                if (ThreadEpochArray_[i].compare_exchange_strong(val, cur_epoch, EXsuccess_, EXfailure_))
                 {
                     QSBRThreadIdx_ = i;
                     return i;
@@ -256,17 +264,20 @@ namespace AtomicCScompact
             }
             if (can_reclaim)
             {
-                if (cur_relentry->FinalizerPtr)
+                if (cur_relentry->KindFinalizer != FinalizerKind_::NONE && cur_relentry->Kind == RelEntry_::APCKind::HEAP_NODE)
                 {
-                    try 
+                    if (cur_relentry->FinalizerPtr)
                     {
-                        cur_relentry->FinalizerPtr(cur_relentry);
-                    }
-                    catch (...)
-                    {
-                        if (APCLogger_)
+                        try
                         {
-                            APCLogger_("TryReclaimRetired_()", "RelEntry finalizer threw an exception::cur_relentry->FinalizerPtr");
+                            cur_relentry->FinalizerPtr(cur_relentry->HeapPtr);
+                        }
+                        catch (...)
+                        {
+                            if (APCLogger_)
+                            {
+                                APCLogger_("TryReclaimRetired_()", "RelEntry finalizer threw an exception::cur_relentry->FinalizerPtr");
+                            }
                         }
                     }
                 }
@@ -321,30 +332,26 @@ namespace AtomicCScompact
     bool AdaptivePackedCellContainer::PollDeviceFencesOnce_() noexcept
     {
         bool any_signaled = false;
-        for (size_t i = 0; i < RelOffset_.size(); i++)
+        RelEntry_* cur_relentry_ptr = RetireHead_.load(MoLoad_);
+        while (cur_relentry_ptr)
         {
-            std::uintptr_t raw_reloffset_ptr = RelOffset_[i].load(MoLoad_);
-            if (!raw_reloffset_ptr)
+            if (cur_relentry_ptr->APCDeviceFence.HandleDeviceFencePtr && cur_relentry_ptr->APCDeviceFence.IsSignaled)
             {
-                continue;
-            }
-            RelEntry_* relentry_ptr = reinterpret_cast<RelEntry_*>(raw_reloffset_ptr);
-            if (relentry_ptr->APCDeviceFence.HandleDeviceFencePtr && relentry_ptr->APCDeviceFence.IsSignaled)
-            {
-                bool signal = false;
-                try 
+                bool signaled_now = false;
+                try
                 {
-                    signal = relentry_ptr->APCDeviceFence.IsSignaled(relentry_ptr->APCDeviceFence.HandleDeviceFencePtr);
+                    signaled_now = cur_relentry_ptr->APCDeviceFence.IsSignaled(cur_relentry_ptr->APCDeviceFence.HandleDeviceFencePtr);
                 }
                 catch (...)
                 {
-                    signal = false;
+                    signaled_now = false;
                 }
-                if (signal)
+                if (signaled_now)
                 {
                     any_signaled = true;
                 }
             }
+            cur_relentry_ptr = cur_relentry_ptr->NextPtr.load(MoLoad_);
         }
         return any_signaled;
     }
@@ -369,6 +376,207 @@ namespace AtomicCScompact
         }
     }
 
+    PublishResult AdaptivePackedCellContainer::PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask, int max_probs) noexcept
+    {
+        if (!IfAnyValid_)
+        {
+            return { PublishStatus::INVALID, SIZE_MAX};
+        }
+        uint64_t full_ptrval = reinterpret_cast<uint64_t>(object_ptr);
+        uint32_t low32_half = static_cast<uint32_t>(full_ptrval & MaskBits(VALBITS));
+        uint32_t high32_half = static_cast<uint32_t>((full_ptrval >> VALBITS) & MaskBits(VALBITS));
+        size_t next_sequence = NextProducerSequence();
+        size_t start = next_sequence % ContainerCapacity_;
+        size_t step = GetHashedRendomizedStep_(next_sequence);
+        int probes = 0;
+        size_t idx = start;
+        while (true)
+        {
+            size_t head = idx;
+            size_t tail = (head + 1) % ContainerCapacity_;
+            packed64_t cur_head = BackingPtr[head].load(MoLoad_);
+            packed64_t cur_tail = BackingPtr[tail].load(MoLoad_);
+            tag8_t head_locality = PackedCell64_t::ExtractLocalityFromPacked(cur_head);
+            tag8_t tail_locality = PackedCell64_t::ExtractLocalityFromPacked(cur_tail);
+            if (head_locality == ST_IDLE && tail_locality == ST_IDLE)
+            {
+                packed64_t claimed_cur_head = PackedCell64_t::SetLocalityInPacked(cur_head, ST_CLAIMED);
+                packed64_t claimed_cur_tail = PackedCell64_t::SetLocalityInPacked(cur_tail, ST_CLAIMED);
+                packed64_t expected_head = cur_head;
+                if (!BackingPtr[head].compare_exchange_strong(expected_head, claimed_cur_head, EXsuccess_, EXfailure_))
+                {
+                    TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
+                }
+                else
+                {
+                    packed64_t expected_tail = cur_tail;
+                    if (!BackingPtr[tail].compare_exchange_strong(expected_tail, claimed_cur_tail, EXsuccess_, EXfailure_))
+                    {
+                        BackingPtr[head].store(cur_head, MoStoreSeq_);
+                        BackingPtr[head].notify_all();
+                        TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
+                    }
+                    else
+                    {
+                        val32_t tail_ptr_val32 = static_cast<val32_t>(
+                            (high32_half & PTR_INDEX_MASK_) | PTR_FLAG32_ | PTR_HALF_TAIL_
+                        );
+                        strl16_t strl_tail = MakeSTRL4_t(ZERO_PRIORITY, ST_PUBLISHED, rel_mask, RELOFFSET_TAIL_PTR, static_cast<unsigned>(PackedMode::MODE_VALUE32));
+                        packed64_t tail_packed = PackedCell64_t::ComposeValue32u_64(tail_ptr_val32, 0u, strl_tail);
+                        BackingPtr[tail].store(tail_packed, MoStoreSeq_);
+
+                        val32_t head_ptr_value32 = static_cast<val32_t>(
+                            (low32_half & PTR_INDEX_MASK_) | PTR_FLAG32_ | PTR_HALF_HEAD_
+                        );
+                        strl16_t strl_head = MakeSTRL4_t(DEFAULT_PAIRED_HEAD_HALF_PRIORITY, ST_PUBLISHED, rel_mask, REL_OFFSET_HEAD_PTR, static_cast<unsigned>(PackedMode::MODE_VALUE32));
+                        packed64_t head_packed = PackedCell64_t::ComposeValue32u_64(strl_head, 0u, strl_head);
+                        BackingPtr[head].store(head_packed, MoStoreSeq_);
+                        BackingPtr[tail].notify_all();
+                        BackingPtr[head].notify_all();
+                        Occupancy_.fetch_add(1, std::memory_order_acq_rel);
+                        return {PublishStatus::OK, head};
+                    }
+                }
+            }
+            ++probes;
+            if ((max_probs >=0 && probes >= max_probs) || probes >= static_cast<int>(ContainerCapacity_))
+            {
+                return {PublishStatus::FULL, SIZE_MAX};
+            }
+            idx = (idx + step) % ContainerCapacity_;
+        }
+    }
+
+    std::optional<uint64_t>AdaptivePackedCellContainer::TryAssemblePairedPtr_(size_t probable_idx, RelOffsetMode& ptr_position) const noexcept
+    {
+        if (!IfIdxValid_(probable_idx))
+        {
+            return std::nullopt;
+        }
+        packed64_t cell_data = BackingPtr[probable_idx].load(MoLoad_);
+        tag8_t head_tail_or_null = PackedCell64_t::ExtractRelOffsetFromPacked(cell_data);
+        if ((static_cast<RelOffsetMode>(head_tail_or_null) == RelOffsetMode::REL_OFFSET_HEAD_PTR))
+        {
+            tag8_t head_locality = PackedCell64_t::ExtractLocalityFromPacked(cell_data);
+            PackedMode head_celltype = static_cast<PackedMode>(PackedCell64_t::ExtractPCellTypeFromPacked(cell_data));
+            if (head_locality != ST_PUBLISHED && head_celltype != PackedMode::MODE_VALUE32)
+            {
+                return std::nullopt;
+            }
+            size_t tail_idx = (probable_idx + 1) % ContainerCapacity_;
+            packed64_t tail_cell_data = BackingPtr[tail_idx].load(MoLoad_);
+            tag8_t tail_locality = PackedCell64_t::ExtractLocalityFromPacked(tail_cell_data);
+            PackedMode tell_celltype = static_cast<PackedMode>(PackedCell64_t::ExtractPCellTypeFromPacked(tail_cell_data));
+            if (tail_locality != ST_PUBLISHED && tell_celltype != PackedMode::MODE_VALUE32)
+            {
+                return std::nullopt;
+            }
+            val32_t head_val32 = PackedCell64_t::ExtractValue32(cell_data);
+            val32_t tail_val32 = PackedCell64_t::ExtractValue32(tail_cell_data);
+            if (((head_val32 & PTR_FLAG32_) == 0) || ((tail_val32 & PTR_FLAG32_ == 0)))
+            {
+                return std::nullopt;
+            }
+            if (((head_val32 & PTR_HALF_HEAD_) == 0) || ((tail_val32 & PTR_HALF_TAIL_) == 0))
+            {
+                return std::nullopt;
+            }
+            uint32_t low32 = static_cast<uint32_t>(head_val32 & PTR_INDEX_MASK_);
+            uint32_t high32 = static_cast<uint32_t>(tail_val32 & PTR_INDEX_MASK_);
+            uint64_t assembeled = (static_cast<uint64_t>(high32) << VALBITS) | (static_cast<uint64_t>(low32));
+            ptr_position = RelOffsetMode::REL_OFFSET_HEAD_PTR;
+            return assembeled;
+            
+        }
+        else if(static_cast<RelOffsetMode>(head_tail_or_null) == RelOffsetMode::RELOFFSET_TAIL_PTR)
+        {
+            tag8_t tail_locality = PackedCell64_t::ExtractLocalityFromPacked(cell_data);
+            PackedMode tail_cell_type = static_cast<PackedMode>(PackedCell64_t::ExtractPCellTypeFromPacked(cell_data));
+            if (tail_locality != ST_PUBLISHED && tail_cell_type != PackedMode::MODE_VALUE32)
+            {
+                return std::nullopt;
+            }
+            size_t head_idx = (probable_idx + ContainerCapacity_ - 1) % ContainerCapacity_;
+            packed64_t head_cell_data = BackingPtr[head_idx].load(MoLoad_);
+            tag8_t head_locality = PackedCell64_t::ExtractLocalityFromPacked(head_cell_data);
+            PackedMode head_cell_type = static_cast<PackedMode>(PackedCell64_t::ExtractPCellTypeFromPacked(head_cell_data));
+            if (head_locality != ST_PUBLISHED && head_cell_type != PackedMode::MODE_VALUE32)
+            {
+                return std::nullopt;
+            }
+            val32_t tail_val32 = PackedCell64_t::ExtractValue32(cell_data);
+            val32_t head_val32 = PackedCell64_t::ExtractValue32(head_cell_data);
+            if (((head_val32 & PTR_FLAG32_) == 0) || (((tail_val32 & PTR_FLAG32_) == 0)))
+            {
+                return std::nullopt;
+            }
+            if (((head_val32 & PTR_HALF_HEAD_) == 0) || ((tail_val32 & PTR_HALF_TAIL_) == 0))
+            {
+                return std::nullopt;
+            }
+            uint32_t low32 = static_cast<uint32_t>(head_val32 & PTR_INDEX_MASK_);
+            uint32_t high32 = static_cast<uint32_t>(tail_val32 & PTR_INDEX_MASK_);
+            uint64_t assembeled = (static_cast<uint64_t>(high32) << VALBITS) | (static_cast<uint64_t>(low32));
+            ptr_position = RelOffsetMode::RELOFFSET_TAIL_PTR;
+            return assembeled;
+        }
+        else
+        {
+            return std::nullopt;
+        }
+    }
+
+    void AdaptivePackedCellContainer::RetirePairedPtrAtIdx_(
+        size_t probable_idx, FinalizerKind_ fk, std::function<void(void*)> finalizer_fn,
+        DeviceFence_ fence
+    ) noexcept
+    {
+        RelOffsetMode ptr_position_probableidx = RelOffsetMode::RELOFFSET_GENERIC_VALUE;
+        auto maybe_ptr = TryAssemblePairedPtr_(probable_idx, ptr_position_probableidx);
+        void* obj_ptr = nullptr;
+        if (maybe_ptr)
+        {
+            obj_ptr = reinterpret_cast<void*>(*maybe_ptr);
+        }
+        packed64_t idle_cell32 = PackedCell64_t::MakeInitialPacked(PackedMode::MODE_VALUE32);
+        if (ptr_position_probableidx == RelOffsetMode::RELOFFSET_GENERIC_VALUE)
+        {
+            return;
+        }
+        else if (ptr_position_probableidx == RelOffsetMode::REL_OFFSET_HEAD_PTR)
+        {
+            size_t tail_idx = (probable_idx + 1) % ContainerCapacity_;
+            BackingPtr[probable_idx].store(idle_cell32, MoStoreSeq_);
+            BackingPtr[tail_idx].store(idle_cell32, MoStoreSeq_);
+            BackingPtr[probable_idx].notify_all();
+            BackingPtr[tail_idx].notify_all();
+        }
+        else if (ptr_position_probableidx == RelOffsetMode::RELOFFSET_TAIL_PTR)
+        {
+            size_t head_idx = (probable_idx + ContainerCapacity_ - 1) % ContainerCapacity_;
+            BackingPtr[probable_idx].store(idle_cell32, MoStoreSeq_);
+            BackingPtr[head_idx].store(idle_cell32, MoStoreSeq_);
+            BackingPtr[head_idx].notify_all();
+            BackingPtr[probable_idx].notify_all();
+        }
+        Occupancy_.fetch_sub(1, std::memory_order_acq_rel);
+        RelEntry_* rel_entry = new RelEntry_(obj_ptr, 0, PackedCellDataType::UnsignedPCellDataType);
+        rel_entry->KindFinalizer = fk;
+        if (finalizer_fn)
+        {
+            rel_entry->FinalizerPtr = std::move(finalizer_fn);
+        }
+        rel_entry->APCDeviceFence = std::move(fence);
+        uint64_t cur_epoch = GlobalEpoch_.load(MoLoad_);
+        rel_entry->RetireEpoch.store(cur_epoch, MoStoreSeq_);
+        RetirePushLocked_(rel_entry);
+        TryReclaimRetired_();
+        
+    }
+
+
+
+    ///old
     PublishResult AdaptivePackedCellContainer::TryPublishPairedCellCLK48_(size_t start_idx, uint64_t ptr_value, tag8_t relmask) noexcept
     {
         if (!IfAnyValid_())
@@ -594,7 +802,7 @@ namespace AtomicCScompact
             return;
         }
         size_t region = idx / RegionSize_;
-        RegionRel_[region].fetch_add(rel_mask, std::memory_order_acq_rel);
+        REgionRelArray_[region].fetch_add(rel_mask, std::memory_order_acq_rel);
         size_t w = region / MAX_VAL;
         size_t b =  region % MAX_VAL;
         uint64_t region_mask = (1ull << b);

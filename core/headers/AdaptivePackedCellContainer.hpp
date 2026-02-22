@@ -71,13 +71,13 @@ private:
     };
     struct RelEntry_;
     //reloffset
-    std::vector<std::atomic<std::uintptr_t>> RelOffset_;
-    std::atomic<size_t> RelOffsetAlloc_{0};
-    size_t RelOffsetContainerCapacity_{0};
+
     //global epoch
     std::atomic<uint64_t>GlobalEpoch_{1};
     //epoch-table
-    std::vector<std::atomic<uint64_t>> ThreadEpochs_;
+    std::unique_ptr<std::atomic<uint64_t>[]> ThreadEpochArray_;
+    size_t ThreadEpochCapacity_{0};
+    std::atomic<size_t> RetireCount_{0};
     static inline thread_local size_t QSBRThreadIdx_ = SIZE_MAX;
     //retire
     std::atomic<RelEntry_*> RetireHead_{nullptr};
@@ -120,7 +120,7 @@ private:
             return;
         }
         uint64_t epoch = GlobalEpoch_.load(MoLoad_);
-        ThreadEpochs_[QSBRThreadIdx_].store(epoch, MoStoreSeq_);
+        ThreadEpochArray_[QSBRThreadIdx_].store(epoch, MoStoreSeq_);
     }
 
     inline void QSBRExitCritical_() noexcept
@@ -129,7 +129,7 @@ private:
         {
             return;
         }
-        ThreadEpochs_[QSBRThreadIdx_].store(std::numeric_limits<uint64_t>::max(), MoStoreSeq_);
+        ThreadEpochArray_[QSBRThreadIdx_].store(std::numeric_limits<uint64_t>::max(), MoStoreSeq_);
     }
 
     void RetirePushLocked_(RelEntry_* rel_entry_ptr) noexcept;
@@ -164,9 +164,9 @@ private:
     //region/index
     size_t RegionSize_{0};
     size_t NumRegion_{0};
-    std::vector<std::atomic<uint8_t>> RegionRel_;
+    std::unique_ptr<std::atomic<uint8_t>[]> REgionRelArray_{nullptr};
     std::vector<std::vector<uint64_t>> RelBitmaps_;
-    std::vector<std::atomic<uint64_t>> RegionEpoch_;
+    std::unique_ptr<std::atomic<uint64_t>[]> RegionEpochArray_{nullptr};
 
     static inline thread_local std::vector<std::pair<size_t, packed64_t>> TLSCandidates_;
 
@@ -180,9 +180,32 @@ private:
         return (BackingPtr && idx < ContainerCapacity_);
     }
 
+    ////remove
     PublishResult TryPublishPairedCellCLK48_(size_t start_idx, uint64_t ptr_value, tag8_t relmask = 0) noexcept;
 
     std::optional<uint64_t>ExtractPairedSlot48Ptr_(size_t idx) const noexcept;
+    //remove-up
+    PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;
+    std::optional<uint64_t> TryAssemblePairedPtr_(size_t probable_idx, RelOffsetMode& ptr_position) const noexcept;
+    void RetirePairedPtrAtIdx_(
+        size_t probable_idx, FinalizerKind_ fk = FinalizerKind_::HOST,
+        std::function<void(void*)> finalizer_fn = nullptr,
+        DeviceFence_ fence = {}
+    ) noexcept;
+
+    size_t GetHashedRendomizedStep_(size_t sequense_number) noexcept
+    {
+        uint64_t mix_hash = (
+            (static_cast<uint64_t>(sequense_number) * ID_HASH_GOLDEN_CONST) ^ (static_cast<uint64_t>(sequense_number >> (VALBITS + 1)))
+        );
+        size_t step = 1;
+        if (ContainerCapacity_ > 1)
+        {
+            step = static_cast<size_t>((mix_hash % (ContainerCapacity_ - 1)) + 1);
+        }
+        return step;
+    }
+
 
     size_t RegisterRelPackedNode_(packed64_t packed_cell) noexcept;
     
@@ -224,6 +247,13 @@ public:
     AdaptivePackedCellContainer(const AdaptivePackedCellContainer&) = delete;
     AdaptivePackedCellContainer& operator = (const AdaptivePackedCellContainer&) = delete;
 
+    size_t NextProducerSequence() noexcept;
+
+
+
+
+
+    //old
     void StartBackgroundReclaimerIfNeed();
 
     void StopBackgroundReclaimer() noexcept;

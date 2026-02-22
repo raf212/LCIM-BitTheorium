@@ -31,6 +31,7 @@ namespace AtomicCScompact {
     using strl16_t   = uint16_t;
 
     #define NO_VAL 0u
+    #define ZERO_PRIORITY 0u
     #define MAX_VAL 64u
     #define LN_OF_BYTE_IN_BITS 8u
     #define MASK_8_BIT  0xFFu
@@ -40,6 +41,7 @@ namespace AtomicCScompact {
     #define ATOMIC_THRESHOLD 64u
     #define DEFAULT_INTERNAL_PRIORITY 8u
     #define PTR_HIGH16 16u
+    #define DEFAULT_PAIRED_HEAD_HALF_PRIORITY 10u
 
     static constexpr unsigned MASK16B_HIGH8B_0 = 0xFF00u;
 
@@ -124,6 +126,14 @@ namespace AtomicCScompact {
         MODE_CLKVAL48 = 1
     };
 
+    enum class RelOffsetMode : unsigned
+    {
+        RELOFFSET_GENERIC_VALUE = 0,
+        RELOFFSET_TAIL_PTR = 1,
+        REL_OFFSET_HEAD_PTR = 2,
+        REL_OFFSET_STANDALONE48 = 3
+    };
+    
     template <typename pcdt32>
     static inline PackedCellDataType PCellTypeCheckUser()
     {
@@ -158,11 +168,9 @@ namespace AtomicCScompact {
 
     inline constexpr strl16_t MakeSTRL4_t(tag8_t priority, tag8_t locality, tag8_t rel_mask, tag8_t rel_offset, tag8_t pc_type = 0, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
     {
-        if (pc_type > 1u)
-        {
-            pc_type = 0u;
-        }
-        
+
+        assert(pc_type <= 1u, "Cell type 0:MODE_VAL32, 1:MODE_CLK48");
+        assert(rel_offset <= 3u, "RelOffset 0 = Generic, 1 = Tail Half, 2 = Head Half , 3 = Full PTR in 48 bit");
         strl16_t prio = static_cast<strl16_t>(priority & PRIORITY_MASK);
         strl16_t loc = static_cast<strl16_t>(locality & LOCALITY_MASK);
         strl16_t pctype = static_cast<strl16_t>(pc_type & PCTYPE_MASK);

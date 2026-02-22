@@ -120,8 +120,8 @@ namespace AtomicCScompact
             {
                 min_epoch = val;
             }
-            return min_epoch;
         }
+        return min_epoch;
     }
     
     size_t AdaptivePackedCellContainer::RegisterThreadForQSBRImplementation_() noexcept
@@ -378,7 +378,7 @@ namespace AtomicCScompact
 
     PublishResult AdaptivePackedCellContainer::PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask, int max_probs) noexcept
     {
-        if (!IfAnyValid_)
+        if (!IfAnyValid_())
         {
             return { PublishStatus::INVALID, SIZE_MAX};
         }
@@ -429,7 +429,7 @@ namespace AtomicCScompact
                             (low32_half & PTR_INDEX_MASK_) | PTR_FLAG32_ | PTR_HALF_HEAD_
                         );
                         strl16_t strl_head = MakeSTRL4_t(DEFAULT_PAIRED_HEAD_HALF_PRIORITY, ST_PUBLISHED, rel_mask, REL_OFFSET_HEAD_PTR, static_cast<unsigned>(PackedMode::MODE_VALUE32));
-                        packed64_t head_packed = PackedCell64_t::ComposeValue32u_64(strl_head, 0u, strl_head);
+                        packed64_t head_packed = PackedCell64_t::ComposeValue32u_64(head_ptr_value32, 0u, strl_head);
                         BackingPtr[head].store(head_packed, MoStoreSeq_);
                         BackingPtr[tail].notify_all();
                         BackingPtr[head].notify_all();
@@ -473,7 +473,7 @@ namespace AtomicCScompact
             }
             val32_t head_val32 = PackedCell64_t::ExtractValue32(cell_data);
             val32_t tail_val32 = PackedCell64_t::ExtractValue32(tail_cell_data);
-            if (((head_val32 & PTR_FLAG32_) == 0) || ((tail_val32 & PTR_FLAG32_ == 0)))
+            if (((head_val32 & PTR_FLAG32_) == 0) || ((tail_val32 & PTR_FLAG32_) == 0))
             {
                 return std::nullopt;
             }
@@ -574,227 +574,6 @@ namespace AtomicCScompact
         
     }
 
-
-
-    ///old
-    PublishResult AdaptivePackedCellContainer::TryPublishPairedCellCLK48_(size_t start_idx, uint64_t ptr_value, tag8_t relmask) noexcept
-    {
-        if (!IfAnyValid_())
-        {
-            return {PublishStatus::INVALID, SIZE_MAX};
-        }
-        size_t head = start_idx % ContainerCapacity_;
-        size_t tail = (head + 1) % ContainerCapacity_;
-        //read cur slot
-        packed64_t cur_head = BackingPtr[head].load(MoLoad_);
-        packed64_t cur_tail = BackingPtr[tail].load(MoLoad_);
-        tag8_t locality_head = PackedCell64_t::ExtractLocalityFromPacked(cur_head);
-        tag8_t locality_tail = PackedCell64_t::ExtractLocalityFromPacked(cur_tail);
-
-        if (locality_head != ST_IDLE || locality_tail != ST_IDLE)
-        {
-            return {PublishStatus::FULL, SIZE_MAX};
-        }
-        
-        packed64_t claimed_head = PackedCell64_t::SetLocalityInPacked(cur_head, ST_CLAIMED);
-        packed64_t claimed_tail = PackedCell64_t::SetLocalityInPacked(cur_tail, ST_CLAIMED);
-
-        uint64_t ptr_low48 = ptr_value & MaskBits(CLK_B48);
-        uint16_t ptr_high16 = static_cast<uint16_t>((ptr_value >> CLK_B48) & MaskBits(PTR_HIGH16));
-        packed64_t expected_head = cur_head;
-        if (!BackingPtr[head].compare_exchange_strong(expected_head, claimed_head, EXsuccess_, EXfailure_))
-        {
-            TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
-            return {PublishStatus::FULL, SIZE_MAX};
-        }
-        
-        packed64_t expected_tail = cur_tail;
-        if (!BackingPtr[tail].compare_exchange_strong(expected_tail, claimed_tail, EXsuccess_, EXfailure_))
-        {
-            //idle the lead 
-            packed64_t idle_head = PackedCell64_t::ComposeCLKVal48X_64(0u, PackedCell64_t::ExtractSTRL(cur_head));
-            BackingPtr[head].store(idle_head, MoStoreSeq_);
-            BackingPtr[head].notify_all();
-            TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
-            return {PublishStatus::FULL, SIZE_MAX};
-        }
-        
-        strl16_t sr_tail = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, relmask, RELOFFSET_TAIL_PTR, static_cast<unsigned>(PackedMode::MODE_CLKVAL48));
-
-        packed64_t tail_packed = PackedCell64_t::ComposeCLK48u_64(ptr_low48, sr_tail);
-
-        packed64_t head_packed = PackedCell64_t::ComposeCLK48u_64(ptr_high16, sr_tail);
-        head_packed = PackedCell64_t::SetRelOffsetInPacked(head_packed, REL_OFFSET_HEAD_PTR);
-        BackingPtr[tail].store(tail_packed, MoStoreSeq_);
-        BackingPtr[head].store(head_packed, MoStoreSeq_);
-        BackingPtr[head].notify_all();
-        Occupancy_.fetch_add(1, std::memory_order_acq_rel);
-        return {PublishStatus::OK, head};
-    }
-
-    std::optional<uint64_t>AdaptivePackedCellContainer::ExtractPairedSlot48Ptr_(size_t idx) const noexcept
-    {
-        if (!IfIdxValid_(idx))
-        {
-            return std::nullopt;
-        }
-        packed64_t packed_data = BackingPtr[idx].load(MoLoad_);
-        tag8_t locality = PackedCell64_t::ExtractLocalityFromPacked(packed_data);
-        tag8_t pctype = PackedCell64_t::ExtractPCellTypeFromPacked(packed_data);
-        if (locality != ST_PUBLISHED || pctype != static_cast<unsigned>(PackedMode::MODE_CLKVAL48))
-        {
-            return std::nullopt;
-        }
-        
-        tag8_t rel_offset = PackedCell64_t::ExtractRelOffsetFromPacked(packed_data);
-        size_t head_idx, tail_idx;
-        if (rel_offset == REL_OFFSET_HEAD_PTR)
-        {
-            head_idx = idx;
-            tail_idx = (idx + 1) % ContainerCapacity_;
-        }
-        else if (rel_offset == RELOFFSET_TAIL_PTR)
-        {
-            tail_idx = idx;
-            head_idx = idx - 1;
-            if (idx == 0)
-            {
-                head_idx = ContainerCapacity_ - 1;
-            }
-        }
-        else
-        {
-            return std::nullopt;
-        }
-        
-        packed64_t head_packed = BackingPtr[head_idx].load(MoLoad_);
-        packed64_t tail_packed = BackingPtr[tail_idx].load(MoLoad_);
-        if (PackedCell64_t::ExtractLocalityFromPacked(head_packed) != ST_PUBLISHED || PackedCell64_t::ExtractLocalityFromPacked(tail_packed))
-        {
-            return std::nullopt;
-        }
-        uint64_t head_ptr_value = PackedCell64_t::ExtractClk48(head_packed);
-        uint64_t tail_ptr_value_low48 = PackedCell64_t::ExtractClk48(tail_packed);
-
-        uint64_t high16_ptr_value = head_ptr_value & MaskBits(PTR_HIGH16);
-
-        uint64_t raw_pointer = (static_cast<uint64_t>(high16_ptr_value) << CLK_B48) | (tail_ptr_value_low48 & MaskBits(CLK_B48));
-        return raw_pointer;
-    }
-
-    size_t AdaptivePackedCellContainer::RegisterRelPackedNode_(packed64_t packed_cell) noexcept
-    {
-        if (RelOffsetContainerCapacity_ == 0)
-        {
-            return SIZE_MAX;
-        }
-        size_t old_reloffset_size = RelOffsetAlloc_.load(std::memory_order_relaxed);
-        while (true)
-        {
-            if (old_reloffset_size >= RelOffsetContainerCapacity_)
-            {
-                return SIZE_MAX;
-            }
-            if (RelOffsetAlloc_.compare_exchange_weak(old_reloffset_size, old_reloffset_size + 1, EXsuccess_, EXfailure_))
-            {
-                break;
-            }
-            TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
-        }
-        size_t idx = old_reloffset_size;
-        RelEntry_* rel_entry_ptr = new RelEntry_(packed_cell);
-        std::uintptr_t raw_cell_ptr = reinterpret_cast<std::uintptr_t>(rel_entry_ptr);
-        RelOffset_[idx].store(raw_cell_ptr, MoStoreSeq_);
-        return idx;
-    }
-
-    size_t AdaptivePackedCellContainer::RegisterRelHeapNode_(
-        void* heap_ptr, size_t heap_size, PackedCellDataType cell_dtype,
-        FinalizerKind_ fk, std::function<void(RelEntry_*)> finalizer,
-        DeviceFence_ apc_device_fence
-    ) noexcept
-    {
-        if (RelOffsetContainerCapacity_ == 0)
-        {
-            return SIZE_MAX;
-        }
-        size_t old_rel_offset_size = RelOffsetAlloc_.load(std::memory_order_relaxed);
-        while (true)
-        {
-            if (old_rel_offset_size >= RelOffsetContainerCapacity_)
-            {
-                return SIZE_MAX;
-            }
-            if (RelOffsetAlloc_.compare_exchange_weak(old_rel_offset_size, old_rel_offset_size + 1, EXsuccess_, EXfailure_))
-            {
-                break;
-            }
-            TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
-        }
-        size_t idx = old_rel_offset_size;
-        RelEntry_* rel_entry_ptr = new RelEntry_(heap_ptr, heap_size, cell_dtype);
-        rel_entry_ptr->KindFinalizer = fk;
-        rel_entry_ptr->FinalizerPtr = std::move(finalizer);
-        rel_entry_ptr->APCDeviceFence = std::move(apc_device_fence);
-        std::uintptr_t raw_cell_ptr = reinterpret_cast<std::uintptr_t>(rel_entry_ptr);
-        RelOffset_[idx].store(raw_cell_ptr, MoStoreSeq_);
-        return idx;
-        
-    }
-
-    AdaptivePackedCellContainer::RelEntryGuard AdaptivePackedCellContainer::AcquireRelEntry_(size_t idx) noexcept
-    {
-        QSBRGuard qsbr_guard(this);
-        if (idx >= RelOffsetContainerCapacity_)
-        {
-            return RelEntryGuard(nullptr, std::move(qsbr_guard));
-        }
-        std::uintptr_t raw_ptr = RelOffset_[idx].load(MoLoad_);
-        if (!raw_ptr)
-        {
-            return RelEntryGuard(nullptr, std::move(qsbr_guard));
-        }
-        RelEntry_* current_entry = reinterpret_cast<RelEntry_*>(raw_ptr);
-        return RelEntryGuard(current_entry, std::move(qsbr_guard));
-    }
-
-    AdaptivePackedCellContainer::RelEntryGuard AdaptivePackedCellContainer::ClaimAndAcquireRelEntry_(size_t slot_idx, size_t reloffset_idx) noexcept
-    {
-        if (slot_idx >= ContainerCapacity_ || reloffset_idx >= RelOffsetContainerCapacity_)
-        {
-            return RelEntryGuard(nullptr, QSBRGuard(this));
-        }
-        packed64_t curr_cell = BackingPtr[slot_idx].load(MoLoad_);
-        packed64_t desired_cell = PackedCell64_t::SetLocalityInPacked(curr_cell, ST_CLAIMED);
-        packed64_t expected_cell = curr_cell;
-        if (!BackingPtr[slot_idx].compare_exchange_strong(expected_cell, desired_cell, EXsuccess_, EXfailure_))
-        {
-            TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
-            return RelEntryGuard(nullptr, QSBRGuard(this));
-        }
-        return AcquireRelEntry_(reloffset_idx);
-    }
-
-    void AdaptivePackedCellContainer::RetireRelEntryIdx_(size_t idx) noexcept
-    {
-        if (idx >= RelOffsetContainerCapacity_)
-        {
-            return;
-        }
-        std::uintptr_t raw = RelOffset_[idx].load(MoLoad_);
-        if (!raw)
-        {
-            return;
-        }
-        
-        RelEntry_* rel_entry_ptr = reinterpret_cast<RelEntry_*>(raw);
-        RelOffset_[idx].store(0u, MoStoreSeq_);
-        uint64_t cur_epoch = GlobalEpoch_.load(MoLoad_);
-        rel_entry_ptr->RetireEpoch.store(cur_epoch, MoStoreSeq_);
-        RetirePushLocked_(rel_entry_ptr);
-        TryReclaimRetired_();
-    }
-
     void AdaptivePackedCellContainer::UpdateRegionRelForIdx_(size_t idx, tag8_t rel_mask) noexcept
     {
         if (RegionSize_ == 0)
@@ -851,42 +630,34 @@ namespace AtomicCScompact
     void AdaptivePackedCellContainer::InitOwned(size_t capacity, int node, ContainerConf container_cfg, size_t alignment)
     {
         FreeAll();
-        if (ContainerCapacity_)
+        if (capacity == 0)
         {
-            throw std::invalid_argument("capacity == 0");
+            throw std::invalid_argument("Capacity == 0");
         }
-        size_t bytes = sizeof(std::atomic<packed64_t>)* capacity;
-        void* memory_ptr = AllocNW::AlignedAllocONnode(alignment, bytes, node);
+        size_t capacity_in_bytes = sizeof(std::atomic<packed64_t>) * capacity;
+        void* memory_ptr = AllocNW::AlignedAllocONnode(alignment, capacity_in_bytes, node);
         if (!memory_ptr)
         {
             throw std::bad_alloc();
         }
         BackingPtr = reinterpret_cast<std::atomic<packed64_t>*>(memory_ptr);
-        packed64_t idle_cell_mode_value32 = PackedCell64_t::MakeInitialPacked(PackedMode::MODE_VALUE32);
+        packed64_t idle_cell = PackedCell64_t::MakeInitialPacked(container_cfg.InitialMode);
         for (size_t i = 0; i < capacity; i++)
         {
-            new (&BackingPtr[i]) std::atomic<packed64_t>(idle_cell_mode_value32);
+            new (&BackingPtr[i]) std::atomic<packed64_t>(idle_cell);
         }
         ContainerCapacity_ = capacity;
-        IsContainerOwned_  = true;
+        IsContainerOwned_ = true;
         APCContainerCfg_ = container_cfg;
-        RelOffsetContainerCapacity_ = (APCContainerCfg_.ReloffsetCapacity == 0 ? ContainerCapacity_ : APCContainerCfg_.ReloffsetCapacity);
-        RelOffset_.clear();
-        RelOffset_.reserve(RelOffsetContainerCapacity_);
-        for (size_t i = 0; i < RelOffsetContainerCapacity_; ++i)
-        {
-            RelOffset_.emplace_back(0u);
-        }
-        RelOffsetAlloc_.store(0, MoStoreSeq_);
-
         RetireBatchThreshold_ = std::max<unsigned>(1, APCContainerCfg_.RetireBatchThreshold);
         size_t tls_size = std::min<size_t>(APCContainerCfg_.MaxTlsCandidates ? APCContainerCfg_.MaxTlsCandidates : APCContainerCfg_.MAXTLS, APCContainerCfg_.MAXTLS);
-
-        ThreadEpochs_.clear();
-        ThreadEpochs_.reserve(tls_size);
-        for (size_t i = 0; i < tls_size; ++i)
+        ThreadEpochArray_.reset(nullptr);
+        ThreadEpochArray_.reset(
+            new std::atomic<uint64_t>[tls_size]
+        );
+        for (size_t i = 0; i < ThreadEpochCapacity_; i++)
         {
-            ThreadEpochs_.emplace_back(std::numeric_limits<uint64_t>::max());
+            ThreadEpochArray_[i].store(std::numeric_limits<uint64_t>::max(), MoStoreUnSeq_);
         }
         InitZeroState_();
         if (APCContainerCfg_.RegionSize)
@@ -898,12 +669,16 @@ namespace AtomicCScompact
 
     void AdaptivePackedCellContainer::InitZeroState_() noexcept
     {
-
+        Occupancy_.store(0, MoStoreUnSeq_);
+        ProducerCursor_.store(0, MoStoreUnSeq_);
+        ConsumerCursor_.store(0, MoStoreUnSeq_);
+        RetireHead_.store(nullptr, MoStoreSeq_);
+        RetireCount_.store(0, MoStoreSeq_);
+        GlobalEpoch_.store(1, MoStoreSeq_);
     }
 
     void AdaptivePackedCellContainer::FreeAll() noexcept
     {
-
     }
 
     void AdaptivePackedCellContainer::InitRegionIdx(size_t region_size)

@@ -21,6 +21,7 @@ struct ContainerConf
     size_t ProducerBlockSize = 64;
     size_t RegionSize = 0;
     size_t ReloffsetCapacity = 0;
+    PackedMode InitialMode = PackedMode::MODE_VALUE32;
     unsigned RetireBatchThreshold = 16;
     unsigned BackgroundEpochAdvanceMS = 50;
     static constexpr size_t MAXTLS = 8192;
@@ -81,7 +82,6 @@ private:
     static inline thread_local size_t QSBRThreadIdx_ = SIZE_MAX;
     //retire
     std::atomic<RelEntry_*> RetireHead_{nullptr};
-    std::atomic<size_t> RetireCount_{0};
     unsigned RetireBatchThreshold_{16};
     //reclaimation
     std::thread BackgroundThread_;
@@ -206,21 +206,6 @@ private:
         return step;
     }
 
-
-    size_t RegisterRelPackedNode_(packed64_t packed_cell) noexcept;
-    
-    size_t RegisterRelHeapNode_(
-        void* heap_ptr, size_t heap_size, PackedCellDataType cell_dtype,
-        FinalizerKind_ fk = FinalizerKind_::HOST, std::function<void(RelEntry_*)> finalizer = nullptr,
-        DeviceFence_ apc_device_fence = {}
-    ) noexcept;
-
-    RelEntryGuard AcquireRelEntry_(size_t idx) noexcept;
-
-    RelEntryGuard ClaimAndAcquireRelEntry_(size_t slot_idx, size_t reloffset_idx) noexcept;
-
-    void RetireRelEntryIdx_(size_t idx) noexcept;
-
     void UpdateRegionRelForIdx_(size_t idx, tag8_t rel_mask) noexcept;
 
     void InitZeroState_()noexcept;
@@ -248,10 +233,6 @@ public:
     AdaptivePackedCellContainer& operator = (const AdaptivePackedCellContainer&) = delete;
 
     size_t NextProducerSequence() noexcept;
-
-
-
-
 
     //old
     void StartBackgroundReclaimerIfNeed();

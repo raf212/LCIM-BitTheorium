@@ -169,8 +169,8 @@ namespace AtomicCScompact {
     inline constexpr strl16_t MakeSTRL4_t(tag8_t priority, tag8_t locality, tag8_t rel_mask, tag8_t rel_offset, tag8_t pc_type = 0, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
     {
 
-        assert(pc_type <= 1u, "Cell type 0:MODE_VAL32, 1:MODE_CLK48");
-        assert(rel_offset <= 3u, "RelOffset 0 = Generic, 1 = Tail Half, 2 = Head Half , 3 = Full PTR in 48 bit");
+        assert(pc_type <= 1u);
+        assert(rel_offset <= 3u);
         strl16_t prio = static_cast<strl16_t>(priority & PRIORITY_MASK);
         strl16_t loc = static_cast<strl16_t>(locality & LOCALITY_MASK);
         strl16_t pctype = static_cast<strl16_t>(pc_type & PCTYPE_MASK);

@@ -734,7 +734,72 @@ namespace AtomicCScompact
 
     void AdaptivePackedCellContainer::InitRegionIdx(size_t region_size)
     {
-        (void)region_size;
+        if (!IfAnyValid_())
+        {
+            throw std::runtime_error("Container not initialized");
+        }
+        if (region_size == 0)
+        {
+            throw std::invalid_argument("region size == 0");
+        }
+        RegionSize_ = region_size;
+        NumRegion_ = ((ContainerCapacity_ + RegionSize_ - 1) / RegionSize_);
+        REgionRelArray_.reset(
+            new std::atomic<uint8_t>[NumRegion_]
+        );
+        for (size_t region = 0; region < NumRegion_; region++)
+        {
+            RegionEpochArray_[region].store(0, MoStoreSeq_);
+        }
+        size_t words = (NumRegion_ + ATOMIC_THRESHOLD - 1) / ATOMIC_THRESHOLD;
+        RelBitmaps_.assign(LN_OF_BYTE_IN_BITS, std::vector<uint64_t>(words, 0ull));
+        RegionEpochArray_.reset(
+            new std::atomic<uint64_t>[NumRegion_]
+        );
+        for (size_t region = 0; region < NumRegion_; region++)
+        {
+            REgionRelArray_[region].store(0, MoStoreSeq_);
+        }
+        for (size_t region = 0; region < NumRegion_; region++)
+        {
+            size_t base = region * RegionSize_;
+            size_t end = std::min(ContainerCapacity_, base + RegionSize_);
+            tag8_t accum = 0;
+            for (size_t i = base; i < end; i++)
+            {
+                accum |= PackedCell64_t::ExtractFullRelFromPacked(BackingPtr[i].load(MoLoad_));
+            }
+            REgionRelArray_[region].store(accum, MoStoreSeq_);
+            if (accum)
+            {
+                size_t w = region / ATOMIC_THRESHOLD;
+                size_t b = region % ATOMIC_THRESHOLD;
+                uint64_t mask = (1ull << b);
+                for (unsigned bit = 0; bit < LN_OF_BYTE_IN_BITS; bit++)
+                {
+                    if (accum & (1u << bit))
+                    {
+                        std::atomic_ref<uint64_t>aref(RelBitmaps_[bit][w]);
+                        aref.fetch_or(mask, std::memory_order_acq_rel);
+                    }
+                }
+            }
+        }
+    }
+
+    size_t AdaptivePackedCellContainer::NextProducerSequence() noexcept
+    {
+        thread_local size_t block_base = 0;
+        thread_local size_t block_left = 0;
+        if (block_left == 0)
+        {
+            size_t block = std::min<size_t>(APCContainerCfg_.ProducerBlockSize, ContainerCapacity_);
+            block_base = ReserveProducerSlots(block);
+            block_left = block;
+        }
+        size_t seq = block_base++;
+        --block_left;
+        return seq;
     }
 
 }

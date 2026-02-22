@@ -232,9 +232,17 @@ public:
     AdaptivePackedCellContainer(const AdaptivePackedCellContainer&) = delete;
     AdaptivePackedCellContainer& operator = (const AdaptivePackedCellContainer&) = delete;
 
+    size_t ReserveProducerSlots(size_t n) noexcept
+    {
+        if (!IfAnyValid_() || n == 0)
+        {
+            return SIZE_MAX;
+        }
+        return ProducerCursor_.fetch_add(n, std::memory_order_relaxed);
+    }
+
     size_t NextProducerSequence() noexcept;
 
-    //old
     void StartBackgroundReclaimerIfNeed();
 
     void StopBackgroundReclaimer() noexcept;
@@ -244,6 +252,17 @@ public:
     void FreeAll() noexcept;
 
     void InitRegionIdx(size_t region_size);
+    
+    void ManualAdvanceEpoch(uint64_t inc) noexcept
+    {
+        if (inc == 0)
+        {
+            return;
+        }
+        GlobalEpoch_.fetch_add(1, std::memory_order_acq_rel);
+        TryReclaimRetired_();
+        
+    }
     
 };
 

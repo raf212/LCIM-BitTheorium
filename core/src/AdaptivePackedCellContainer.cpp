@@ -679,6 +679,57 @@ namespace AtomicCScompact
 
     void AdaptivePackedCellContainer::FreeAll() noexcept
     {
+        StopBackgroundReclaimer();
+        if (BackingPtr)
+        {
+            if (IsContainerOwned_)
+            {
+                for (size_t i = 0; i < ContainerCapacity_; i++)
+                {
+                    BackingPtr[i].~atomic<packed64_t>();
+                }
+                size_t container_size_bytes = sizeof(std::atomic<packed64_t>) * ContainerCapacity_;
+                AllocNW::FreeONNode(static_cast<void*>(BackingPtr), container_size_bytes);
+            }
+            BackingPtr = nullptr;
+        }
+        RelEntry_* stolen = RetireHead_.exchange(nullptr, std::memory_order_acq_rel);
+        while (stolen)
+        {
+            RelEntry_* next_ptr = stolen->NextPtr.load(std::memory_order_relaxed);
+            if (stolen->Kind == RelEntry_::APCKind::HEAP_NODE && stolen->HeapPtr)
+            {
+                ::operator delete(stolen->HeapPtr, std::align_val_t{
+                    alignof(std::max_align_t)
+                });
+            }
+            if (stolen->FinalizerPtr)
+            {
+                try
+                {
+                    stolen->FinalizerPtr(stolen->HeapPtr);
+                }
+                catch (...)
+                {
+                    if (APCLogger_)
+                    {
+                        APCLogger_("FreeAll()", "Finalizer threw exception");
+                    }
+                }
+            }
+            delete stolen;
+            stolen = next_ptr;
+        }
+        RetireCount_.store(0, MoStoreUnSeq_);
+        ThreadEpochArray_.reset();
+        ThreadEpochCapacity_ = 0;
+        REgionRelArray_.reset();
+        RelBitmaps_.clear();
+
+        ContainerCapacity_ = 0;
+        IsContainerOwned_ = false;
+        RegionSize_ = 0;
+        NumRegion_ = 0;
     }
 
     void AdaptivePackedCellContainer::InitRegionIdx(size_t region_size)

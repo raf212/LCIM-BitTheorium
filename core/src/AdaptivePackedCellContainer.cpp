@@ -386,6 +386,11 @@ namespace AtomicCScompact
         uint32_t low32_half = static_cast<uint32_t>(full_ptrval & MaskBits(VALBITS));
         uint32_t high32_half = static_cast<uint32_t>((full_ptrval >> VALBITS) & MaskBits(VALBITS));
         size_t next_sequence = NextProducerSequence();
+        if (next_sequence == SIZE_MAX)
+        {
+            return {PublishStatus::INVALID, SIZE_MAX};
+        }
+        
         size_t start = next_sequence % ContainerCapacity_;
         size_t step = GetHashedRendomizedStep_(next_sequence);
         int probes = 0;
@@ -459,7 +464,7 @@ namespace AtomicCScompact
         {
             tag8_t head_locality = PackedCell64_t::ExtractLocalityFromPacked(cell_data);
             PackedMode head_celltype = static_cast<PackedMode>(PackedCell64_t::ExtractPCellTypeFromPacked(cell_data));
-            if (head_locality != ST_PUBLISHED && head_celltype != PackedMode::MODE_VALUE32)
+            if (head_locality != ST_PUBLISHED || head_celltype != PackedMode::MODE_VALUE32)
             {
                 return std::nullopt;
             }
@@ -467,7 +472,7 @@ namespace AtomicCScompact
             packed64_t tail_cell_data = BackingPtr[tail_idx].load(MoLoad_);
             tag8_t tail_locality = PackedCell64_t::ExtractLocalityFromPacked(tail_cell_data);
             PackedMode tell_celltype = static_cast<PackedMode>(PackedCell64_t::ExtractPCellTypeFromPacked(tail_cell_data));
-            if (tail_locality != ST_PUBLISHED && tell_celltype != PackedMode::MODE_VALUE32)
+            if (tail_locality != ST_PUBLISHED || tell_celltype != PackedMode::MODE_VALUE32)
             {
                 return std::nullopt;
             }
@@ -492,7 +497,7 @@ namespace AtomicCScompact
         {
             tag8_t tail_locality = PackedCell64_t::ExtractLocalityFromPacked(cell_data);
             PackedMode tail_cell_type = static_cast<PackedMode>(PackedCell64_t::ExtractPCellTypeFromPacked(cell_data));
-            if (tail_locality != ST_PUBLISHED && tail_cell_type != PackedMode::MODE_VALUE32)
+            if (tail_locality != ST_PUBLISHED || tail_cell_type != PackedMode::MODE_VALUE32)
             {
                 return std::nullopt;
             }
@@ -500,7 +505,7 @@ namespace AtomicCScompact
             packed64_t head_cell_data = BackingPtr[head_idx].load(MoLoad_);
             tag8_t head_locality = PackedCell64_t::ExtractLocalityFromPacked(head_cell_data);
             PackedMode head_cell_type = static_cast<PackedMode>(PackedCell64_t::ExtractPCellTypeFromPacked(head_cell_data));
-            if (head_locality != ST_PUBLISHED && head_cell_type != PackedMode::MODE_VALUE32)
+            if (head_locality != ST_PUBLISHED || head_cell_type != PackedMode::MODE_VALUE32)
             {
                 return std::nullopt;
             }
@@ -581,7 +586,7 @@ namespace AtomicCScompact
             return;
         }
         size_t region = idx / RegionSize_;
-        REgionRelArray_[region].fetch_add(rel_mask, std::memory_order_acq_rel);
+        RegionRelArray_[region].fetch_or(rel_mask, std::memory_order_acq_rel);
         size_t w = region / MAX_VAL;
         size_t b =  region % MAX_VAL;
         uint64_t region_mask = (1ull << b);
@@ -590,7 +595,7 @@ namespace AtomicCScompact
             if (rel_mask & (1u << i))
             {
                 std::atomic_ref<uint64_t>aref(RelBitmaps_[i][w]);
-                aref.fetch_add(region_mask, std::memory_order_acq_rel);
+                aref.fetch_or(region_mask, std::memory_order_acq_rel);
             }
         }
     }
@@ -651,10 +656,10 @@ namespace AtomicCScompact
         APCContainerCfg_ = container_cfg;
         RetireBatchThreshold_ = std::max<unsigned>(1, APCContainerCfg_.RetireBatchThreshold);
         size_t tls_size = std::min<size_t>(APCContainerCfg_.MaxTlsCandidates ? APCContainerCfg_.MaxTlsCandidates : APCContainerCfg_.MAXTLS, APCContainerCfg_.MAXTLS);
-        ThreadEpochArray_.reset(nullptr);
         ThreadEpochArray_.reset(
             new std::atomic<uint64_t>[tls_size]
         );
+        ThreadEpochCapacity_ = tls_size;
         for (size_t i = 0; i < ThreadEpochCapacity_; i++)
         {
             ThreadEpochArray_[i].store(std::numeric_limits<uint64_t>::max(), MoStoreUnSeq_);
@@ -723,7 +728,7 @@ namespace AtomicCScompact
         RetireCount_.store(0, MoStoreUnSeq_);
         ThreadEpochArray_.reset();
         ThreadEpochCapacity_ = 0;
-        REgionRelArray_.reset();
+        RegionRelArray_.reset();
         RelBitmaps_.clear();
 
         ContainerCapacity_ = 0;
@@ -744,22 +749,19 @@ namespace AtomicCScompact
         }
         RegionSize_ = region_size;
         NumRegion_ = ((ContainerCapacity_ + RegionSize_ - 1) / RegionSize_);
-        REgionRelArray_.reset(
+        RegionRelArray_.reset(
             new std::atomic<uint8_t>[NumRegion_]
         );
-        for (size_t region = 0; region < NumRegion_; region++)
-        {
-            RegionEpochArray_[region].store(0, MoStoreSeq_);
-        }
-        size_t words = (NumRegion_ + ATOMIC_THRESHOLD - 1) / ATOMIC_THRESHOLD;
-        RelBitmaps_.assign(LN_OF_BYTE_IN_BITS, std::vector<uint64_t>(words, 0ull));
         RegionEpochArray_.reset(
             new std::atomic<uint64_t>[NumRegion_]
         );
         for (size_t region = 0; region < NumRegion_; region++)
         {
-            REgionRelArray_[region].store(0, MoStoreSeq_);
+            RegionRelArray_[region].store(0, MoStoreSeq_);
+            RegionEpochArray_[region].store(0, MoStoreSeq_);
         }
+        size_t words = (NumRegion_ + MAX_VAL - 1) / MAX_VAL;
+        RelBitmaps_.assign(LN_OF_BYTE_IN_BITS, std::vector<uint64_t>(words, 0ull));
         for (size_t region = 0; region < NumRegion_; region++)
         {
             size_t base = region * RegionSize_;
@@ -769,11 +771,11 @@ namespace AtomicCScompact
             {
                 accum |= PackedCell64_t::ExtractFullRelFromPacked(BackingPtr[i].load(MoLoad_));
             }
-            REgionRelArray_[region].store(accum, MoStoreSeq_);
+            RegionRelArray_[region].store(accum, MoStoreSeq_);
             if (accum)
             {
-                size_t w = region / ATOMIC_THRESHOLD;
-                size_t b = region % ATOMIC_THRESHOLD;
+                size_t w = region / MAX_VAL;
+                size_t b = region % MAX_VAL;
                 uint64_t mask = (1ull << b);
                 for (unsigned bit = 0; bit < LN_OF_BYTE_IN_BITS; bit++)
                 {
@@ -794,7 +796,12 @@ namespace AtomicCScompact
         if (block_left == 0)
         {
             size_t block = std::min<size_t>(APCContainerCfg_.ProducerBlockSize, ContainerCapacity_);
-            block_base = ReserveProducerSlots(block);
+            size_t base = ReserveProducerSlots(block);
+            if (base == SIZE_MAX)
+            {
+                return SIZE_MAX;
+            }
+            block_base = base;
             block_left = block;
         }
         size_t seq = block_base++;

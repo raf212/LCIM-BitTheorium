@@ -164,7 +164,7 @@ private:
     //region/index
     size_t RegionSize_{0};
     size_t NumRegion_{0};
-    std::unique_ptr<std::atomic<uint8_t>[]> REgionRelArray_{nullptr};
+    std::unique_ptr<std::atomic<uint8_t>[]> RegionRelArray_{nullptr};
     std::vector<std::vector<uint64_t>> RelBitmaps_;
     std::unique_ptr<std::atomic<uint64_t>[]> RegionEpochArray_{nullptr};
 

@@ -61,7 +61,7 @@ PYBIND11_MODULE(atomiccim_bind, m) {
         py::arg("rel_mask"),
         py::arg("rel_offset"),
         py::arg("pc_type") = 0,
-        py::arg("pc_dtype") = PackedCellDataType::UnsignedPCellDataType
+        py::arg("pc_dtype") = static_cast<PackedCellDataType>(PackedCellDataType::UnsignedPCellDataType)
     );
 
     m.def("extract_priority_from_strl", [](uint16_t strl) { return ExtractPriorityFromSTRL(static_cast<strl16_t>(strl)); });

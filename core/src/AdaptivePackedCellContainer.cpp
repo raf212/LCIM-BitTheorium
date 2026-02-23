@@ -319,7 +319,7 @@ namespace AtomicCScompact
             keep_tail->NextPtr.store(head_relentry, MoStoreUnSeq_);
             if (RetireHead_.compare_exchange_strong(head_relentry, keep_head, EXsuccess_, std::memory_order_acquire))
             {
-                RetireCount_.fetch_add(1, std::memory_order_acq_rel);
+                RetireCount_.fetch_add(track_count, std::memory_order_acq_rel);
                 break;
             }
             else

@@ -9,6 +9,7 @@
 #include "PackedStRel.h"
 #include "AtomicAdaptiveBackoff.hpp"
 #include "MasterClockConf.hpp"
+#include "AdaptivePackedCellContainer.hpp"
 
 namespace py = pybind11;
 using namespace AtomicCScompact;
@@ -251,5 +252,110 @@ PYBIND11_MODULE(atomiccim_bind, m) {
         .def("read_master_clock_packed", &MasterClockConf::ReadMasterClockPacked)
         .def_readwrite("UsedNode", &MasterClockConf::UsedNode);
 
-    // done
+    //PackedCellContainer
+    py::enum_<PublishStatus>(m, "PublishStatus")
+        .value("OK", PublishStatus::OK)
+        .value("FULL", PublishStatus::FULL)
+        .value("INVALID", PublishStatus::INVALID)
+        .export_values();
+    
+    py::class_<PublishResult>(m, "PublishResult")
+        .def(py::init<>())
+        .def_readwrite("ResultStatus", &PublishResult::ResultStatus)
+        .def_readwrite("PublishedIndex", &PublishResult::Index)
+        ;
+    
+    py::class_<ContainerConf>(m, "ContainerConf")
+        .def(py::init<>())
+        .def_readwrite("ScanLimit", &ContainerConf::ScanLimit)
+        .def_readwrite("MaxGather", &ContainerConf::MaxGather)
+        .def_readwrite("TimerDownShift", &ContainerConf::TimerDownShift)
+        .def_readwrite("UseTimeStamp", &ContainerConf::UseTimeStamp)
+        .def_readwrite("AllowPublishedClickFixUp", &ContainerConf::AllowPublishedClickFixUp)
+        .def_readwrite("MaxTlsCandidates", &ContainerConf::MaxTlsCandidates)
+        .def_readwrite("ProducerBlockSize", &ContainerConf::ProducerBlockSize)
+        .def_readwrite("RegionSize", &ContainerConf::RegionSize)
+        .def_readwrite("ReloffsetCapacity", &ContainerConf::ReloffsetCapacity)
+        .def_readwrite("InitialMode", &ContainerConf::InitialMode)
+        .def_readwrite("RetireBatchThreshold", &ContainerConf::RetireBatchThreshold)
+        .def_readwrite("BackgroundEpochAdvanceMS", &ContainerConf::BackgroundEpochAdvanceMS)
+        ;
+
+    py::class_<AdaptivePackedCellContainer>(m, "AdaptivePackedCellContainer")
+        .def(py::init<>(), "Construct an empty container call->InitOwned before use")
+        .def("InitOwnedContainer", 
+            [](AdaptivePackedCellContainer &self, size_t capacity, int node, ContainerConf cfg, size_t alignment)
+            {
+                self.InitOwned(capacity, node, cfg, alignment);
+                return py::none();
+            },
+            py::arg("capacity"), py::arg("node") = REL_NODE0, py::arg("container_cfg") = ContainerConf(), py::arg("alignment") = MAX_VAL,
+            "Initialize container with owned backing memory"
+        )
+        .def("FreeContainer", &AdaptivePackedCellContainer::FreeAll,
+            "Free all resources of APC"
+        )
+        .def("InitContainerRegionOnIndex", &AdaptivePackedCellContainer::InitRegionIdx, py::arg("region_size"),
+             "Initialize region index data structures (region_size > 0 required)."
+        )
+        .def("StartBackgroungContainerReclaimer", &AdaptivePackedCellContainer::StartBackgroundReclaimerIfNeed,
+             "Start the optional background reclaimer thread (if enabled in ContainerConf)."
+        )
+        .def("StopBackGroundContainerReclaimer", &AdaptivePackedCellContainer::StopBackgroundReclaimer,
+             "Stop the optional background reclaimer thread and join it."
+        )
+        .def("ReserveSlotsForProducer", &AdaptivePackedCellContainer::ReserveProducerSlots, 
+            py::arg("number_of_slots"),
+            "Reserve (number_of_slots) return sequense base / (SIZE_MAX/ Error)"
+        )
+        .def("GetNextProducerSequence", &AdaptivePackedCellContainer::NextProducerSequence,
+            "Get next producer sequence by -> Internal Block allocation"
+        )
+        .def("PublishHeapPointerPairFrmAddress",
+            [](AdaptivePackedCellContainer &self, uint64_t address_ptr, uint8_t rel_mask, int max_probes)
+            {
+                void* obj = reinterpret_cast<void*>(static_cast<std::uintptr_t>(address_ptr));
+                PublishResult pr = self.PublishHeapPtrPair_(obj, rel_mask, max_probes);
+                return py::make_tuple(pr.ResultStatus, pr.Index);
+            },
+            py::arg("address_ptr"), py::arg("rel_mask") = 0, py::arg("max_probes") = -1,
+            "Publish a pointer pair using raw address (unsafe). Returns (status, index)."
+        )
+        .def("TryAssemblePairedPtrFrmProbableIdx",
+            [](AdaptivePackedCellContainer &self, size_t probable_index) ->py::object
+            {
+                RelOffsetMode position = RelOffsetMode::RELOFFSET_GENERIC_VALUE;
+                auto opt = self.TryAssemblePairedPtr_(probable_index, position);
+                if (!opt)
+                {
+                    return py::none();
+                }
+                return py::make_tuple(py::int_(opt.value()), py::int_(static_cast<int>(position)));
+            },
+            py::arg("probable_idx"),
+            "Return None if not a paired ptr; otherwise return (assembled_address:uint64, rel_offset_mode:int)."
+        )
+        .def("RetirePtrPairFrmProbableIdx",
+            [](AdaptivePackedCellContainer &self, size_t probable_index)
+            {
+                self.RetirePairedPtrAtIdx_(probable_index);
+            },
+            py::arg("probable_idx"),
+            "Retire paired pointer at index (uses default finalizer/fence)."
+        )
+        .def("MenualAdvanceContainerEpoch",
+            &AdaptivePackedCellContainer::ManualAdvanceEpoch,
+            py::arg("increment"),
+            "Advance the global epoch by inc (>=1)."
+        )
+        .def("PullContainerDeviceFencesJustOnce",
+            &AdaptivePackedCellContainer::PollDeviceFencesOnce_,
+            "Poll device fences once (non-blocking)."
+        )
+        .def("TryReclaimingRetiredContainer",
+            &AdaptivePackedCellContainer::TryReclaimRetired_,
+            "Attempt reclaiming retired entries now."
+        )
+
+        ;
 }

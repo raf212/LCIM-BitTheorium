@@ -92,7 +92,7 @@ file(GLOB BINDING_SRCS "${BINDINGS_DIR}/*.cpp")
 if(BINDING_SRCS)
     # build a module per binding file or (prefer single module) choose a single entry
     # We'll expect a single module entry file named py_atomiccim.cpp or PackedCellCoreBindings.cpp
-    set(PREFERRED_BINDING "${BINDINGS_DIR}/py_atomiccim.cpp")
+    set(PREFERRED_BINDING "${BINDINGS_DIR}/PackedCellCoreBindings.cpp")
     if(EXISTS ${PREFERRED_BINDING})
         set(MODULE_SRC ${PREFERRED_BINDING})
     else()

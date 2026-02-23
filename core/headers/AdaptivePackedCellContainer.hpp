@@ -135,10 +135,6 @@ private:
     void RetirePushLocked_(RelEntry_* rel_entry_ptr) noexcept;
 
     static bool DeviceFenceSatisfied_(const RelEntry_& rel_entry_address) noexcept;
-
-    void TryReclaimRetired_() noexcept;
-
-    bool PollDeviceFencesOnce_() noexcept;
     
     void BackgroundReclaimerMainThread_() noexcept;
     //reloffset pointer helper
@@ -180,19 +176,6 @@ private:
         return (BackingPtr && idx < ContainerCapacity_);
     }
 
-    ////remove
-    PublishResult TryPublishPairedCellCLK48_(size_t start_idx, uint64_t ptr_value, tag8_t relmask = 0) noexcept;
-
-    std::optional<uint64_t>ExtractPairedSlot48Ptr_(size_t idx) const noexcept;
-    //remove-up
-    PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;
-    std::optional<uint64_t> TryAssemblePairedPtr_(size_t probable_idx, RelOffsetMode& ptr_position) const noexcept;
-    void RetirePairedPtrAtIdx_(
-        size_t probable_idx, FinalizerKind_ fk = FinalizerKind_::HOST,
-        std::function<void(void*)> finalizer_fn = nullptr,
-        DeviceFence_ fence = {}
-    ) noexcept;
-
     size_t GetHashedRendomizedStep_(size_t sequense_number) noexcept
     {
         uint64_t mix_hash = (
@@ -232,13 +215,13 @@ public:
     AdaptivePackedCellContainer(const AdaptivePackedCellContainer&) = delete;
     AdaptivePackedCellContainer& operator = (const AdaptivePackedCellContainer&) = delete;
 
-    size_t ReserveProducerSlots(size_t n) noexcept
+    size_t ReserveProducerSlots(size_t number_of_slots) noexcept
     {
-        if (!IfAnyValid_() || n == 0)
+        if (!IfAnyValid_() || number_of_slots == 0)
         {
             return SIZE_MAX;
         }
-        return ProducerCursor_.fetch_add(n, std::memory_order_relaxed);
+        return ProducerCursor_.fetch_add(number_of_slots, std::memory_order_relaxed);
     }
 
     size_t NextProducerSequence() noexcept;
@@ -253,17 +236,28 @@ public:
 
     void InitRegionIdx(size_t region_size);
     
-    void ManualAdvanceEpoch(uint64_t inc) noexcept
+    void ManualAdvanceEpoch(uint64_t increment) noexcept
     {
-        if (inc == 0)
+        if (increment == 0)
         {
             return;
         }
-        GlobalEpoch_.fetch_add(1, std::memory_order_acq_rel);
+        GlobalEpoch_.fetch_add(increment, std::memory_order_acq_rel);
         TryReclaimRetired_();
         
     }
     
+    PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;
+    std::optional<uint64_t> TryAssemblePairedPtr_(size_t probable_idx, RelOffsetMode& ptr_position) const noexcept;
+    void RetirePairedPtrAtIdx_(
+        size_t probable_idx, FinalizerKind_ fk = FinalizerKind_::HOST,
+        std::function<void(void*)> finalizer_fn = nullptr,
+        DeviceFence_ fence = {}
+    ) noexcept;
+
+    void TryReclaimRetired_() noexcept;
+
+    bool PollDeviceFencesOnce_() noexcept;
 };
 
 

@@ -137,25 +137,22 @@ private:
     static bool DeviceFenceSatisfied_(const RelEntry_& rel_entry_address) noexcept;
     
     void BackgroundReclaimerMainThread_() noexcept;
-    //reloffset pointer helper
-    static constexpr val32_t PTR_FLAG32_ = (1u << 31);
-    static constexpr val32_t PTR_HALF_HEAD_ = (1u << 30);
-    static constexpr val32_t PTR_HALF_TAIL_ = (1u << 29);
-    static constexpr val32_t PTR_INDEX_MASK_ = 0x7FFFFFFFu;
 
+    //3 function bellow are demos 
     inline constexpr bool IsPointerValue32_(val32_t value) noexcept
     {
-        return ((value & PTR_FLAG32_) != 0);
+        (void)value;
+        return true;
     }
-
+    //demo
     inline constexpr val32_t MakePointerValue32_(uint32_t idx) noexcept
     {
-        return static_cast<val32_t>((idx & PTR_INDEX_MASK_) | PTR_FLAG32_);
+        return idx;
     }
-
+    //demo
     inline constexpr uint32_t DecodePointerIdx_(val32_t value) noexcept
     {
-        return static_cast<uint32_t>(value & PTR_INDEX_MASK_);
+        return value;
     }
     //region/index
     size_t RegionSize_{0};

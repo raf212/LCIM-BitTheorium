@@ -376,7 +376,7 @@ namespace AtomicCScompact
         }
     }
 
-    PublishResult AdaptivePackedCellContainer::PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask, int max_probs) noexcept
+    PublishResult AdaptivePackedCellContainer::PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask_with_ptrflag, int max_probs) noexcept
     {
         if (!IfAnyValid_())
         {
@@ -423,17 +423,13 @@ namespace AtomicCScompact
                     }
                     else
                     {
-                        val32_t tail_ptr_val32 = static_cast<val32_t>(
-                            (high32_half & PTR_INDEX_MASK_) | PTR_FLAG32_ | PTR_HALF_TAIL_
-                        );
-                        strl16_t strl_tail = MakeSTRL4_t(ZERO_PRIORITY, ST_PUBLISHED, rel_mask, RELOFFSET_TAIL_PTR, static_cast<unsigned>(PackedMode::MODE_VALUE32));
+                        val32_t tail_ptr_val32 = high32_half;
+                        strl16_t strl_tail = MakeSTRL4_t(ZERO_PRIORITY, ST_PUBLISHED, rel_mask_with_ptrflag, RELOFFSET_TAIL_PTR, static_cast<unsigned>(PackedMode::MODE_VALUE32));
                         packed64_t tail_packed = PackedCell64_t::ComposeValue32u_64(tail_ptr_val32, 0u, strl_tail);
                         BackingPtr[tail].store(tail_packed, MoStoreSeq_);
 
-                        val32_t head_ptr_value32 = static_cast<val32_t>(
-                            (low32_half & PTR_INDEX_MASK_) | PTR_FLAG32_ | PTR_HALF_HEAD_
-                        );
-                        strl16_t strl_head = MakeSTRL4_t(DEFAULT_PAIRED_HEAD_HALF_PRIORITY, ST_PUBLISHED, rel_mask, REL_OFFSET_HEAD_PTR, static_cast<unsigned>(PackedMode::MODE_VALUE32));
+                        val32_t head_ptr_value32 = low32_half;
+                        strl16_t strl_head = MakeSTRL4_t(DEFAULT_PAIRED_HEAD_HALF_PRIORITY, ST_PUBLISHED, rel_mask_with_ptrflag, REL_OFFSET_HEAD_PTR, static_cast<unsigned>(PackedMode::MODE_VALUE32));
                         packed64_t head_packed = PackedCell64_t::ComposeValue32u_64(head_ptr_value32, 0u, strl_head);
                         BackingPtr[head].store(head_packed, MoStoreSeq_);
                         BackingPtr[tail].notify_all();
@@ -478,17 +474,7 @@ namespace AtomicCScompact
             }
             val32_t head_val32 = PackedCell64_t::ExtractValue32(cell_data);
             val32_t tail_val32 = PackedCell64_t::ExtractValue32(tail_cell_data);
-            if (((head_val32 & PTR_FLAG32_) == 0) || ((tail_val32 & PTR_FLAG32_) == 0))
-            {
-                return std::nullopt;
-            }
-            if (((head_val32 & PTR_HALF_HEAD_) == 0) || ((tail_val32 & PTR_HALF_TAIL_) == 0))
-            {
-                return std::nullopt;
-            }
-            uint32_t low32 = static_cast<uint32_t>(head_val32 & PTR_INDEX_MASK_);
-            uint32_t high32 = static_cast<uint32_t>(tail_val32 & PTR_INDEX_MASK_);
-            uint64_t assembeled = (static_cast<uint64_t>(high32) << VALBITS) | (static_cast<uint64_t>(low32));
+            uint64_t assembeled = (static_cast<uint64_t>(tail_val32) << VALBITS) | (static_cast<uint64_t>(head_val32));
             ptr_position = RelOffsetMode::REL_OFFSET_HEAD_PTR;
             return assembeled;
             
@@ -511,17 +497,7 @@ namespace AtomicCScompact
             }
             val32_t tail_val32 = PackedCell64_t::ExtractValue32(cell_data);
             val32_t head_val32 = PackedCell64_t::ExtractValue32(head_cell_data);
-            if (((head_val32 & PTR_FLAG32_) == 0) || (((tail_val32 & PTR_FLAG32_) == 0)))
-            {
-                return std::nullopt;
-            }
-            if (((head_val32 & PTR_HALF_HEAD_) == 0) || ((tail_val32 & PTR_HALF_TAIL_) == 0))
-            {
-                return std::nullopt;
-            }
-            uint32_t low32 = static_cast<uint32_t>(head_val32 & PTR_INDEX_MASK_);
-            uint32_t high32 = static_cast<uint32_t>(tail_val32 & PTR_INDEX_MASK_);
-            uint64_t assembeled = (static_cast<uint64_t>(high32) << VALBITS) | (static_cast<uint64_t>(low32));
+            uint64_t assembeled = (static_cast<uint64_t>(tail_val32) << VALBITS) | (static_cast<uint64_t>(head_val32));
             ptr_position = RelOffsetMode::RELOFFSET_TAIL_PTR;
             return assembeled;
         }

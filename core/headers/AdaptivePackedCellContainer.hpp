@@ -48,8 +48,9 @@ public:
     struct QSBRGuard;
     
     struct RelEntryGuard;
-private:
     size_t ContainerCapacity_{0};
+
+private:
     int UsedNode_ = 0;
     bool IsContainerOwned_{false};
     ContainerConf APCContainerCfg_;
@@ -227,7 +228,7 @@ public:
 
     void StopBackgroundReclaimer() noexcept;
 
-    void InitOwned(size_t acpacity, int node = REL_NODE0, ContainerConf container_cfg = {}, size_t allignment = MAX_VAL);
+    void InitOwned(size_t cpacity, int node = REL_NODE0, ContainerConf container_cfg = {}, size_t allignment = MAX_VAL);
 
     void FreeAll() noexcept;
 
@@ -247,8 +248,7 @@ public:
     PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;
     std::optional<uint64_t> TryAssemblePairedPtr_(size_t probable_idx, RelOffsetMode& ptr_position) const noexcept;
     void RetirePairedPtrAtIdx_(
-        size_t probable_idx, FinalizerKind_ fk = FinalizerKind_::HOST,
-        std::function<void(void*)> finalizer_fn = nullptr,
+        size_t probable_idx,
         DeviceFence_ fence = {}
     ) noexcept;
 

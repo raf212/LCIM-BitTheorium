@@ -385,6 +385,11 @@ namespace AtomicCScompact
         uint64_t full_ptrval = reinterpret_cast<uint64_t>(object_ptr);
         uint32_t low32_half = static_cast<uint32_t>(full_ptrval & MaskBits(VALBITS));
         uint32_t high32_half = static_cast<uint32_t>((full_ptrval >> VALBITS) & MaskBits(VALBITS));
+        if (APCLogger_) {
+            char buf[128];
+            sprintf_s (buf, "DEBUG publish halves: low=0x%08x high=0x%08x", low32_half, high32_half);
+            APCLogger_("PublishHeapPtrPair_", buf);
+        }
         size_t next_sequence = NextProducerSequence();
         if (next_sequence == SIZE_MAX)
         {
@@ -424,6 +429,11 @@ namespace AtomicCScompact
                     else
                     {
                         val32_t tail_ptr_val32 = high32_half;
+                        if (APCLogger_) {
+                            char buf[128];
+                            sprintf_s (buf, "DEBUG tail_ptr_val32 stored: 0x%08x (masked->0x%08x)", (uint32_t)tail_ptr_val32, (uint32_t)(tail_ptr_val32));
+                            APCLogger_("PublishHeapPtrPair_", buf);
+                        }
                         strl16_t strl_tail = MakeSTRL4_t(ZERO_PRIORITY, ST_PUBLISHED, rel_mask_with_ptrflag, RELOFFSET_TAIL_PTR, static_cast<unsigned>(PackedMode::MODE_VALUE32));
                         packed64_t tail_packed = PackedCell64_t::ComposeValue32u_64(tail_ptr_val32, 0u, strl_tail);
                         BackingPtr[tail].store(tail_packed, MoStoreSeq_);
@@ -508,7 +518,7 @@ namespace AtomicCScompact
     }
 
     void AdaptivePackedCellContainer::RetirePairedPtrAtIdx_(
-        size_t probable_idx, FinalizerKind_ fk, std::function<void(void*)> finalizer_fn,
+        size_t probable_idx,
         DeviceFence_ fence
     ) noexcept
     {
@@ -541,18 +551,18 @@ namespace AtomicCScompact
             BackingPtr[probable_idx].notify_all();
         }
         Occupancy_.fetch_sub(1, std::memory_order_acq_rel);
-        RelEntry_* rel_entry = new RelEntry_(obj_ptr, 0, PackedCellDataType::UnsignedPCellDataType);
-        rel_entry->KindFinalizer = fk;
-        if (finalizer_fn)
+        if (obj_ptr)
         {
-            rel_entry->FinalizerPtr = std::move(finalizer_fn);
+            packed64_t packed_val = static_cast<packed64_t>(reinterpret_cast<uint64_t>(obj_ptr));
+            RelEntry_* rel_entry = new RelEntry_(packed_val);
+            rel_entry->KindFinalizer = FinalizerKind_::NONE;
+            rel_entry->APCDeviceFence = std::move(fence);
+            rel_entry->APCDeviceFence = std::move(fence);
+            uint64_t cur_epoch = GlobalEpoch_.load(MoLoad_);
+            rel_entry->RetireEpoch.store(cur_epoch, MoStoreSeq_);
+            RetirePushLocked_(rel_entry);
+            TryReclaimRetired_();
         }
-        rel_entry->APCDeviceFence = std::move(fence);
-        uint64_t cur_epoch = GlobalEpoch_.load(MoLoad_);
-        rel_entry->RetireEpoch.store(cur_epoch, MoStoreSeq_);
-        RetirePushLocked_(rel_entry);
-        TryReclaimRetired_();
-        
     }
 
     void AdaptivePackedCellContainer::UpdateRegionRelForIdx_(size_t idx, tag8_t rel_mask) noexcept

@@ -1,303 +1,177 @@
-// main.cpp — comprehensive test driver for AtomicDataSignalArray
 #include <iostream>
 #include <vector>
 #include <thread>
-#include <cassert>
 #include <chrono>
-#include <mutex>
-#include <sstream>
 #include <atomic>
+#include <cassert>
 
-#include "AtomicDataSignalArray.hpp"
-#include "AtomicAdaptiveBackoff.hpp"
-#include "MasterClockConf.hpp"
-#include "PackedStRel.h" // for REL_* and ST_*
+#include "AdaptivePackedCellContainer.hpp"
 
 using namespace AtomicCScompact;
+using namespace std::chrono_literals;
 
-static std::mutex g_logmu;
-static inline void LOG(const std::string &s) {
-    std::lock_guard<std::mutex> g(g_logmu);
-    std::cerr << "[" << std::chrono::duration_cast<std::chrono::milliseconds>(
-                        std::chrono::steady_clock::now().time_since_epoch()).count()
-              << "ms] " << s << std::endl;
+struct MyObject
+{
+    int Id;
+    double Value;
+    bool Processed;
+    MyObject(int i, double f) :
+        Id(i), Value(f), Processed(false)
+    {} 
+};
+
+static inline void TinyPause()
+{
+    std::this_thread::sleep_for(50us);
 }
 
-static inline void CHECK(bool cond, const std::string &msg) {
-    if (!cond) {
-        LOG(std::string("CHECK FAILED: ") + msg);
-    } else {
-        LOG(std::string("CHECK OK: ") + msg);
+int main()
+{
+    constexpr size_t CAP = 256;
+    constexpr size_t N_ITEMS = 128;
+    ContainerConf container_configuration;
+    container_configuration.ProducerBlockSize = 8;
+    container_configuration.BackgroundEpochAdvanceMS = 20;
+    container_configuration.RetireBatchThreshold = 4;
+
+    AdaptivePackedCellContainer producer_raw_APC;
+    AdaptivePackedCellContainer publishing_APC_for_consumer;
+    
+    try
+    {
+        producer_raw_APC.InitOwned(CAP, REL_NODE0, container_configuration, MAX_VAL);
     }
-}
+    catch(const std::exception& e)
+    {
+        std::cerr << "producer_raw_APC.InitOwned() == failed" << e.what() << '\n';
+        return 1;
+    }
+    
+    try
+    {
+        publishing_APC_for_consumer.InitOwned(CAP, REL_NODE0, container_configuration, MAX_VAL);
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << "publishing_APC_for_consumer.InitOwned() == failed" << e.what() << '\n';
+        producer_raw_APC.FreeAll();
+        return 1;
+    }
 
-// helper to print packed payload state
-static std::string DumpPacked(packed64_t p) {
-    std::ostringstream oss;
-    strl16_t sr = PackedCell64_t::ExtractSTRL(p);
-    tag8_t st = ExtractLocalityFromSTRL(sr);
-    tag8_t rel = PackedCell64_t::ExtractFullRelFromPacked(sr);
-    oss << "P=0x" << std::hex << p << std::dec
-        << " st=" << int(st) << " rel=0x" << int(rel);
-    if constexpr(true) {
-        if (st == ST_PUBLISHED) {
-            if constexpr(true) {
-                val32_t v = PackedCell64_t::ExtractValue32(p);
-                oss << " val=" << v;
+    std::atomic<size_t> produced{0}, processed{0}, reaped{0};
+    std::atomic<bool> stop_flags{false};
+    
+    std::thread ProducerThread([&]()
+    {
+        for (size_t i = 0; i < N_ITEMS; i++)
+        {
+            MyObject* myobject_ptr = new MyObject(static_cast<int>(i), double(i) * 1.5);
+            while (true)
+            {
+                PublishResult publish_result = producer_raw_APC.PublishHeapPtrPair_(reinterpret_cast<void*>(myobject_ptr), REL_NODE0, 128);
+                if (publish_result.ResultStatus == PublishStatus::OK)
+                {
+                    produced.fetch_add(1, std::memory_order_relaxed);
+                    break;
+                }
+                else if (publish_result.ResultStatus == PublishStatus::FULL)
+                {
+                    std::this_thread::sleep_for(100us);
+                }
+                else
+                {
+                    std::cerr << "Producer :: Publish returned INVALID; aborting object" << i << "\n";
+                    delete myobject_ptr;
+                    break;
+                }
             }
+            std::this_thread::sleep_for(30us);
         }
-    }
-    return oss.str();
-}
-
-int main() {
-    LOG("Starting AtomicDataSignalArray tests");
-
-    // -------------------
-    // Basic init
-    // -------------------
-    AtomicDataSignalArray<PackedMode::MODE_VALUE32> dsa_v32;
-    AtomicDataSignalArray<PackedMode::MODE_CLKVAL48> dsa_c48;
-    try {
-        dsa_v32.InitOwned(128);
-        dsa_c48.InitOwned(64);
-        LOG("InitOwned succeeded for both modes");
-    } catch (const std::exception &e) {
-        LOG(std::string("InitOwned threw: ") + e.what());
-        return 2;
-    }
-
-    CHECK(dsa_v32.GetOccupancy() == 0, "Occupancy starts at 0");
-
-    // -------------------
-    // Publish idle payload (should return OK)
-    // -------------------
-    packed64_t idle_v32 = PackedCell64_t::MakeInitialPacked(PackedMode::MODE_VALUE32);
-    PublishResult pres = dsa_v32.PublishPackedOfADSA(idle_v32);
-    LOG("Publish result status: " + std::to_string(int(pres.status)) + " idx: " + std::to_string(pres.index));
-    CHECK(pres.status == PublishStatus::OK, "Publish idle returns OK");
-
-    // PublishWithOffset test
-    PublishResult pres2 = dsa_v32.PublishWithOffset(idle_v32, idle_v32);
-    LOG("PublishWithOffset: status=" + std::to_string(int(pres2.status)) + " idx=" + std::to_string(pres2.index));
-    CHECK(pres2.status == PublishStatus::OK, "PublishWithOffset OK");
-
-    // Reserve + Batch publish
-    size_t base = dsa_v32.ReserveProducerSlots(8);
-    LOG("ReserveProducerSlots returned base=" + std::to_string(base));
-    std::vector<packed64_t> items(8, idle_v32);
-    PublishResult presBatch = dsa_v32.PublishBatchFromReserved(base, items.data(), items.size());
-    LOG("PublishBatchFromReserved: status=" + std::to_string(int(presBatch.status)) + " base=" + std::to_string(presBatch.index));
-    CHECK(presBatch.status == PublishStatus::OK, "PublishBatchFromReserved OK");
-
-    CHECK(dsa_v32.GetOccupancy() >= 0, "Occupancy non-negative after publishes");
-
-    // -------------------
-    // ClaimOne with matching relation test
-    // publish an item with REL_NODE0 and try claim with REL_NODE0 mask
-    // -------------------
-    // Prepare payload with REL_NODE0
-    strl16_t n0_sr = MakeSTRL4_t(3, ST_PUBLISHED, REL_NODE0, REL_NONE);
-    packed64_t payload_node0 = PackedCell64_t::ComposeValue32u_64(42u, 1u, n0_sr);
-    PublishResult p3 = dsa_v32.PublishPackedOfADSA(payload_node0);
-    LOG("Published payload_node0 idx=" + std::to_string(p3.index));
-    size_t out_idx = SIZE_MAX;
-    packed64_t out_obs = 0;
-    bool claimed = dsa_v32.ClaimOne(REL_NODE0, out_idx, out_obs);
-    LOG(std::string("ClaimOne returned: ") + (claimed ? "true" : "false") + " idx=" + (out_idx==SIZE_MAX ? "SIZE_MAX" : std::to_string(out_idx)));
-    CHECK(claimed == true, "ClaimOne matched REL_NODE0 should succeed");
-
-    if (claimed) {
-        LOG("Claim observed: " + DumpPacked(out_obs));
-        // mark complete / recycle
-        dsa_v32.CommitIdxWithPayload(out_idx, out_obs);
-        packed64_t prev = dsa_v32.Recycle(out_idx);
-        LOG("Recycled idx=" + std::to_string(out_idx) + " prev=" + DumpPacked(prev));
-    }
-
-    // -------------------
-    // ClaimOne relation mismatch (expected fail)
-    // Publish REL_NONE and try ClaimOne(REL_ALL_LOW_4) -> should fail (intentional behaviour)
-    // -------------------
-    strl16_t drn_sr = MakeSTRL4_t(0, ST_PUBLISHED, REL_NONE, REL_NONE);
-    packed64_t payload_none = PackedCell64_t::ComposeValue32u_64(99u, 2u, drn_sr);
-    PublishResult p4 = dsa_v32.PublishPackedOfADSA(payload_none);
-    LOG("Published payload_none idx=" + std::to_string(p4.index));
-    size_t out_idx2 = SIZE_MAX;
-    packed64_t out_obs2 = 0;
-    bool claimed2 = dsa_v32.ClaimOne(REL_ALL_LOW_4, out_idx2, out_obs2);
-    LOG(std::string("ClaimOne with REL_ALL_LOW_4 on REL_NONE returned: ") + (claimed2 ? "true" : "false"));
-    CHECK(claimed2 == false, "ClaimOne should not match REL_NONE when caller requests REL_ALL_LOW_4");
-
-    // -------------------
-    // ClaimBatch basic test
-    // -------------------
-    // publish several items with REL_NODE1
-    std::vector<packed64_t> many;
-    for (uint32_t i = 0; i < 10; ++i) {
-        strl16_t pa_sr = MakeSTRL4_t(2, ST_PUBLISHED, REL_NODE1, REL_NONE);
-        packed64_t pa = PackedCell64_t::ComposeValue32u_64(100 + i, static_cast<clk16_t>(i + 10), pa_sr);
-        dsa_v32.PublishPackedOfADSA(pa);
-        many.push_back(pa);
-    }
-    std::vector<std::pair<size_t, packed64_t>> outvec;
-    packed64_t batch_info = dsa_v32.ClaimBatch(REL_NODE1, outvec, 4);
-    LOG("ClaimBatch returned batch_info=" + std::to_string(PackedCell64_t::ExtractValue32(batch_info))
-         + " claimed=" + std::to_string(outvec.size()));
-    CHECK(outvec.size() <= 4, "ClaimBatch returned up to requested count");
-
-    // cleanup claimed items
-    for (auto &pr : outvec) {
-        dsa_v32.CommitIdxWithPayload(pr.first, pr.second);
-        dsa_v32.Recycle(pr.first);
-    }
-
-    // -------------------
-    // TryIncrementClk16LowLevel test
-    // -------------------
-    // publish a value to idx_inc directly via PublishPackedOfADSA to set clk
-    strl16_t ppub_sr = MakeSTRL4_t(1, ST_PUBLISHED, REL_SELF, REL_NONE);
-    packed64_t ppub = PackedCell64_t::ComposeValue32u_64(0xABCu, 0xFFF0u, ppub_sr);
-    PublishResult presIdx = dsa_v32.PublishPackedOfADSA(ppub);
-    LOG("Published for increment test idx=" + std::to_string(presIdx.index));
-    packed64_t out_new = 0;
-    bool inc_ok = dsa_v32.TryIncrementClk16LowLevel(presIdx.index, 5, out_new);
-    LOG(std::string("TryIncrementClk16LowLevel returned: ") + (inc_ok ? "true" : "false") + " out_new=" + DumpPacked(out_new));
-    CHECK(inc_ok, "TryIncrementClk16LowLevel should succeed on a published slot");
-
-    // -------------------
-    // RegionIndex and ScanRelRanges test
-    // -------------------
-    try {
-        dsa_v32.InitRegionIndex(16);
-        auto ranges_all = dsa_v32.ScanRelRanges(REL_ALL_LOW_4);
-        LOG("ScanRelRanges returned " + std::to_string(ranges_all.size()) + " ranges");
-        // not asserting exact number: just ensure call works
-        CHECK(true, "ScanRelRanges callable");
-    } catch (const std::exception &e) {
-        LOG(std::string("InitRegionIndex threw: ") + e.what());
-        CHECK(false, "InitRegionIndex should not throw with valid region size");
-    }
-
-    // -------------------
-    // ABA demonstration (consumer reads A, writer swaps A->B->A), check CAS result
-    // -------------------
-    LOG("ABA demonstration starting");
-    // pick slot S
-    size_t aba_slot = 3;
-    // Make A and B distinct published words
-    strl16_t ab_sr = MakeSTRL4_t(1, ST_PUBLISHED, REL_SELF, REL_NONE);
-    packed64_t A = PackedCell64_t::ComposeValue32u_64(0xAAu, clk16_t(0x1234), ab_sr);
-    packed64_t B = PackedCell64_t::ComposeValue32u_64(0xBBu, clk16_t(0x2222), ab_sr);
-    dsa_v32.CommitIdxWithPayload(aba_slot, A); // install A as committed (store)
-    dsa_v32.BackingPtr[aba_slot].store(A, MoStoreSeq_); // ensure published A
-    dsa_v32.BackingPtr[aba_slot].notify_all();
-    std::atomic<bool> consumer_done{false};
-    std::atomic<bool> swap_done{false};
-    std::thread aba_cons([&]{
-        packed64_t expected = dsa_v32.BackingPtr[aba_slot].load(MoLoad_);
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
-        packed64_t desired = PackedCell64_t::SetLocalityInPacked(expected, ST_CLAIMED);
-        bool ok = dsa_v32.BackingPtr[aba_slot].compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_);
-        LOG(std::string("[ABA] Consumer CAS result: ") + (ok ? "SUCCESS (ABA EXPLOITED)" : "FAILED -> not exploited"));
-        consumer_done.store(true);
     });
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    dsa_v32.BackingPtr[aba_slot].store(B, MoStoreSeq_);
-    dsa_v32.BackingPtr[aba_slot].notify_all();
-    dsa_v32.BackingPtr[aba_slot].store(A, MoStoreSeq_);
-    dsa_v32.BackingPtr[aba_slot].notify_all();
-    swap_done.store(true);
-    aba_cons.join();
 
-    // -------------------
-    // MasterClockConf integration test
-    // -------------------
-    LOG("MasterClockConf integration test");
-    Timer48 timer;
-    MasterClockConf mc(timer, REL_NODE0);
-    bool created = mc.InitMasterClockSlots(8);
-    CHECK(created, "MasterClockConf InitMasterClockSlots OK");
-    size_t mid = mc.RegisterMasterClockSlot();
-    LOG("MasterClockConf registered slot id=" + std::to_string(mid));
-    size_t prev = dsa_v32.AttachThreadMasterClockID(mid);
-    LOG("Attached thread master clock id (prev=" + std::to_string(prev) + ")");
-    // Now publish with DSA: item should pick up master clock when AttachThreadMasterClockID used in producer path
-    strl16_t mp_sr = MakeSTRL4_t(5, ST_PUBLISHED, REL_NODE0, REL_NONE);
-    packed64_t master_pub = PackedCell64_t::ComposeValue32u_64(777u, 0u, mp_sr);
-    PublishResult pmc = dsa_v32.PublishPackedOfADSA(master_pub);
-    LOG("Published master_pub idx=" + std::to_string(pmc.index));
-    CHECK(pmc.status == PublishStatus::OK, "Publish with MasterClockConf attached ok");
-
-    // -------------------
-    // Small concurrency stress test
-    // -------------------
-    LOG("Starting small concurrency stress test");
-    const unsigned NPROD = 4;
-    const unsigned NCONS = 4;
-    const unsigned PER_PROD = 100;
-    std::atomic<unsigned> produced{0}, consumed{0};
-    std::atomic<bool> produce_done{false};
-
-    auto producer = [&](unsigned id) {
-        for (unsigned i = 0; i < PER_PROD; ++i) {
-            strl16_t p_sr = MakeSTRL4_t(1, ST_PUBLISHED, REL_NONE, REL_PATTERN);
-            packed64_t p = PackedCell64_t::ComposeValue32u_64(static_cast<uint32_t>(id*1000 + i),
-                                                       static_cast<clk16_t>(i & 0xFFFF),
-                                                    p_sr
-                                                    );
-            auto r = dsa_v32.PublishPackedOfADSA(p);
-            if (r.status == PublishStatus::OK) produced.fetch_add(1, std::memory_order_relaxed);
-            else {
-                // backpressure: small sleep and retry a few times
-                std::this_thread::sleep_for(std::chrono::microseconds(50));
-                r = dsa_v32.PublishPackedOfADSA(p);
-                if (r.status == PublishStatus::OK) produced.fetch_add(1);
+    //210
+    std::thread ConsumerThread([&]()
+    {
+        size_t scan_idx = 0;
+        while (processed.load(MoLoad_) < N_ITEMS)
+        {
+            RelOffsetMode position = RelOffsetMode::RELOFFSET_GENERIC_VALUE;
+            auto probable_ptr_output = producer_raw_APC.TryAssemblePairedPtr_(scan_idx, position);
+            if (probable_ptr_output)
+            {
+                uint64_t assembled = *probable_ptr_output;
+                MyObject* assembeled_object = reinterpret_cast<MyObject*>(static_cast<std::uintptr_t>(assembled));
+                if (assembeled_object)
+                {
+                    assembeled_object->Value *= 2.0;
+                    assembeled_object->Processed = true;
+                    PublishResult publish_result_2;
+                    while (true)
+                    {
+                        publish_result_2 = publishing_APC_for_consumer.PublishHeapPtrPair_(reinterpret_cast<void*>(assembeled_object), REL_NODE0, 128);
+                        if (publish_result_2.ResultStatus == PublishStatus::OK)
+                        {
+                            break;
+                        }
+                        if (publish_result_2.ResultStatus == PublishStatus::FULL)
+                        {
+                            std::this_thread::sleep_for(100us);
+                        }
+                        else
+                        {
+                            std::cerr << "Consumer: target publish INVALID for idx " << scan_idx << "\n";
+                            break;
+                        }              
+                    }
+                    producer_raw_APC.RetirePairedPtrAtIdx_(scan_idx, {});
+                    processed.fetch_add(1, std::memory_order_release);
+                }
             }
+            scan_idx = (scan_idx + 1) % producer_raw_APC.ContainerCapacity_;
+            TinyPause();
         }
-    };
+    });
 
-    auto consumer = [&](unsigned /*id*/) {
-        size_t out_i;
-        packed64_t o;
-        while (!produce_done.load(std::memory_order_acquire) ||
-            consumed.load() < produced.load()) {
-
-            bool ok = dsa_v32.ClaimOne(REL_ALL_LOW_4, out_i, o, 16);
-            if (ok) {
-                dsa_v32.CommitIdxWithPayload(out_i, o);
-                dsa_v32.Recycle(out_i);
-                consumed.fetch_add(1, std::memory_order_relaxed);
-            } else {
-                std::this_thread::sleep_for(std::chrono::microseconds(50));
+    std::thread PointerTesterThread([&]()
+    {
+        size_t scan_idx = 0;
+        while (reaped.load(MoLoad_) < N_ITEMS)
+        {
+            RelOffsetMode position = RelOffsetMode::RELOFFSET_GENERIC_VALUE;
+            auto probable_ptr_output = publishing_APC_for_consumer.TryAssemblePairedPtr_(scan_idx, position);
+            if (probable_ptr_output)
+            {
+                uint64_t assembeled = *probable_ptr_output;
+                MyObject* object_ptr = reinterpret_cast<MyObject*>(static_cast<std::uintptr_t>(assembeled));
+                if (object_ptr)
+                {
+                    if (!object_ptr->Processed)
+                    {
+                        std::cerr << "Object not marked processed in producer_raw_APC idx = "  << scan_idx  << "ID = " << object_ptr->Id <<"\n";
+                    }
+                    delete object_ptr;
+                    publishing_APC_for_consumer.RetirePairedPtrAtIdx_(scan_idx, {});
+                    reaped.fetch_add(1, std::memory_order_release);
+                }
             }
+            scan_idx = (scan_idx + 1) % publishing_APC_for_consumer.ContainerCapacity_;
+            TinyPause();
         }
-    };
+    });
 
-    std::vector<std::thread> prodt, constt;
-    for (unsigned i = 0; i < NPROD; ++i) prodt.emplace_back(producer, i);
-    for (unsigned i = 0; i < NCONS; ++i) constt.emplace_back(consumer, i);
-    for (auto &t : prodt) t.join();
-    produce_done.store(true, std::memory_order_release);
-    for (auto &t : constt) t.join();
+    ProducerThread.join();
+    ConsumerThread.join();
+    PointerTesterThread.join();
 
-    LOG("Concurrency test produced=" + std::to_string(produced.load()) + " consumed=" + std::to_string(consumed.load()));
-    CHECK(consumed.load() == produced.load(), "Concurrency consumed == produced");
+    producer_raw_APC.ManualAdvanceEpoch(2);
+    publishing_APC_for_consumer.ManualAdvanceEpoch(2);
+    producer_raw_APC.TryReclaimRetired_();
+    publishing_APC_for_consumer.TryReclaimRetired_();
+    producer_raw_APC.StopBackgroundReclaimer();
+    publishing_APC_for_consumer.StopBackgroundReclaimer();
+    producer_raw_APC.FreeAll();
+    publishing_APC_for_consumer.FreeAll();
 
-    // -------------------
-    // AdaptiveBackoff sample decisions
-    // -------------------
-    LOG("AdaptiveBackoff decision sample:");
-    AtomicAdaptiveBackoff::PCBCfg cfg;
-    AtomicAdaptiveBackoff ab(cfg, PackedMode::MODE_VALUE32, Timer48());
-    // simulate payload with an old clock
-    strl16_t op_sr = MakeSTRL4_t(1, ST_PUBLISHED, REL_SELF, REL_NONE);
-    packed64_t oldpub = PackedCell64_t::ComposeValue32u_64(1u, clk16_t(0x1000), op_sr);
-    auto dec = ab.DecideForSlot(oldpub);
-    LOG(std::string("Dec.Action=") + std::to_string((int)dec.Action) + " SuggestedUs=" + std::to_string(dec.SuggestedUs) + " Haz=" + std::to_string(dec.EstHazPerSec));
-
-    // final tidy
-    LOG("Tests completed. Final occupancy: " + std::to_string(dsa_v32.GetOccupancy()));
-    LOG("Driver finished");
+    std::cout<< "Producer " << produced.load() << " Processed : " << processed.load() << " Check Psassed " << reaped.load() << '\n';
     return 0;
 }

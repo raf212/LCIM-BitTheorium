@@ -100,8 +100,8 @@ namespace AtomicCScompact {
 
     //Relation(4 + 4) = 8 bit
     static constexpr tag8_t REL_NONE        = 0x00;
-    static constexpr tag8_t REL_NODE0       = 0x01;
-    static constexpr tag8_t REL_NODE1       = 0x02;
+    static constexpr tag8_t REL_NODE0       = 0x00;
+    static constexpr tag8_t REL_NODE1       = 0x01;
     static constexpr tag8_t REL_PAGE        = 0x04;
     static constexpr tag8_t REL_PATTERN     = 0x08;
     static constexpr tag8_t REL_SELF        = 0x01; // reused

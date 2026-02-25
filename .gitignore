@@ -8,3 +8,4 @@ Dump
 /DOCS_USER
 /venv
 /core/pybind11
+/core/out

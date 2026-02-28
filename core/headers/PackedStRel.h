@@ -106,6 +106,7 @@ namespace AtomicCScompact {
     static constexpr tag8_t REL_PATTERN     = 0x08;
     static constexpr tag8_t REL_SELF        = 0x01; // reused
     static constexpr tag8_t REL_ALL_LOW_4   = static_cast<tag8_t>(RELMASK_MASK);
+    static constexpr tag8_t REL_MASK4_NONE = 0;
 
     //reloffset encodings 
     static constexpr tag8_t RELOFFSET_GENERIC_VALUE = 0;

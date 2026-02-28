@@ -11,7 +11,7 @@
 6. Probalbly generalizing ST_EXCEPTION_BIT_FAULTY with a default function and default chacker 
 7. Probably finding better search algorithm for RegisterThreadForQSBRImplementation_()
 8. Fix the current bugs first -210
-
+9. Fix current bug -210@gc
 
 
 

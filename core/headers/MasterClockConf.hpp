@@ -4,17 +4,22 @@
 #include "PackedCell.hpp"
 #include "AtomicAdaptiveBackoff.hpp"
 
-#define HALF16Bit_THRESHOLD_WRAP 0x8000u
+
 
 namespace AtomicCScompact
 {
-
+#define HALF16Bit_THRESHOLD_WRAP 0x8000u
+#define MIN_TIMER_DOWNSHIFT 6
+#define MAX_TIMER_DOWNSHIFT 14
 
     class MasterClockConf
     {
     private:
 
         bool OwnsSlots_ = false;
+        unsigned TimerDownShift_ = 10u;
+        unsigned RelShift_ = 12u;
+        static constexpr unsigned REL_BUCKET_BITS__RELMASK = 4u;
 
         static inline size_t& ThreadLocalMasterClockID_() noexcept
         {
@@ -27,6 +32,7 @@ namespace AtomicCScompact
         {
             packed64_t init_clk48_packed = PackedCell64_t::ComposeCLK48u_64(now_ticks, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_IDLE, REL_NONE, 
                 static_cast<unsigned>(RelOffsetMode::RELOFFSET_GENERIC_VALUE), static_cast<unsigned>(PackedMode::MODE_CLKVAL48)));
+            return init_clk48_packed;
         }
 
     public:
@@ -36,10 +42,6 @@ namespace AtomicCScompact
         std::atomic<packed64_t>* MasterClockSlotsPtr = nullptr;
         size_t MasterCLKCapacity = 0;
         std::atomic<size_t> MasterClockAlloc = 0;
-
-        unsigned TimerDownShift_ = 10u;
-        unsigned RelShift_ = 12u;
-        static constexpr unsigned REL_BUCKET_BITS__RELMASK = 4u;
 
         MasterClockConf(Timer48& ab, int used_node = REL_NODE0) noexcept:
             MasterTimer48(ab), UsedNode(used_node)
@@ -180,7 +182,6 @@ namespace AtomicCScompact
             }
         }
 
-
         size_t AttachThreadMClockID(size_t mclock_id) const noexcept
         {
             size_t previous = ThreadLocalMasterClockID_();
@@ -227,7 +228,7 @@ namespace AtomicCScompact
             }
             else
             {
-                stamp_result.RelMask4 = rel_mask4 & MaskBits(4);
+                stamp_result.RelMask4 = static_cast<tag8_t>(rel_mask4 & MaskBits(4));
             }
             if (master_clock_id >= MasterCLKCapacity || !SlotLast48_)
             {
@@ -255,6 +256,33 @@ namespace AtomicCScompact
             return reconstructe_clock48 & MaskBits(CLK_B48);
         }
 
+        inline void BackgroundRefreshSlot(size_t master_clock_id) noexcept
+        {
+            if (!SlotLast48_ || master_clock_id >= MasterCLKCapacity)
+            {
+                return;
+            }
+            uint64_t now_ticks = MasterTimer48.NowTicks();
+            SlotLast48_[master_clock_id].store(now_ticks, MoStoreSeq_);
+        }
+
+        inline uint64_t ReadSlotLast48(size_t master_clock_id) noexcept
+        {
+            if (!SlotLast48_ || master_clock_id >= MasterCLKCapacity)
+            {
+                return NO_VAL;
+            }
+            return SlotLast48_[master_clock_id].load(MoLoad_);
+        }
+
+        inline uint8_t SetAndGetTimerDownshift(unsigned downshift_value = 0) noexcept
+        {
+            if (downshift_value >= MIN_TIMER_DOWNSHIFT && downshift_value <= MAX_TIMER_DOWNSHIFT)
+            {
+                TimerDownShift_ = downshift_value;
+            }
+            return static_cast<uint8_t>(TimerDownShift_);
+        }
 
     };
     

@@ -11,7 +11,21 @@ namespace AtomicCScompact
 #define HALF16Bit_THRESHOLD_WRAP 0x8000u
 #define MIN_TIMER_DOWNSHIFT 6
 #define MAX_TIMER_DOWNSHIFT 14
+#define A_BILLION 1000000000ull
+#define THRESHHOLD_64BIT 1e-12
 
+struct Timer48
+{
+    uint64_t TicksPerSec_ = A_BILLION;
+
+    inline uint64_t NowTicks() const noexcept
+    {
+        using  cns = std::chrono::nanoseconds;
+        auto d = std::chrono::steady_clock::now().time_since_epoch();
+        uint64_t ns_count = static_cast<uint64_t>(std::chrono::duration_cast<cns>(d).count());
+        return ns_count & MaskBits(CLK_B48);
+    }
+};
     class MasterClockConf
     {
     private:

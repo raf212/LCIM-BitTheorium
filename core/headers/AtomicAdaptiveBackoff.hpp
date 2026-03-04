@@ -3,11 +3,11 @@
 
 #include "PackedCell.hpp"
 #include "PackedStRel.h"
+#include "MasterClockConf.hpp"
 
 namespace AtomicCScompact
 {
-#define A_BILLION 1000000000ull
-#define THRESHHOLD_64BIT 1e-12
+
 
 
 static inline void CpuRelaxHint()
@@ -19,18 +19,7 @@ static inline void CpuRelaxHint()
 #endif
 }
 
-struct Timer48
-{
-    uint64_t TicksPerSec_ = A_BILLION;
 
-    inline uint64_t NowTicks() const noexcept
-    {
-        using  cns = std::chrono::nanoseconds;
-        auto d = std::chrono::steady_clock::now().time_since_epoch();
-        uint64_t ns_count = static_cast<uint64_t>(std::chrono::duration_cast<cns>(d).count());
-        return ns_count & MaskBits(CLK_B48);
-    }
-};
 
 struct SpinBackoff
 {

@@ -23,7 +23,7 @@
     #include <intrin.h>
 #endif
 
-namespace AtomicCScompact {
+namespace PredictedAdaptedEncoding {
     using packed64_t = uint64_t;
     using val32_t    = uint32_t;
     using clk16_t    = uint16_t;

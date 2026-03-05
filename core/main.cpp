@@ -7,7 +7,7 @@
 
 #include "AdaptivePackedCellContainer.hpp"
 
-using namespace AtomicCScompact;
+using namespace PredictedAdaptedEncoding;
 using namespace std::chrono_literals;
 
 struct MyObject

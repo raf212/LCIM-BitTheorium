@@ -5,7 +5,7 @@
 #include "PackedStRel.h"
 #include "MasterClockConf.hpp"
 
-namespace AtomicCScompact
+namespace PredictedAdaptedEncoding
 {
 
 

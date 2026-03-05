@@ -13,7 +13,7 @@
 #include "MasterClockConf.hpp"
 #include "PackedStRel.h" // for REL_* and ST_*
 
-using namespace AtomicCScompact;
+using namespace PredictedAdaptedEncoding;
 
 static std::mutex g_logmu;
 static inline void LOG(const std::string &s) {

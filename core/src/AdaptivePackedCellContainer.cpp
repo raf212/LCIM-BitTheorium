@@ -1,6 +1,6 @@
 #include "AdaptivePackedCellContainer.hpp"
 
-namespace AtomicCScompact
+namespace PredictedAdaptedEncoding
 {
 
     struct AdaptivePackedCellContainer::QSBRGuard

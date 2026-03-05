@@ -7,7 +7,7 @@
 #include "AtomicAdaptiveBackoff.hpp"
 #include "MasterClockConf.hpp"
 
-namespace AtomicCScompact
+namespace PredictedAdaptedEncoding
 {
 static_assert(__cpp_lib_atomic_wait, "C++ must suppoet atomic wait/notify");
 struct ContainerConf

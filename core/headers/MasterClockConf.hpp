@@ -6,7 +6,7 @@
 
 
 
-namespace AtomicCScompact
+namespace PredictedAdaptedEncoding
 {
 #define HALF16Bit_THRESHOLD_WRAP 0x8000u
 #define MIN_TIMER_DOWNSHIFT 6

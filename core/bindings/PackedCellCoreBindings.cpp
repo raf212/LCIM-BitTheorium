@@ -12,7 +12,7 @@
 #include "AdaptivePackedCellContainer.hpp"
 
 namespace py = pybind11;
-using namespace AtomicCScompact;
+using namespace PredictedAdaptedEncoding;
 
 PYBIND11_MODULE(atomiccim_bind, m) {
     m.doc() = "pybind11 bindings for PackedCell, PackedStRel, AtomicAdaptiveBackoff, MasterClockConf";

@@ -18,7 +18,7 @@
   #error "AllocNW.hpp requires either Windows NUMA (VirtualAllocExNuma) or Linux libnuma. Define HAVE_LIBNUMA and link -lnuma for Linux."
 #endif
 
-namespace AtomicCScompact::AllocNW
+namespace PredictedAdaptedEncoding::AllocNW
 {
     inline void* AlignedAllocP(size_t alignment, size_t size)
     {
@@ -100,4 +100,4 @@ namespace AtomicCScompact::AllocNW
     }
 #endif
 
-} // namespace AtomicCScompact::AllocNW
+} // namespace PredictedAdaptedEncoding::AllocNW

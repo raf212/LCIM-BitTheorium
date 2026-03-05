@@ -2,7 +2,7 @@
 
 #include "PackedStRel.h"
 #define MINIMUM_SLEEP_THRASHOLD_US 8
-namespace AtomicCScompact
+namespace PredictedAdaptedEncoding
 {
 #define PC_MODE_V32 0u
 #define PC_MODE_CLK48 1u

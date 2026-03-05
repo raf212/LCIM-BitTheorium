@@ -12,7 +12,7 @@
 #include "AtomicAdaptiveBackoff.hpp"
 
 
-using namespace AtomicCScompact;
+using namespace PredictedAdaptedEncoding;
 static std::mutex Logmu;
 static inline void LogPrint(const std::string& s)
 {

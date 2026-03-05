@@ -1,11 +1,11 @@
- #pragma once
+#pragma once
 
 #include "PackedStRel.h"
-#define PC_MODE_V32 0u
-#define PC_MODE_CLK48 1u
-
+#define MINIMUM_SLEEP_THRASHOLD_US 8
 namespace AtomicCScompact
 {
+#define PC_MODE_V32 0u
+#define PC_MODE_CLK48 1u
 
     static inline constexpr packed64_t MaskBits(unsigned n) noexcept
     {

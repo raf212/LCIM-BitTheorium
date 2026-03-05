@@ -185,57 +185,57 @@ PYBIND11_MODULE(atomiccim_bind, m) {
         .def_readwrite("TicksPerSec", &Timer48::TicksPerSec_)
         .def("now_ticks", &Timer48::NowTicks);
 
-    // AtomicAdaptiveBackoff.PCBCfg (expose a minimal config)
-    py::class_<AtomicAdaptiveBackoff::PCBCfg>(m, "PCBCfg")
-        .def(py::init<>())
-        .def_readwrite("DownShift", &AtomicAdaptiveBackoff::PCBCfg::DownShift)
-        .def_readwrite("BaseUS", &AtomicAdaptiveBackoff::PCBCfg::BaseUS)
-        .def_readwrite("SpinThresholUS", &AtomicAdaptiveBackoff::PCBCfg::SpinThresholUS)
-        .def_readwrite("MaxParkUS", &AtomicAdaptiveBackoff::PCBCfg::MaxParkUS)
-        .def_readwrite("CostSpinPerSec", &AtomicAdaptiveBackoff::PCBCfg::CostSpinPerSec)
-        .def_readwrite("CostPark", &AtomicAdaptiveBackoff::PCBCfg::CostPark)
-        .def_readwrite("PriorityGama", &AtomicAdaptiveBackoff::PCBCfg::PriorityGama)
-        .def_readwrite("Jitter", &AtomicAdaptiveBackoff::PCBCfg::Jitter);
+    // // AtomicAdaptiveBackoff.PCBCfg (expose a minimal config)
+    // py::class_<AtomicAdaptiveBackoff::PCBCfg>(m, "PCBCfg")
+    //     .def(py::init<>())
+    //     .def_readwrite("DownShift", &AtomicAdaptiveBackoff::PCBCfg::DownShift)
+    //     .def_readwrite("BaseUS", &AtomicAdaptiveBackoff::PCBCfg::BaseUS)
+    //     .def_readwrite("SpinThresholUS", &AtomicAdaptiveBackoff::PCBCfg::SpinThresholUS)
+    //     .def_readwrite("MaxParkUS", &AtomicAdaptiveBackoff::PCBCfg::MaxParkUS)
+    //     .def_readwrite("CostSpinPerSec", &AtomicAdaptiveBackoff::PCBCfg::CostSpinPerSec)
+    //     .def_readwrite("CostPark", &AtomicAdaptiveBackoff::PCBCfg::CostPark)
+    //     .def_readwrite("PriorityGama", &AtomicAdaptiveBackoff::PCBCfg::PriorityGama)
+    //     .def_readwrite("Jitter", &AtomicAdaptiveBackoff::PCBCfg::Jitter);
 
-    py::class_<AtomicAdaptiveBackoff>(m, "AtomicAdaptiveBackoff")
-        .def(py::init<>())
-        .def(py::init<const AtomicAdaptiveBackoff::PCBCfg&, PackedMode, Timer48>(),
-             py::arg("cfg") = AtomicAdaptiveBackoff::PCBCfg(),
-             py::arg("mode") = PackedMode::MODE_VALUE32,
-             py::arg("timer") = Timer48())
-        .def("decide_for_slot", [](AtomicAdaptiveBackoff &self, uint64_t slot_payload, std::optional<uint64_t> now_ticks_opt) {
-            auto dec = self.DecideForSlot(static_cast<packed64_t>(slot_payload), now_ticks_opt);
-            // return tuple (action:int, suggested_us:uint64, est_hazard:double)
-            return py::make_tuple(static_cast<int>(dec.Action), dec.SuggestedUs, dec.EstHazPerSec);
-        }, py::arg("slot_payload"), py::arg("now_ticks") = std::optional<uint64_t>{})
-        .def("observe_completion", [](AtomicAdaptiveBackoff &self, uint64_t pub_p, std::optional<uint64_t> observe_time_ticks) {
-            self.ObserveCompletation(static_cast<packed64_t>(pub_p), observe_time_ticks);
-        }, py::arg("published_payload"), py::arg("observe_time_ticks") = std::optional<uint64_t>{})
-        .def("set_cost", &AtomicAdaptiveBackoff::SetCost);
+    // py::class_<AtomicAdaptiveBackoff>(m, "AtomicAdaptiveBackoff")
+    //     .def(py::init<>())
+    //     .def(py::init<const AtomicAdaptiveBackoff::PCBCfg&, PackedMode, Timer48>(),
+    //          py::arg("cfg") = AtomicAdaptiveBackoff::PCBCfg(),
+    //          py::arg("mode") = PackedMode::MODE_VALUE32,
+    //          py::arg("timer") = Timer48())
+    //     .def("decide_for_slot", [](AtomicAdaptiveBackoff &self, uint64_t slot_payload, std::optional<uint64_t> now_ticks_opt) {
+    //         auto dec = self.DecideForSlot(static_cast<packed64_t>(slot_payload), now_ticks_opt);
+    //         // return tuple (action:int, suggested_us:uint64, est_hazard:double)
+    //         return py::make_tuple(static_cast<int>(dec.Action), dec.SuggestedUs, dec.EstHazPerSec);
+    //     }, py::arg("slot_payload"), py::arg("now_ticks") = std::optional<uint64_t>{})
+    //     .def("observe_completion", [](AtomicAdaptiveBackoff &self, uint64_t pub_p, std::optional<uint64_t> observe_time_ticks) {
+    //         self.ObserveCompletation(static_cast<packed64_t>(pub_p), observe_time_ticks);
+    //     }, py::arg("published_payload"), py::arg("observe_time_ticks") = std::optional<uint64_t>{})
+    //     .def("set_cost", &AtomicAdaptiveBackoff::SetCost);
 
-    // Expose EMAEstimatorAPC methods as convenience (mean, hazard) via wrapper lambdas
-    py::class_<EMAEstimatorAPC>(m, "EMAEstimatorAPC")
-        .def(py::init<>())
-        .def("observe_ticks", &EMAEstimatorAPC::ObserveTicks)
-        .def("mean_ticks", [](const EMAEstimatorAPC &e) -> py::object {
-            auto m = e.MeanTicks();
-            if (m.has_value()) return py::float_(m.value());
-            return py::none();
-        })
-        .def("hazard_per_sec", [](const EMAEstimatorAPC &e, const Timer48 &t) -> py::object {
-            auto h = e.HazardPerSec(t);
-            if (h.has_value()) return py::float_(h.value());
-            return py::none();
-        });
+    // // Expose EMAEstimatorAPC methods as convenience (mean, hazard) via wrapper lambdas
+    // py::class_<EMAEstimatorAPC>(m, "EMAEstimatorAPC")
+    //     .def(py::init<>())
+    //     .def("observe_ticks", &EMAEstimatorAPC::ObserveTicks)
+    //     .def("mean_ticks", [](const EMAEstimatorAPC &e) -> py::object {
+    //         auto m = e.MeanTicks();
+    //         if (m.has_value()) return py::float_(m.value());
+    //         return py::none();
+    //     })
+    //     .def("hazard_per_sec", [](const EMAEstimatorAPC &e, const Timer48 &t) -> py::object {
+    //         auto h = e.HazardPerSec(t);
+    //         if (h.has_value()) return py::float_(h.value());
+    //         return py::none();
+    //     });
 
-    py::class_<HazardEstimatorPC>(m, "HazardEstimatorPC")
-        .def(py::init<>())
-        .def("observe_us", &HazardEstimatorPC::ObserveUS)
-        .def("prob_hazard_at_us", [](const HazardEstimatorPC &h, uint64_t age_us) -> py::object {
-            auto p = h.ProbHazardAtUS(age_us);
-            if (p.has_value()) return py::float_(p.value());
-            return py::none();
-        });
+    // py::class_<HazardEstimatorPC>(m, "HazardEstimatorPC")
+    //     .def(py::init<>())
+    //     .def("observe_us", &HazardEstimatorPC::ObserveUS)
+    //     .def("prob_hazard_at_us", [](const HazardEstimatorPC &h, uint64_t age_us) -> py::object {
+    //         auto p = h.ProbHazardAtUS(age_us);
+    //         if (p.has_value()) return py::float_(p.value());
+    //         return py::none();
+    //     });
 
     // -------------------------
     // MasterClockConf

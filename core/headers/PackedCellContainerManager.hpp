@@ -6,7 +6,7 @@ namespace PredictedAdaptedEncoding
 {
     class AdaptivePackedCellContainer;
 
-    class PackedCellContainerMannager
+    class PackedCellContainerManager
     {
         public :
             struct ThreadHandlePCCM
@@ -16,14 +16,14 @@ namespace PredictedAdaptedEncoding
                 uint64_t APCNodeToken = 0;
             };
 
-            static PackedCellContainerMannager& Instance()
+            static PackedCellContainerManager& Instance()
             {
-                static PackedCellContainerMannager pcc_mannager;
+                static PackedCellContainerManager pcc_mannager;
                 return pcc_mannager;
             }
 
-            void StartPCCMannager();
-            void StopPCCMannager();
+            void StartPCCManager();
+            void StopPCCManager();
             ThreadHandlePCCM RegisterAPCThread();
             void UnRegisterAPCThread(const ThreadHandlePCCM& thread_handle) noexcept;
             inline void EnterCriticlContainer(const ThreadHandlePCCM& thread_handle) noexcept;
@@ -40,14 +40,14 @@ namespace PredictedAdaptedEncoding
 
             uint64_t ComputeMinThreadEpoch() const noexcept;
 
-            MasterClockConf& GetMasterClockAdaptivePackedCellContainerMannager() noexcept
+            MasterClockConf& GetMasterClockAdaptivePackedCellContainerManager() noexcept
             {
-                return MasterClockConfAPCMannager_;
+                return MasterClockConfAPCManager_;
             }
 
-            AtomicAdaptiveBackoff& GetAdaptiveBackoffOfAdaptivePackedCellContainerMannager() noexcept
+            AtomicAdaptiveBackoff& GetAdaptiveBackoffOfAdaptivePackedCellContainerManager() noexcept
             {
-                return AdaptiveBackOffOfAPCMannager_;
+                return AdaptiveBackOffOfAPCManager_;
             }
 
             void SetLogger(std::function<void(const char*, const char*)> logger_for_apc_and_mannager) noexcept
@@ -64,10 +64,10 @@ namespace PredictedAdaptedEncoding
 
 
         private :
-            PackedCellContainerMannager();
-            ~PackedCellContainerMannager();
-            PackedCellContainerMannager(const PackedCellContainerMannager&) = delete;
-            PackedCellContainerMannager& operator=(const PackedCellContainerMannager&) = delete;
+            PackedCellContainerManager();
+            ~PackedCellContainerManager();
+            PackedCellContainerManager(const PackedCellContainerManager&) = delete;
+            PackedCellContainerManager& operator=(const PackedCellContainerManager&) = delete;
             struct NodeOfAdaptivePackedCellContainer_
             {
                 AdaptivePackedCellContainer* APCContainerPtr{nullptr};
@@ -91,18 +91,18 @@ namespace PredictedAdaptedEncoding
             std::atomic<NodeOfAdaptivePackedCellContainer_*> NodePoolHeadOfAPC_{nullptr};
             bool UseNodePool_ = false;
 
-            std::atomic<bool> RunningMannager_{false};
+            std::atomic<bool> RunningManager_{false};
             std::thread ManagerThread_;
             unsigned ManagersIntervalMilliSecond_{25};
             std::atomic<uint64_t>GlobalEpoch_{1};
 
-            Timer48 Timer48APCMannager_;
-            MasterClockConf MasterClockConfAPCMannager_;
-            AtomicAdaptiveBackoff AdaptiveBackOffOfAPCMannager_;
+            Timer48 Timer48APCManager_;
+            MasterClockConf MasterClockConfAPCManager_;
+            AtomicAdaptiveBackoff AdaptiveBackOffOfAPCManager_;
             size_t MaxThreads_ = 4096;
             std::atomic<size_t> UnregistersSinceCompact_{0};
             size_t CompactionTriggerThreshold_ = 1024;
-            std::atomic<uint64_t> MannagerWakeCounter_{0};
+            std::atomic<uint64_t> ManagerWakeCounter_{0};
             std::function<void(const char*, const char*)> Logger_;
             size_t AllocateThreadSlots_();
             void FreeThreadSlots_(size_t idx) noexcept;

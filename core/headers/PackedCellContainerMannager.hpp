@@ -33,15 +33,34 @@ namespace PredictedAdaptedEncoding
             void NotifySlotIdxOfAPC(size_t idx, uint64_t token) noexcept;
             void NotifyAllActiveAPCThreads(uint64_t token) noexcept;
 
-            void RegisterPackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
-            void RequestBanchCreationForPackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
-            void RequestForAPCReclaimation(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
-            void RequestBranchCreationForContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
+            void RegisterAdaptivePackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
+            void RequestBanchCreationForTheAdaptivePackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
+            void RequestFoReclaimationOfTheAdaptivePackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
+            void RequestBranchCreationForTheAdaptivePackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
 
             uint64_t ComputeMinThreadEpoch() const noexcept;
-            MasterClockConf& MasterClockPackedCelAndMannager() noexcept;
 
+            MasterClockConf& GetMasterClockAdaptivePackedCellContainerMannager() noexcept
+            {
+                return MasterClockConfAPCMannager_;
+            }
 
+            AtomicAdaptiveBackoff& GetAdaptiveBackoffOfAdaptivePackedCellContainerMannager() noexcept
+            {
+                return AdaptiveBackOffOfAPCMannager_;
+            }
+
+            void SetLogger(std::function<void(const char*, const char*)> logger_for_apc_and_mannager) noexcept
+            {
+                Logger_ = std::move(logger_for_apc_and_mannager);
+            }
+
+            void UsePreAllocatedNodePoolOfAdaptivePackedCellContainer(size_t pool_size_of_preallocated_adaptive_packed_cell_container) noexcept;
+
+            void SetRegistryCompectionThreshold(size_t unregister_threshold) noexcept 
+            {
+                CompactionTriggerThreshold_ = unregister_threshold;
+            }
 
 
         private :
@@ -79,7 +98,7 @@ namespace PredictedAdaptedEncoding
 
             Timer48 Timer48APCMannager_;
             MasterClockConf MasterClockConfAPCMannager_;
-            AtomicAdaptiveBackoff AdaptiveBackOffAPCMannager_;
+            AtomicAdaptiveBackoff AdaptiveBackOffOfAPCMannager_;
             size_t MaxThreads_ = 4096;
             std::atomic<size_t> UnregistersSinceCompact_{0};
             size_t CompactionTriggerThreshold_ = 1024;
@@ -92,10 +111,12 @@ namespace PredictedAdaptedEncoding
 
             NodeOfAdaptivePackedCellContainer_* AllocateNewAdaptivePackedCellContainerNode_(AdaptivePackedCellContainer* apc_ptr) noexcept;
             void FreePointedAdaptivePackedCellContainerNode_(NodeOfAdaptivePackedCellContainer_* node_of_apc_ptr) noexcept;
+
             static inline NodeOfAdaptivePackedCellContainer_* PopAllStackOfAdaptivePackedCellContainers_(std::atomic<NodeOfAdaptivePackedCellContainer_*>& head_node_of_adaptive_packed_cell_container) noexcept
             {
                 return head_node_of_adaptive_packed_cell_container.exchange(nullptr, std::memory_order_acq_rel);
             }
+
             static inline void PushANodeAtHeadInStackOfAdaptivePackedCellContainer_(std::atomic<NodeOfAdaptivePackedCellContainer_*>& head_node_of_adaptive_packed_cell_container, 
                 NodeOfAdaptivePackedCellContainer_* new_node_of_adaptive_packed_cell_container_ptr
             ) noexcept
@@ -106,6 +127,12 @@ namespace PredictedAdaptedEncoding
                     new_node_of_adaptive_packed_cell_container_ptr->StackNextPtr.store(head_node_of_adaptive_packed_cell_container, MoStoreUnSeq_);
                 } while (!head_node_of_adaptive_packed_cell_container.compare_exchange_weak(head_node_ptr, new_node_of_adaptive_packed_cell_container_ptr, std::memory_order_release, std::memory_order_relaxed));
             }
+
+            void MannageManinLoop_() noexcept;
+            void ProcessWorkerBatchOfAdaptivePackedCellContainer_(NodeOfAdaptivePackedCellContainer_* batch_head_of_adaptive_packed_cell_container_ptr, uint64_t min_epoch) noexcept;
+            void ProcessCleanUpBatchOfAdaptivePackedCellContainer_(NodeOfAdaptivePackedCellContainer_* batch_head_of_adaptive_packed_cell_container) noexcept;
+            void TryCompactRegistryOnce_() noexcept;
+            static constexpr uint64_t THREAD_SENTINEL_ = std::numeric_limits<uint64_t>::max();
 
     };
 }

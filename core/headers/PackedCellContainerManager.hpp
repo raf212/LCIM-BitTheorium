@@ -26,14 +26,14 @@ namespace PredictedAdaptedEncoding
             void StopPCCManager();
             ThreadHandlePCCM RegisterAPCThread();
             void UnRegisterAPCThread(const ThreadHandlePCCM& thread_handle) noexcept;
-            inline void EnterCriticlContainer(const ThreadHandlePCCM& thread_handle) noexcept;
-            inline void ExtitCriticalContainer(const ThreadHandlePCCM& thread_handle) noexcept;
+            void EnterCriticlContainer(const ThreadHandlePCCM& thread_handle) noexcept;
+            void ExtitCriticalContainer(const ThreadHandlePCCM& thread_handle) noexcept;
 
             inline void NotifyAPCThread(const ThreadHandlePCCM& thread_handle, uint64_t thread_token) noexcept
             {
                 NotifySlotIdxOfAPC(thread_handle.QSBRIdx, thread_token);
             }
-            
+
             inline void NotifySlotIdxOfAPC(size_t idx, uint64_t thread_token) noexcept;
             void NotifyAllActiveAPCThreads(uint64_t thread_token) noexcept;
 

@@ -188,5 +188,42 @@ namespace PredictedAdaptedEncoding
         ThreadWaitSlotArrayPtr_[idx].notify_one();
     }
 
+    void PackedCellContainerManager::NotifyAllActiveAPCThreads(uint64_t thread_token) noexcept
+    {
+        for (size_t i = 0; i < ThreadTableCapacity_; i++)
+        {
+            uint64_t epoch = ThreadEpochArrayPtr_[i].load(MoLoad_);
+            if (epoch != THREAD_SENTINEL_)
+            {
+                NotifySlotIdxOfAPC(i, thread_token);
+            }
+        }
+    }
+
+    void PackedCellContainerManager::UsePreAllocatedNodePoolOfAdaptivePackedCellContainer(size_t pool_size_of_apc)
+    {
+        if (pool_size_of_apc == 0)
+        {
+            return;
+        }
+        UseNodePool_ = true;
+        for (size_t i = 0; i < pool_size_of_apc; i++)
+        {
+            NodeOfAdaptivePackedCellContainer_* node_of_apc_ptr = static_cast<NodeOfAdaptivePackedCellContainer_*>(::operator new(sizeof(NodeOfAdaptivePackedCellContainer_)));
+            node_of_apc_ptr->APCContainerPtr = nullptr;
+            node_of_apc_ptr->ReclaimationNeededAPC.store(NO_VAL, MoStoreUnSeq_);
+            node_of_apc_ptr->RequestedBranchedAPC.store(NO_VAL, MoStoreUnSeq_);
+            node_of_apc_ptr->DeadAPC.store(NO_VAL, MoStoreUnSeq_);
+            node_of_apc_ptr->RegistryNextPtr = nullptr;
+            node_of_apc_ptr->StackNextPtr.store(nullptr, MoStoreUnSeq_);
+            node_of_apc_ptr->DebugId = reinterpret_cast<uint64_t>(node_of_apc_ptr);
+            NodeOfAdaptivePackedCellContainer_* head_of_apc_node_pool_ptr = NodePoolHeadOfAPC_.load(MoLoad_);
+            do
+            {
+                node_of_apc_ptr->StackNextPtr.store(head_of_apc_node_pool_ptr, MoStoreUnSeq_);
+            } while (!NodePoolHeadOfAPC_.compare_exchange_weak(head_of_apc_node_pool_ptr, node_of_apc_ptr, std::memory_order_release, std::memory_order_relaxed));
+            
+        }
+    }
     
 } // namespace PredictedAdaptedEncoding

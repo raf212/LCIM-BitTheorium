@@ -104,7 +104,7 @@ namespace PredictedAdaptedEncoding
             size_t CompactionTriggerThreshold_ = 1024;
             std::atomic<uint64_t> ManagerWakeCounter_{0};
             std::function<void(const char*, const char*)> Logger_;
-            size_t AllocateThreadSlots_();
+            size_t AllocateThreadSlots_() noexcept;
             void FreeThreadSlots_(size_t idx) noexcept;
             void PushFreeThreadIndex_(size_t idx) noexcept;
             size_t PopFreeThreadIndex_() noexcept;
@@ -124,11 +124,11 @@ namespace PredictedAdaptedEncoding
                 NodeOfAdaptivePackedCellContainer_* head_node_ptr = head_node_of_adaptive_packed_cell_container.load(MoLoad_);
                 do
                 {
-                    new_node_of_adaptive_packed_cell_container_ptr->StackNextPtr.store(head_node_of_adaptive_packed_cell_container, MoStoreUnSeq_);
+                    new_node_of_adaptive_packed_cell_container_ptr->StackNextPtr.store(head_node_ptr, MoStoreUnSeq_);
                 } while (!head_node_of_adaptive_packed_cell_container.compare_exchange_weak(head_node_ptr, new_node_of_adaptive_packed_cell_container_ptr, std::memory_order_release, std::memory_order_relaxed));
             }
 
-            void MannageManinLoop_() noexcept;
+            void ManagerManinLoop_() noexcept;
             void ProcessWorkerBatchOfAdaptivePackedCellContainer_(NodeOfAdaptivePackedCellContainer_* batch_head_of_adaptive_packed_cell_container_ptr, uint64_t min_epoch) noexcept;
             void ProcessCleanUpBatchOfAdaptivePackedCellContainer_(NodeOfAdaptivePackedCellContainer_* batch_head_of_adaptive_packed_cell_container) noexcept;
             void TryCompactRegistryOnce_() noexcept;

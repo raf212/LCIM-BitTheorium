@@ -13,7 +13,7 @@ namespace PredictedAdaptedEncoding
             {
                 size_t QSBRIdx = SIZE_MAX;
                 std::atomic<uint64_t>* WaitSlotPtr = nullptr;
-                uint64_t APCNodeToken = 0;
+                uint64_t NodeTokenOfAPC = 0;
             };
 
             static PackedCellContainerManager& Instance()
@@ -29,9 +29,13 @@ namespace PredictedAdaptedEncoding
             inline void EnterCriticlContainer(const ThreadHandlePCCM& thread_handle) noexcept;
             inline void ExtitCriticalContainer(const ThreadHandlePCCM& thread_handle) noexcept;
 
-            void NotifyAPCThread(const ThreadHandlePCCM& thread_handle, uint64_t token) noexcept;
-            void NotifySlotIdxOfAPC(size_t idx, uint64_t token) noexcept;
-            void NotifyAllActiveAPCThreads(uint64_t token) noexcept;
+            inline void NotifyAPCThread(const ThreadHandlePCCM& thread_handle, uint64_t thread_token) noexcept
+            {
+                NotifySlotIdxOfAPC(thread_handle.QSBRIdx, thread_token);
+            }
+            
+            inline void NotifySlotIdxOfAPC(size_t idx, uint64_t thread_token) noexcept;
+            void NotifyAllActiveAPCThreads(uint64_t thread_token) noexcept;
 
             void RegisterAdaptivePackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
             void RequestBanchCreationForTheAdaptivePackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;

@@ -2,6 +2,8 @@
 
 namespace PredictedAdaptedEncoding
 {
+#define BIT_PATTERN_THREAD_TOKEN_GENERATOR 0xA5A5A5A5u
+
     inline PackedCellContainerManager::PackedCellContainerManager() :
         ThreadTableCapacity_(MaxThreads_),
         ThreadNextIdx_(ThreadTableCapacity_),
@@ -126,5 +128,65 @@ namespace PredictedAdaptedEncoding
         PushFreeThreadIndex_(idx);
     }
 
+    PackedCellContainerManager::ThreadHandlePCCM PackedCellContainerManager::RegisterAPCThread()
+    {
+        ThreadHandlePCCM thread_handle;
+        size_t idx = AllocateThreadSlots_();
+        if (idx == SIZE_MAX)
+        {
+            return thread_handle;
+        }
+        thread_handle.QSBRIdx = idx;
+        thread_handle.WaitSlotPtr = &ThreadWaitSlotArrayPtr_[idx];
+        thread_handle.NodeTokenOfAPC =  static_cast<uint64_t>(idx) ^ BIT_PATTERN_THREAD_TOKEN_GENERATOR; //xor
+        ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
+        ManagerWakeCounter_.notify_one();
+        return thread_handle;
+    }
 
+    void PackedCellContainerManager::UnRegisterAPCThread(const ThreadHandlePCCM& thread_handle) noexcept
+    {
+        if (thread_handle.QSBRIdx == SIZE_MAX)
+        {
+            return;
+        }
+        FreeThreadSlots_(thread_handle.QSBRIdx);
+        size_t unregister_counts = UnregistersSinceCompact_.fetch_add(1, std::memory_order_acq_rel);
+        if (unregister_counts >= CompactionTriggerThreshold_)
+        {
+            ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
+            ManagerWakeCounter_.notify_one();
+        }
+    }
+
+    void PackedCellContainerManager::EnterCriticlContainer(const ThreadHandlePCCM& thread_handle) noexcept
+    {
+        if (thread_handle.QSBRIdx == SIZE_MAX)
+        {
+            return;
+        }
+        uint64_t global_epoch = GlobalEpoch_.load(MoLoad_);
+        ThreadEpochArrayPtr_[thread_handle.QSBRIdx].store(global_epoch, MoStoreSeq_);        
+    }
+
+    void PackedCellContainerManager::ExtitCriticalContainer(const ThreadHandlePCCM& thread_handle) noexcept
+    {
+        if (thread_handle.QSBRIdx == SIZE_MAX)
+        {
+            return;
+        }
+        ThreadEpochArrayPtr_[thread_handle.QSBRIdx].store(THREAD_SENTINEL_, MoStoreSeq_);
+    }
+
+    void PackedCellContainerManager::NotifySlotIdxOfAPC(size_t idx, uint64_t thread_token) noexcept
+    {
+        if (idx >= ThreadTableCapacity_)
+        {
+            return;
+        }
+        ThreadWaitSlotArrayPtr_[idx].store(thread_token, MoStoreSeq_);
+        ThreadWaitSlotArrayPtr_[idx].notify_one();
+    }
+
+    
 } // namespace PredictedAdaptedEncoding

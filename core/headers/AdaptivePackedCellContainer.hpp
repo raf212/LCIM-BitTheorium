@@ -255,6 +255,12 @@ public:
     void TryReclaimRetired_() noexcept;
 
     bool PollDeviceFencesOnce_() noexcept;
+
+    void TryCreateBranchIfNeeded() noexcept
+    {
+
+    }
+    void TryReclaimRetiredWithMinEpoch(uint64_t min_epoch) noexcept;
 };
 
 

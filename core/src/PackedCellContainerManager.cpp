@@ -348,7 +348,7 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    void PackedCellContainerManager::RequestBanchCreationForTheAdaptivePackedCellContainer(AdaptivePackedCellContainer* apc_ptr) noexcept
+    void PackedCellContainerManager::RequestBranchCreationForTheAdaptivePackedCellContainer(AdaptivePackedCellContainer* apc_ptr) noexcept
     {
         if (!apc_ptr)
         {
@@ -424,6 +424,49 @@ namespace PredictedAdaptedEncoding
         if (remaining_cleanup_ptr)
         {
             ProcessCleanUpBatchOfAdaptivePackedCellContainer_(remaining_cleanup_ptr);
+        }
+    }
+    
+    void PackedCellContainerManager::ProcessCleanUpBatchOfAdaptivePackedCellContainer_(NodeOfAdaptivePackedCellContainer_* batch_head_ptr) noexcept
+    {
+        while (batch_head_ptr)
+        {
+            NodeOfAdaptivePackedCellContainer_* next_node_apc_ptr = batch_head_ptr->StackNextPtr.load(std::memory_order_relaxed);
+            if (UseNodePool_)
+            {
+                FreePointedAdaptivePackedCellContainerNode_(batch_head_ptr);
+            }
+            batch_head_ptr = next_node_apc_ptr;
+        }
+    }
+    void PackedCellContainerManager::TryCompactRegistryOnce_() noexcept
+    {
+        NodeOfAdaptivePackedCellContainer_* original_head_node_ptr = RegistryHeadOfAPCNodesPtr_.load(MoLoad_);
+        NodeOfAdaptivePackedCellContainer_* current_node_ptr = original_head_node_ptr;
+        NodeOfAdaptivePackedCellContainer_* new_head_node_ptr = nullptr;
+        while (current_node_ptr)
+        {
+            NodeOfAdaptivePackedCellContainer_* next_node_ptr = current_node_ptr->RegistryNextPtr;
+            if (!current_node_ptr->DeadAPC.load(MoLoad_) && current_node_ptr->APCContainerPtr != nullptr)
+            {
+                current_node_ptr->RegistryNextPtr = new_head_node_ptr;
+                new_head_node_ptr = current_node_ptr;
+            }
+            current_node_ptr = next_node_ptr;
+        }
+        NodeOfAdaptivePackedCellContainer_* reverse_node_ptr = nullptr;
+        current_node_ptr = new_head_node_ptr;
+        while (current_node_ptr)
+        {
+            NodeOfAdaptivePackedCellContainer_* new_node_ptr = current_node_ptr->RegistryNextPtr;
+            current_node_ptr->RegistryNextPtr = reverse_node_ptr;
+            reverse_node_ptr = current_node_ptr;
+            current_node_ptr = new_node_ptr;
+        }
+        NodeOfAdaptivePackedCellContainer_* expected = original_head_node_ptr;
+        if (RegistryHeadOfAPCNodesPtr_.compare_exchange_strong(expected, reverse_node_ptr, EXsuccess_, EXfailure_))
+        {
+            UnregistersSinceCompact_.store(NO_VAL, MoStoreSeq_);
         }
     }
     

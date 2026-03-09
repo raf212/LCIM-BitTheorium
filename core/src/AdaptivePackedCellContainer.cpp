@@ -1,4 +1,5 @@
 #include "AdaptivePackedCellContainer.hpp"
+#include "PackedCellContainerManager.hpp"
 
 namespace PredictedAdaptedEncoding
 {
@@ -793,6 +794,162 @@ namespace PredictedAdaptedEncoding
         size_t seq = block_base++;
         --block_left;
         return seq;
+    }
+
+    void AdaptivePackedCellContainer::TryReclaimRetiredWithMinEpoch(uint64_t min_epoch) noexcept
+    {
+        size_t retire_count = RetireCount_.load(MoLoad_);
+        if (retire_count == 0 || retire_count < RetireBatchThreshold_)
+        {
+            return;
+        }
+        RelEntry_* stolen = RetireHead_.exchange(nullptr, std::memory_order_acq_rel);
+        if (!stolen)
+        {
+            RetireCount_.store(NO_VAL, MoStoreSeq_);
+            return;
+        }
+        RetireCount_.store(NO_VAL, MoStoreSeq_);
+        RelEntry_* current_relentry_ptr = stolen;
+        RelEntry_* keep_head_ptr = nullptr;
+        RelEntry_* keep_tail_ptr = nullptr;
+        size_t track_count = 0;
+        while (current_relentry_ptr)
+        {
+            RelEntry_* next_relentry_ptr = current_relentry_ptr->NextPtr.load(std::memory_order_relaxed);
+            uint64_t cur_retire_epoch = current_relentry_ptr->RetireEpoch.load(MoLoad_);
+            bool can_reclaim = false;
+            if (cur_retire_epoch == 0)
+            {
+                uint64_t  now_epoch = GlobalEpoch_.load(MoLoad_);
+                current_relentry_ptr->RetireEpoch.store(now_epoch, MoStoreSeq_);
+                can_reclaim = false;
+            }
+            else
+            {
+                if ((min_epoch != std::numeric_limits<uint64_t>::max() && cur_retire_epoch < min_epoch) || 
+                    (min_epoch == std::numeric_limits<uint64_t>::max())
+                    )
+                {
+                    if (DeviceFenceSatisfied_(*current_relentry_ptr))
+                    {
+                        can_reclaim = true;
+                    }   
+                }
+            }
+            if (can_reclaim)
+            {
+                if ((current_relentry_ptr->KindFinalizer != FinalizerKind_::NONE) && (current_relentry_ptr->Kind == RelEntry_::APCKind::HEAP_NODE))
+                {
+                    if (current_relentry_ptr->FinalizerPtr)
+                    {
+                        try 
+                        {
+                            current_relentry_ptr->FinalizerPtr(current_relentry_ptr->HeapPtr);
+                        }
+                        catch (...)
+                        {
+                            if (APCLogger_)
+                            {
+                                APCLogger_("TryReclaimRetiredWithMinEpoch()", "RelEntry finalizer threw an exception");
+                            }
+                        }
+                    }   
+                }
+                if (current_relentry_ptr->Kind == RelEntry_::APCKind::HEAP_NODE && current_relentry_ptr->HeapPtr)
+                {
+                     ::operator delete(current_relentry_ptr->HeapPtr, std::align_val_t{alignof(std::max_align_t)});
+                     TotalReclaimedBytes_.fetch_add(current_relentry_ptr->HeapSize, std::memory_order_relaxed);
+                     current_relentry_ptr->HeapPtr = nullptr;
+                }
+                TotalReclaimed_.fetch_add(1, std::memory_order_relaxed);
+                delete current_relentry_ptr;
+            }
+            else
+            {
+                current_relentry_ptr->NextPtr.store(nullptr, MoStoreUnSeq_);
+                if (!keep_head_ptr)
+                {
+                    keep_head_ptr = current_relentry_ptr;
+                    keep_tail_ptr = current_relentry_ptr;
+                }
+                else
+                {
+                    keep_head_ptr->NextPtr.store(current_relentry_ptr, MoStoreUnSeq_);
+                    keep_tail_ptr = current_relentry_ptr;
+                }
+                ++track_count;                
+            }
+            current_relentry_ptr = next_relentry_ptr;
+        }
+        if (!keep_head_ptr)
+        {
+            return;
+        }
+        RelEntry_* head_relentry_ptr = RetireHead_.load(MoLoad_);
+        while (true)
+        {
+            keep_tail_ptr->NextPtr.store(head_relentry_ptr, MoStoreUnSeq_);
+            if (RetireHead_.compare_exchange_strong(head_relentry_ptr, keep_head_ptr, EXsuccess_, EXfailure_))
+            {
+                RetireCount_.fetch_add(track_count, std::memory_order_acq_rel);
+                break;
+            }
+            else
+            {
+                TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
+            }
+        }
+    }
+
+
+
+    void PackedCellContainerManager::ProcessRemainingWorkOfAPC_(NodeOfAdaptivePackedCellContainer_* batch_head_apc_ptr, uint64_t min_epoch) noexcept
+    {
+        while (batch_head_apc_ptr)
+        {
+            NodeOfAdaptivePackedCellContainer_* next_apc = batch_head_apc_ptr->StackNextPtr.load(MoLoad_);
+            NodeOfAdaptivePackedCellContainer_* node_ptr = batch_head_apc_ptr;
+            if (node_ptr->DeadAPC.load(MoLoad_) || node_ptr->APCContainerPtr == nullptr)
+            {
+                PushANodeAtHeadInStackOfAdaptivePackedCellContainer_(CleanUpStackHead_, node_ptr);
+                batch_head_apc_ptr = next_apc;
+                continue;
+            }
+            AdaptivePackedCellContainer* current_apc_ptr = node_ptr->APCContainerPtr;
+            if (current_apc_ptr)
+            {
+                if (node_ptr->ReclaimationNeededAPC.exchange(NO_VAL, std::memory_order_acq_rel))
+                {
+                    try 
+                    {
+                        current_apc_ptr->TryReclaimRetiredWithMinEpoch(min_epoch);
+                    }
+                    catch (...)
+                    {
+                        if (Logger_)
+                        {
+                            Logger_("BM", "TryReclaimRetiredWithMinEpoch threw");
+                        }
+                    }
+                }
+                if (node_ptr->RequestedBranchedAPC.exchange(NO_VAL, std::memory_order_acq_rel))
+                {
+                    try 
+                    {
+                        current_apc_ptr->TryCreateBranchIfNeeded();
+                    }
+                    catch (...)
+                    {
+                        if (Logger_)
+                        {
+                            Logger_("BM", "TryCreateBranchIfNeeded threw");
+                        }
+                    }
+                }
+            }
+            batch_head_apc_ptr = next_apc;   
+        }
     }
 
 }

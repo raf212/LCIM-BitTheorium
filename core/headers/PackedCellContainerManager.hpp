@@ -38,8 +38,9 @@ namespace PredictedAdaptedEncoding
             void NotifyAllActiveAPCThreads(uint64_t thread_token) noexcept;
 
             void RegisterAdaptivePackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
+            void UnRegisterAdaptivePackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
             void RequestBanchCreationForTheAdaptivePackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
-            void RequestFoReclaimationOfTheAdaptivePackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
+            void RequestForReclaimationOfTheAdaptivePackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
             void RequestBranchCreationForTheAdaptivePackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
 
             uint64_t ComputeMinThreadEpoch() const noexcept;
@@ -84,7 +85,7 @@ namespace PredictedAdaptedEncoding
                 uint64_t DebugId = 0;
             };
             std::atomic<NodeOfAdaptivePackedCellContainer_*> WorkStackHeadPtr_{nullptr};
-            std::atomic<NodeOfAdaptivePackedCellContainer_*> CleanUpStackHeaD_{nullptr};
+            std::atomic<NodeOfAdaptivePackedCellContainer_*> CleanUpStackHead_{nullptr};
 
             std::atomic<size_t>ThreadFreelistHead_{SIZE_MAX};
             std::vector<std::atomic<size_t>> ThreadNextIdx_;
@@ -133,7 +134,7 @@ namespace PredictedAdaptedEncoding
             }
 
             void ManagerManinLoop_() noexcept;
-            void ProcessWorkerBatchOfAdaptivePackedCellContainer_(NodeOfAdaptivePackedCellContainer_* batch_head_of_adaptive_packed_cell_container_ptr, uint64_t min_epoch) noexcept;
+            void ProcessRemainingWorkOfAPC_(NodeOfAdaptivePackedCellContainer_* batch_head_of_adaptive_packed_cell_container_ptr, uint64_t min_epoch) noexcept;
             void ProcessCleanUpBatchOfAdaptivePackedCellContainer_(NodeOfAdaptivePackedCellContainer_* batch_head_of_adaptive_packed_cell_container) noexcept;
             void TryCompactRegistryOnce_() noexcept;
             static constexpr uint64_t THREAD_SENTINEL_ = std::numeric_limits<uint64_t>::max();

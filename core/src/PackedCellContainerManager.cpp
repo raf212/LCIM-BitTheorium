@@ -200,7 +200,7 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    void PackedCellContainerManager::UsePreAllocatedNodePoolOfAdaptivePackedCellContainer(size_t pool_size_of_apc)
+    void PackedCellContainerManager::UsePreAllocatedNodePoolOfAdaptivePackedCellContainer(size_t pool_size_of_apc) noexcept
     {
         if (pool_size_of_apc == 0)
         {
@@ -223,6 +223,207 @@ namespace PredictedAdaptedEncoding
                 node_of_apc_ptr->StackNextPtr.store(head_of_apc_node_pool_ptr, MoStoreUnSeq_);
             } while (!NodePoolHeadOfAPC_.compare_exchange_weak(head_of_apc_node_pool_ptr, node_of_apc_ptr, std::memory_order_release, std::memory_order_relaxed));
             
+        }
+    }
+
+    PackedCellContainerManager::NodeOfAdaptivePackedCellContainer_* PackedCellContainerManager::AllocateNewAdaptivePackedCellContainerNode_(AdaptivePackedCellContainer* apc_ptr) noexcept
+    {
+        if (UseNodePool_)
+        {
+            NodeOfAdaptivePackedCellContainer_* head_of_node_pool = NodePoolHeadOfAPC_.load(MoLoad_);
+            while (head_of_node_pool)
+            {
+                NodeOfAdaptivePackedCellContainer_* next_of_node_pool = head_of_node_pool->StackNextPtr.load(std::memory_order_relaxed);
+                if (NodePoolHeadOfAPC_.compare_exchange_strong(head_of_node_pool, next_of_node_pool, EXsuccess_, EXfailure_))
+                {
+                    head_of_node_pool->APCContainerPtr = apc_ptr;
+                    head_of_node_pool->ReclaimationNeededAPC.store(NO_VAL, MoStoreUnSeq_);
+                    head_of_node_pool->RequestedBranchedAPC.store(NO_VAL, MoStoreUnSeq_);
+                    head_of_node_pool->DeadAPC.store(NO_VAL, MoStoreUnSeq_);
+                    head_of_node_pool->RegistryNextPtr = nullptr;
+                    head_of_node_pool->StackNextPtr.store(nullptr, MoStoreUnSeq_);
+                    return head_of_node_pool;
+                }   
+            }
+        }
+        NodeOfAdaptivePackedCellContainer_* new_apc_ptr = static_cast<NodeOfAdaptivePackedCellContainer_*>(::operator new(sizeof(NodeOfAdaptivePackedCellContainer_)));
+        new(new_apc_ptr) NodeOfAdaptivePackedCellContainer_();
+        new_apc_ptr->APCContainerPtr = apc_ptr;
+        new_apc_ptr->ReclaimationNeededAPC.store(NO_VAL, MoStoreUnSeq_);
+        new_apc_ptr->RequestedBranchedAPC.store(NO_VAL, MoStoreUnSeq_);
+        new_apc_ptr->DeadAPC.store(NO_VAL, MoStoreUnSeq_);
+        new_apc_ptr->RegistryNextPtr = nullptr;
+        new_apc_ptr->StackNextPtr.store(nullptr, MoStoreUnSeq_);
+        new_apc_ptr->DebugId = reinterpret_cast<uint64_t>(new_apc_ptr);
+        return new_apc_ptr;
+    }
+
+    void PackedCellContainerManager::FreePointedAdaptivePackedCellContainerNode_(NodeOfAdaptivePackedCellContainer_* node_of_apc_ptr) noexcept
+    {
+        if (!node_of_apc_ptr)
+        {
+            return;
+        }
+        if (UseNodePool_)
+        {
+            NodeOfAdaptivePackedCellContainer_* head_of_node_pool = NodePoolHeadOfAPC_.load(MoLoad_);
+            do
+            {
+                node_of_apc_ptr->StackNextPtr.store(head_of_node_pool, MoStoreUnSeq_);
+            } while (!NodePoolHeadOfAPC_.compare_exchange_weak(head_of_node_pool, node_of_apc_ptr, std::memory_order_release, std::memory_order_relaxed));
+            
+        }
+        
+    }
+
+    void PackedCellContainerManager::RegisterAdaptivePackedCellContainer(AdaptivePackedCellContainer* apc_ptr) noexcept
+    {
+        if (!apc_ptr)
+        {
+            return;
+        }
+        NodeOfAdaptivePackedCellContainer_* node_of_apc_ptr = AllocateNewAdaptivePackedCellContainerNode_(apc_ptr);
+        NodeOfAdaptivePackedCellContainer_* head_of_registry_ptr = RegistryHeadOfAPCNodesPtr_.load(MoLoad_);
+        do
+        {
+            node_of_apc_ptr->RegistryNextPtr = head_of_registry_ptr;
+        } while (!RegistryHeadOfAPCNodesPtr_.compare_exchange_weak(head_of_registry_ptr, node_of_apc_ptr, std::memory_order_release, std::memory_order_relaxed));
+        ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
+        ManagerWakeCounter_.notify_one();
+    }
+    
+    void PackedCellContainerManager::UnRegisterAdaptivePackedCellContainer(AdaptivePackedCellContainer* apc_ptr) noexcept
+    {
+        if (!apc_ptr)
+        {
+            return;
+        }
+        NodeOfAdaptivePackedCellContainer_* node_of_candidate_apc_ptr = nullptr;
+        NodeOfAdaptivePackedCellContainer_* head_registry_ptr = RegistryHeadOfAPCNodesPtr_.load(MoLoad_);
+        while (head_registry_ptr)
+        {
+            if (head_registry_ptr->APCContainerPtr == apc_ptr)
+            {
+                node_of_candidate_apc_ptr = head_registry_ptr;
+                break;
+            }
+            head_registry_ptr = head_registry_ptr->RegistryNextPtr;
+        }
+        if (!head_registry_ptr)
+        {
+            return;
+        }
+        head_registry_ptr->APCContainerPtr = nullptr;
+        head_registry_ptr->DeadAPC.store(1, MoStoreSeq_);
+        PushANodeAtHeadInStackOfAdaptivePackedCellContainer_(CleanUpStackHead_, head_registry_ptr);
+        size_t unregister_count = UnregistersSinceCompact_.fetch_add(1, std::memory_order_acq_rel) + 1;
+        ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
+        ManagerWakeCounter_.notify_one();
+        if (unregister_count >= CompactionTriggerThreshold_)
+        {
+            ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
+            ManagerWakeCounter_.notify_one();
+        }
+    }
+
+    void PackedCellContainerManager::RequestForReclaimationOfTheAdaptivePackedCellContainer(AdaptivePackedCellContainer* apc_ptr) noexcept
+    {
+        if (!apc_ptr)
+        {
+            return;
+        }
+        NodeOfAdaptivePackedCellContainer_* head_registry_ptr = RegistryHeadOfAPCNodesPtr_.load(MoLoad_);
+        while (head_registry_ptr)
+        {
+            if (head_registry_ptr->APCContainerPtr == apc_ptr)
+            {
+                uint32_t expected = 0;
+                if (head_registry_ptr->RequestedBranchedAPC.compare_exchange_strong(expected, 1, EXsuccess_, EXfailure_))
+                {
+                    PushANodeAtHeadInStackOfAdaptivePackedCellContainer_(WorkStackHeadPtr_, head_registry_ptr);
+                    ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
+                    ManagerWakeCounter_.notify_all();
+                }
+            }
+        }
+    }
+
+    void PackedCellContainerManager::RequestBanchCreationForTheAdaptivePackedCellContainer(AdaptivePackedCellContainer* apc_ptr) noexcept
+    {
+        if (!apc_ptr)
+        {
+            return;
+        }
+        NodeOfAdaptivePackedCellContainer_* head_registry_ptr = RegistryHeadOfAPCNodesPtr_.load(MoLoad_);
+        while (head_registry_ptr)
+        {
+            if (head_registry_ptr->APCContainerPtr == apc_ptr)
+            {
+                uint32_t expected = 0;
+                if (head_registry_ptr->RequestedBranchedAPC.compare_exchange_strong(expected, 1, EXsuccess_, EXfailure_))
+                {
+                    PushANodeAtHeadInStackOfAdaptivePackedCellContainer_(WorkStackHeadPtr_, head_registry_ptr);
+                    ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
+                    ManagerWakeCounter_.notify_all();
+                }
+            }
+        }
+    }
+
+    uint64_t PackedCellContainerManager::ComputeMinThreadEpoch() const noexcept
+    {
+        uint64_t min_epoch = std::numeric_limits<uint64_t>::max();
+        for (size_t i = 0; i < ThreadTableCapacity_; i++)
+        {
+            uint64_t value_thread_epoch = ThreadEpochArrayPtr_[i].load(MoLoad_);
+            if (value_thread_epoch == THREAD_SENTINEL_)
+            {
+                continue;
+            }
+        }
+        return min_epoch;
+    }
+
+    void PackedCellContainerManager::ManagerManinLoop_() noexcept
+    {
+        unsigned loop_count = 0;
+        while (RunningManager_.load(MoLoad_))
+        {
+            uint64_t min_epoch = ComputeMinThreadEpoch();
+            GlobalEpoch_.fetch_add(1, std::memory_order_acq_rel);
+            NodeOfAdaptivePackedCellContainer_* work_branch_ptr = PopAllStackOfAdaptivePackedCellContainers_(WorkStackHeadPtr_);
+            if (work_branch_ptr)
+            {
+                ProcessRemainingWorkOfAPC_(work_branch_ptr, min_epoch);
+                loop_count = 0;
+                continue;
+            }
+            NodeOfAdaptivePackedCellContainer_* cleanup_branch_ptr = PopAllStackOfAdaptivePackedCellContainers_(CleanUpStackHead_);
+            if (cleanup_branch_ptr)
+            {
+                ProcessCleanUpBatchOfAdaptivePackedCellContainer_(cleanup_branch_ptr);
+                if (++loop_count > 16)//why16
+                {
+                    TryCompactRegistryOnce_();
+                    loop_count = 0;
+                }
+                continue;
+            }
+            uint64_t cur_manager_wake_counter = ManagerWakeCounter_.load(MoLoad_);
+            if (AdaptiveBackOffOfAPCManager_.IsDeepSleep())
+            {
+                ManagerWakeCounter_.wait(cur_manager_wake_counter);
+            }
+        }
+        NodeOfAdaptivePackedCellContainer_* remaining_work_ptr = PopAllStackOfAdaptivePackedCellContainers_(WorkStackHeadPtr_);
+        if (remaining_work_ptr)
+        {
+            ProcessRemainingWorkOfAPC_(remaining_work_ptr, ComputeMinThreadEpoch());
+        }
+        NodeOfAdaptivePackedCellContainer_* remaining_cleanup_ptr = PopAllStackOfAdaptivePackedCellContainers_(CleanUpStackHead_);
+        if (remaining_cleanup_ptr)
+        {
+            ProcessCleanUpBatchOfAdaptivePackedCellContainer_(remaining_cleanup_ptr);
         }
     }
     

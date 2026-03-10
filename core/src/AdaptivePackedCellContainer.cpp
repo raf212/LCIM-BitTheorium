@@ -3,7 +3,8 @@
 
 namespace PredictedAdaptedEncoding
 {
-
+    class PackedCellContainerManager;
+    
     struct AdaptivePackedCellContainer::QSBRGuard
     {
         bool IsQSBRGuardActive;
@@ -652,11 +653,23 @@ namespace PredictedAdaptedEncoding
             ThreadEpochArray_[i].store(std::numeric_limits<uint64_t>::max(), MoStoreUnSeq_);
         }
         InitZeroState_();
+
+
         if (APCContainerCfg_.RegionSize)
         {
             InitRegionIdx(APCContainerCfg_.RegionSize);
         }
-        StartBackgroundReclaimerIfNeed();
+        try 
+        {
+            PackedCellContainerManager::Instance().RegisterAdaptivePackedCellContainer(this);
+        }
+        catch (...)
+        {
+
+        }
+        MasterClockConfPtr_ = &PackedCellContainerManager::Instance().GetMasterClockAdaptivePackedCellContainerManager();
+        AdaptiveBackoffOfAPCPtr_ = &PackedCellContainerManager::Instance().GetAdaptiveBackoffOfAdaptivePackedCellContainerManager();
+        AdaptiveBackoffOfAPCPtr_->AttachMasterClockToAadaptiveBackOff(MasterClockConfPtr_);
     }
 
     void AdaptivePackedCellContainer::InitZeroState_() noexcept
@@ -671,6 +684,17 @@ namespace PredictedAdaptedEncoding
 
     void AdaptivePackedCellContainer::FreeAll() noexcept
     {
+        try 
+        {
+            PackedCellContainerManager::Instance().UnRegisterAdaptivePackedCellContainer(this);
+        }
+        catch (...)
+        {
+
+        }
+        AdaptiveBackoffOfAPCPtr_ = nullptr;
+        MasterClockConfPtr_ = nullptr;
+        
         StopBackgroundReclaimer();
         if (BackingPtr)
         {

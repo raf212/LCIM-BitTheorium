@@ -6,6 +6,7 @@
 
 #include "AtomicAdaptiveBackoff.hpp"
 #include "MasterClockConf.hpp"
+#include "PackedCellContainerManager.hpp"
 
 namespace PredictedAdaptedEncoding
 {
@@ -40,6 +41,8 @@ struct PublishResult
     size_t Index;
 };
 
+class PackedCellContainerManager;
+
 class AdaptivePackedCellContainer
 {
 public:
@@ -58,7 +61,8 @@ private:
     std::atomic<size_t> ProducerCursor_{0};
     std::atomic<size_t> ConsumerCursor_{0};
 
-    AtomicAdaptiveBackoff APCAdaptiveBackoff_;
+    AtomicAdaptiveBackoff* AdaptiveBackoffOfAPCPtr_{nullptr};
+
     enum class FinalizerKind_ : uint8_t 
     {
         NONE = 0,
@@ -80,7 +84,10 @@ private:
     std::unique_ptr<std::atomic<uint64_t>[]> ThreadEpochArray_;
     size_t ThreadEpochCapacity_{0};
     std::atomic<size_t> RetireCount_{0};
+
     static inline thread_local size_t QSBRThreadIdx_ = SIZE_MAX;
+    static inline thread_local PackedCellContainerManager::ThreadHandlePCCM  ThreadHandleAPCTL_ = {};
+
     //retire
     std::atomic<RelEntry_*> RetireHead_{nullptr};
     unsigned RetireBatchThreshold_{16};
@@ -107,30 +114,30 @@ private:
 
     inline void QSBRCurThreadRegisterIfNeed_() noexcept
     {
-        if (QSBRThreadIdx_ == SIZE_MAX)
+        if (ThreadHandleAPCTL_.QSBRIdx != SIZE_MAX && ThreadHandleAPCTL_.WaitSlotPtr != nullptr)
         {
-            (void) RegisterThreadForQSBRImplementation_();
+            return;
         }
+        ThreadHandleAPCTL_ = PackedCellContainerManager::Instance().RegisterAPCThread();
     }
 
     inline void QSBREnterCritical_() noexcept
     {
         QSBRCurThreadRegisterIfNeed_();
-        if (QSBRThreadIdx_ == SIZE_MAX)
+        if (ThreadHandleAPCTL_.QSBRIdx == SIZE_MAX)
         {
             return;
         }
-        uint64_t epoch = GlobalEpoch_.load(MoLoad_);
-        ThreadEpochArray_[QSBRThreadIdx_].store(epoch, MoStoreSeq_);
+        PackedCellContainerManager::Instance().EnterCriticalContainer(ThreadHandleAPCTL_);
     }
 
     inline void QSBRExitCritical_() noexcept
     {
-        if (QSBRThreadIdx_ == SIZE_MAX)
+        if (ThreadHandleAPCTL_.QSBRIdx == SIZE_MAX)
         {
             return;
         }
-        ThreadEpochArray_[QSBRThreadIdx_].store(std::numeric_limits<uint64_t>::max(), MoStoreSeq_);
+        PackedCellContainerManager::Instance().EnterCriticalContainer(ThreadHandleAPCTL_);
     }
 
     void RetirePushLocked_(RelEntry_* rel_entry_ptr) noexcept;
@@ -194,7 +201,6 @@ private:
 public:
     AdaptivePackedCellContainer(/* args */) noexcept :
         BackingPtr(nullptr), ContainerCapacity_(0), IsContainerOwned_(false), UsedNode_(0), APCContainerCfg_(),
-        APCAdaptiveBackoff_(AtomicAdaptiveBackoff::PCBCfg{}, PackedMode::MODE_VALUE32),
         RegionSize_(0), NumRegion_(0), MasterClockConfPtr_(nullptr)
     {}
     ~AdaptivePackedCellContainer()

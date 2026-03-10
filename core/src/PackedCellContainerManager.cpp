@@ -4,9 +4,9 @@ namespace PredictedAdaptedEncoding
 {
 #define BIT_PATTERN_THREAD_TOKEN_GENERATOR 0xA5A5A5A5u
 
-    inline PackedCellContainerManager::PackedCellContainerManager() :
+    PackedCellContainerManager::PackedCellContainerManager() :
         ThreadTableCapacity_(MaxThreads_),
-        ThreadNextIdx_(ThreadTableCapacity_),
+        ThreadNextIdxPtr_(new std::atomic<size_t>[ThreadTableCapacity_]),
         ThreadEpochArrayPtr_(new std::atomic<uint64_t>[ThreadTableCapacity_]),
         ThreadWaitSlotArrayPtr_(new std::atomic<uint64_t>[ThreadTableCapacity_]),
         MasterClockConfAPCManager_(Timer48APCManager_, 0),
@@ -16,9 +16,9 @@ namespace PredictedAdaptedEncoding
         {
             ThreadEpochArrayPtr_[i].store(THREAD_SENTINEL_, MoStoreUnSeq_);
             ThreadWaitSlotArrayPtr_[i].store(NO_VAL, MoStoreUnSeq_);
-            ThreadNextIdx_[i].store(i+1, MoStoreUnSeq_);
+            ThreadNextIdxPtr_[i].store(i+1, MoStoreUnSeq_);
         }
-        ThreadNextIdx_[ThreadTableCapacity_ - 1].store(SIZE_MAX, MoStoreUnSeq_);
+        ThreadNextIdxPtr_[ThreadTableCapacity_ - 1].store(SIZE_MAX, MoStoreUnSeq_);
         ThreadFreelistHead_.store(0, MoStoreUnSeq_);
         std::atexit([]()
         {
@@ -34,7 +34,7 @@ namespace PredictedAdaptedEncoding
         );
     }
 
-    inline PackedCellContainerManager::~PackedCellContainerManager()
+    PackedCellContainerManager::~PackedCellContainerManager()
     {
         StopPCCManager();
         if (UseNodePool_)
@@ -51,7 +51,7 @@ namespace PredictedAdaptedEncoding
         
     }
 
-    inline void PackedCellContainerManager::StartPCCManager()
+    void PackedCellContainerManager::StartPCCManager()
     {
         bool expect = false;
         if (!RunningManager_.compare_exchange_strong(expect, true, std::memory_order_acq_rel))
@@ -65,7 +65,7 @@ namespace PredictedAdaptedEncoding
         );
     }
 
-    inline void PackedCellContainerManager::StopPCCManager()
+    void PackedCellContainerManager::StopPCCManager()
     {
         bool expect = true;
         if (!RunningManager_.compare_exchange_strong(expect, false, std::memory_order_acq_rel))
@@ -86,7 +86,7 @@ namespace PredictedAdaptedEncoding
         size_t head_of_thread_freeList = ThreadFreelistHead_.load(MoLoad_);
         while (head_of_thread_freeList != SIZE_MAX)
         {
-            size_t next_thread_idx = ThreadNextIdx_[head_of_thread_freeList].load(std::memory_order_relaxed);
+            size_t next_thread_idx = ThreadNextIdxPtr_[head_of_thread_freeList].load(std::memory_order_relaxed);
             if (ThreadFreelistHead_.compare_exchange_strong(head_of_thread_freeList, next_thread_idx, EXsuccess_, EXfailure_))
             {
                 return head_of_thread_freeList;
@@ -100,7 +100,7 @@ namespace PredictedAdaptedEncoding
         size_t head_thread_freelist = ThreadFreelistHead_.load(MoLoad_);
         do
         {
-            ThreadNextIdx_[idx].store(head_thread_freelist, MoStoreUnSeq_);
+            ThreadNextIdxPtr_[idx].store(head_thread_freelist, MoStoreUnSeq_);
         } while (!ThreadFreelistHead_.compare_exchange_weak(head_thread_freelist, idx, std::memory_order_release, std::memory_order_relaxed));
         
     }
@@ -159,7 +159,7 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    void PackedCellContainerManager::EnterCriticlContainer(const ThreadHandlePCCM& thread_handle) noexcept
+    void PackedCellContainerManager::EnterCriticalContainer(const ThreadHandlePCCM& thread_handle) noexcept
     {
         if (thread_handle.QSBRIdx == SIZE_MAX)
         {
@@ -380,6 +380,11 @@ namespace PredictedAdaptedEncoding
             {
                 continue;
             }
+            if (value_thread_epoch < min_epoch)
+            {
+                min_epoch = value_thread_epoch;
+            }
+            
         }
         return min_epoch;
     }

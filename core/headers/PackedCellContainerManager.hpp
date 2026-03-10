@@ -1,4 +1,5 @@
 
+#pragma once 
 #include "AtomicAdaptiveBackoff.hpp"
 # include <functional>
 
@@ -26,7 +27,7 @@ namespace PredictedAdaptedEncoding
             void StopPCCManager();
             ThreadHandlePCCM RegisterAPCThread();
             void UnRegisterAPCThread(const ThreadHandlePCCM& thread_handle) noexcept;
-            void EnterCriticlContainer(const ThreadHandlePCCM& thread_handle) noexcept;
+            void EnterCriticalContainer(const ThreadHandlePCCM& thread_handle) noexcept;
             void ExtitCriticalContainer(const ThreadHandlePCCM& thread_handle) noexcept;
 
             inline void NotifyAPCThread(const ThreadHandlePCCM& thread_handle, uint64_t thread_token) noexcept
@@ -34,7 +35,7 @@ namespace PredictedAdaptedEncoding
                 NotifySlotIdxOfAPC(thread_handle.QSBRIdx, thread_token);
             }
 
-            inline void NotifySlotIdxOfAPC(size_t idx, uint64_t thread_token) noexcept;
+            void NotifySlotIdxOfAPC(size_t idx, uint64_t thread_token) noexcept;
             void NotifyAllActiveAPCThreads(uint64_t thread_token) noexcept;
 
             void RegisterAdaptivePackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
@@ -87,10 +88,11 @@ namespace PredictedAdaptedEncoding
             std::atomic<NodeOfAdaptivePackedCellContainer_*> CleanUpStackHead_{nullptr};
 
             std::atomic<size_t>ThreadFreelistHead_{SIZE_MAX};
-            std::vector<std::atomic<size_t>> ThreadNextIdx_;
+            size_t  ThreadTableCapacity_{0};
+            size_t MaxThreads_ = 4096;
+            std::unique_ptr<std::atomic<size_t>[]> ThreadNextIdxPtr_;
             std::unique_ptr<std::atomic<uint64_t>[]> ThreadEpochArrayPtr_;
             std::unique_ptr<std::atomic<uint64_t>[]> ThreadWaitSlotArrayPtr_;
-            size_t  ThreadTableCapacity_{0};
             std::atomic<NodeOfAdaptivePackedCellContainer_*> RegistryHeadOfAPCNodesPtr_{nullptr};
             std::atomic<NodeOfAdaptivePackedCellContainer_*> NodePoolHeadOfAPC_{nullptr};
             bool UseNodePool_ = false;
@@ -103,7 +105,6 @@ namespace PredictedAdaptedEncoding
             Timer48 Timer48APCManager_;
             MasterClockConf MasterClockConfAPCManager_;
             AtomicAdaptiveBackoff AdaptiveBackOffOfAPCManager_;
-            size_t MaxThreads_ = 4096;
             std::atomic<size_t> UnregistersSinceCompact_{0};
             size_t CompactionTriggerThreshold_ = 1024;
             std::atomic<uint64_t> ManagerWakeCounter_{0};

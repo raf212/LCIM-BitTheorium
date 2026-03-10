@@ -118,7 +118,7 @@ struct Timer48
             {
                 return false;
             }
-            size_t bytes = sizeof(std::atomic<uint64_t>) * max_slots;
+            size_t bytes = sizeof(std::atomic<packed64_t>) * max_slots;
 
             void* mem = AllocNW::AlignedAllocONnode(allignment, bytes, UsedNode);
             if (!mem)

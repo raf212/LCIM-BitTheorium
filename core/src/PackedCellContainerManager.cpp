@@ -43,6 +43,7 @@ namespace PredictedAdaptedEncoding
             while (node_of_apc_ptr)
             {
                 NodeOfAdaptivePackedCellContainer_* next_node_of_apc_ptr = node_of_apc_ptr->StackNextPtr.load(std::memory_order_relaxed);
+                node_of_apc_ptr->~NodeOfAdaptivePackedCellContainer_();
                 ::operator delete(static_cast<void*>(node_of_apc_ptr));
                 node_of_apc_ptr = next_node_of_apc_ptr;
             }
@@ -210,6 +211,7 @@ namespace PredictedAdaptedEncoding
         for (size_t i = 0; i < pool_size_of_apc; i++)
         {
             NodeOfAdaptivePackedCellContainer_* node_of_apc_ptr = static_cast<NodeOfAdaptivePackedCellContainer_*>(::operator new(sizeof(NodeOfAdaptivePackedCellContainer_)));
+            new (node_of_apc_ptr) NodeOfAdaptivePackedCellContainer_();
             node_of_apc_ptr->APCContainerPtr = nullptr;
             node_of_apc_ptr->ReclaimationNeededAPC.store(NO_VAL, MoStoreUnSeq_);
             node_of_apc_ptr->RequestedBranchedAPC.store(NO_VAL, MoStoreUnSeq_);
@@ -338,13 +340,14 @@ namespace PredictedAdaptedEncoding
             if (head_registry_ptr->APCContainerPtr == apc_ptr)
             {
                 uint32_t expected = 0;
-                if (head_registry_ptr->RequestedBranchedAPC.compare_exchange_strong(expected, 1, EXsuccess_, EXfailure_))
+                if (head_registry_ptr->RequestedBranchedAPC.compare_exchange_strong(expected, 1u, EXsuccess_, EXfailure_))
                 {
                     PushANodeAtHeadInStackOfAdaptivePackedCellContainer_(WorkStackHeadPtr_, head_registry_ptr);
                     ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
                     ManagerWakeCounter_.notify_all();
                 }
             }
+            head_registry_ptr = head_registry_ptr->RegistryNextPtr;
         }
     }
 
@@ -367,6 +370,7 @@ namespace PredictedAdaptedEncoding
                     ManagerWakeCounter_.notify_all();
                 }
             }
+            head_registry_ptr = head_registry_ptr->RegistryNextPtr;
         }
     }
 

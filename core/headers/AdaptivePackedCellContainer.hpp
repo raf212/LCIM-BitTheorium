@@ -137,7 +137,7 @@ private:
         {
             return;
         }
-        PackedCellContainerManager::Instance().EnterCriticalContainer(ThreadHandleAPCTL_);
+        PackedCellContainerManager::Instance().ExtitCriticalContainer(ThreadHandleAPCTL_);
     }
 
     void RetirePushLocked_(RelEntry_* rel_entry_ptr) noexcept;

@@ -899,7 +899,7 @@ namespace PredictedAdaptedEncoding
                 }
                 else
                 {
-                    keep_head_ptr->NextPtr.store(current_relentry_ptr, MoStoreUnSeq_);
+                    keep_tail_ptr->NextPtr.store(current_relentry_ptr, MoStoreUnSeq_);
                     keep_tail_ptr = current_relentry_ptr;
                 }
                 ++track_count;                

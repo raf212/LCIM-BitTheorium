@@ -1,5 +1,6 @@
 #include "AdaptivePackedCellContainer.hpp"
 #include "PackedCellContainerManager.hpp"
+#include <iostream>
 
 namespace PredictedAdaptedEncoding
 {
@@ -387,11 +388,6 @@ namespace PredictedAdaptedEncoding
         uint64_t full_ptrval = reinterpret_cast<uint64_t>(object_ptr);
         uint32_t low32_half = static_cast<uint32_t>(full_ptrval & MaskBits(VALBITS));
         uint32_t high32_half = static_cast<uint32_t>((full_ptrval >> VALBITS) & MaskBits(VALBITS));
-        if (APCLogger_) {
-            char buf[128];
-            sprintf_s (buf, "DEBUG publish halves: low=0x%08x high=0x%08x", low32_half, high32_half);
-            APCLogger_("PublishHeapPtrPair_", buf);
-        }
         size_t next_sequence = NextProducerSequence();
         if (next_sequence == SIZE_MAX)
         {
@@ -431,11 +427,6 @@ namespace PredictedAdaptedEncoding
                     else
                     {
                         val32_t tail_ptr_val32 = high32_half;
-                        if (APCLogger_) {
-                            char buf[128];
-                            sprintf_s (buf, "DEBUG tail_ptr_val32 stored: 0x%08x (masked->0x%08x)", (uint32_t)tail_ptr_val32, (uint32_t)(tail_ptr_val32));
-                            APCLogger_("PublishHeapPtrPair_", buf);
-                        }
                         strl16_t strl_tail = MakeSTRL4_t(ZERO_PRIORITY, ST_PUBLISHED, rel_mask_with_ptrflag, RELOFFSET_TAIL_PTR, static_cast<unsigned>(PackedMode::MODE_VALUE32));
                         packed64_t tail_packed = PackedCell64_t::ComposeValue32u_64(tail_ptr_val32, 0u, strl_tail);
                         BackingPtr[tail].store(tail_packed, MoStoreSeq_);
@@ -622,22 +613,17 @@ namespace PredictedAdaptedEncoding
 
     void AdaptivePackedCellContainer::InitOwned(size_t capacity, int node, ContainerConf container_cfg, size_t alignment)
     {
+        (void)node, (void)alignment;
         FreeAll();
         if (capacity == 0)
         {
             throw std::invalid_argument("Capacity == 0");
         }
-        size_t capacity_in_bytes = sizeof(std::atomic<packed64_t>) * capacity;
-        void* memory_ptr = AllocNW::AlignedAllocONnode(alignment, capacity_in_bytes, node);
-        if (!memory_ptr)
-        {
-            throw std::bad_alloc();
-        }
-        BackingPtr = reinterpret_cast<std::atomic<packed64_t>*>(memory_ptr);
+        BackingPtr = new std::atomic<packed64_t>[capacity];
         packed64_t idle_cell = PackedCell64_t::MakeInitialPacked(container_cfg.InitialMode);
         for (size_t i = 0; i < capacity; i++)
         {
-            new (&BackingPtr[i]) std::atomic<packed64_t>(idle_cell);
+            BackingPtr[i].store(idle_cell, MoStoreUnSeq_);
         }
         ContainerCapacity_ = capacity;
         IsContainerOwned_ = true;
@@ -659,14 +645,15 @@ namespace PredictedAdaptedEncoding
         {
             InitRegionIdx(APCContainerCfg_.RegionSize);
         }
-        try 
+        try
         {
             PackedCellContainerManager::Instance().RegisterAdaptivePackedCellContainer(this);
         }
-        catch (...)
+        catch(const std::exception& e)
         {
-
+            std::cerr << e.what() << '\n';
         }
+        
         MasterClockConfPtr_ = &PackedCellContainerManager::Instance().GetMasterClockAdaptivePackedCellContainerManager();
         AdaptiveBackoffOfAPCPtr_ = &PackedCellContainerManager::Instance().GetAdaptiveBackoffOfAdaptivePackedCellContainerManager();
         AdaptiveBackoffOfAPCPtr_->AttachMasterClockToAadaptiveBackOff(MasterClockConfPtr_);
@@ -700,12 +687,7 @@ namespace PredictedAdaptedEncoding
         {
             if (IsContainerOwned_)
             {
-                for (size_t i = 0; i < ContainerCapacity_; i++)
-                {
-                    BackingPtr[i].~atomic<packed64_t>();
-                }
-                size_t container_size_bytes = sizeof(std::atomic<packed64_t>) * ContainerCapacity_;
-                AllocNW::FreeONNode(static_cast<void*>(BackingPtr), container_size_bytes);
+                delete[] BackingPtr;
             }
             BackingPtr = nullptr;
         }

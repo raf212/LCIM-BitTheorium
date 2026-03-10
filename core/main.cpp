@@ -29,11 +29,11 @@ int main()
 {
 #ifdef _MSC_VER
     // enable leak check and aggressive heap consistency checks
-    int flags = _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG);
+    int flags = _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG); 
     flags |= _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF | _CRTDBG_CHECK_ALWAYS_DF;
     _CrtSetDbgFlag(flags);
     // optionally break when a particular allocation number is hit:
-    // _CrtSetBreakAlloc(12345);
+    // _CrtSetBreakAlloc(280);
 #endif
     constexpr size_t CAP = 256;
     constexpr size_t N_ITEMS = 128;
@@ -51,7 +51,10 @@ int main()
     }
     catch(const std::exception& e)
     {
-        std::cerr << "producer_raw_APC.InitOwned() == failed" << e.what() << '\n';
+        std::cerr << "producer_raw_APC.InitOwned() == failed ->" << e.what() << '\n';
+        std::cerr << "DEBUG: sizeof(std::atomic<packed64_t>)=" << sizeof(std::atomic<packed64_t>)
+                << " sizeof(packed64_t)=" << sizeof(packed64_t)
+                << " requested capacity=" << CAP << "\n";
         return 1;
     }
     

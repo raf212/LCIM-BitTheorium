@@ -110,6 +110,7 @@ struct Timer48
 
         bool InitMasterClockSlots(size_t max_slots, size_t allignment = 64)
         {
+            (void)allignment;
             if (max_slots == 0)
             {
                 throw std::invalid_argument("MAX SLOTS == 0");
@@ -118,14 +119,7 @@ struct Timer48
             {
                 return false;
             }
-            size_t bytes = sizeof(std::atomic<packed64_t>) * max_slots;
-
-            void* mem = AllocNW::AlignedAllocONnode(allignment, bytes, UsedNode);
-            if (!mem)
-            {
-                throw std::bad_alloc();
-            }
-            MasterClockSlotsPtr = reinterpret_cast<std::atomic<packed64_t>*>(mem);
+            MasterClockSlotsPtr = new std::atomic<packed64_t>[max_slots];
             SlotLast48_.reset(new std::atomic<uint64_t>[max_slots]);
             SlotEpochHigh_.reset(new std::atomic<uint64_t>[max_slots]);
             uint64_t current_now_48 = MasterTimer48.NowTicks();
@@ -134,7 +128,7 @@ struct Timer48
             uint64_t initial_epoch = current_now_48 / window;
             for (size_t i = 0; i < max_slots; i++)
             {
-                new (&MasterClockSlotsPtr[i]) std::atomic<packed64_t>(init_clk48_packed);
+                MasterClockSlotsPtr[i].store(init_clk48_packed, MoStoreSeq_);
                 SlotLast48_[i].store(current_now_48, MoStoreSeq_);
                 SlotEpochHigh_[i].store(initial_epoch, MoStoreSeq_);
             }
@@ -153,12 +147,7 @@ struct Timer48
             }
             if (OwnsSlots_)
             {
-                for (size_t i = 0; i < MasterCLKCapacity; i++)
-                {
-                    std::destroy_at(&MasterClockSlotsPtr[i]);
-                }
-                size_t bytes = sizeof(std::atomic<packed64_t>) * MasterCLKCapacity;
-                AllocNW::FreeONNode(static_cast<void*>(MasterClockSlotsPtr), bytes);
+                delete[] MasterClockSlotsPtr;
             }
             MasterClockSlotsPtr = nullptr;
             MasterCLKCapacity = 0;

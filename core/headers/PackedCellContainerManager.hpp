@@ -19,8 +19,11 @@ namespace PredictedAdaptedEncoding
 
             static PackedCellContainerManager& Instance()
             {
-                static PackedCellContainerManager pcc_mannager;
-                return pcc_mannager;
+                // intentionally leaked singleton to avoid static-destruction order problems
+                static PackedCellContainerManager* inst = []() {
+                    return new PackedCellContainerManager();
+                }();
+                return *inst;
             }
 
             void StartPCCManager();

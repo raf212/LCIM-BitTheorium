@@ -654,9 +654,19 @@ namespace PredictedAdaptedEncoding
             std::cerr << e.what() << '\n';
         }
         
-        MasterClockConfPtr_ = &PackedCellContainerManager::Instance().GetMasterClockAdaptivePackedCellContainerManager();
-        AdaptiveBackoffOfAPCPtr_ = &PackedCellContainerManager::Instance().GetAdaptiveBackoffOfAdaptivePackedCellContainerManager();
-        AdaptiveBackoffOfAPCPtr_->AttachMasterClockToAadaptiveBackOff(MasterClockConfPtr_);
+        // attach manager-provided master clock and adaptive backoff only after allocations succeed
+        try {
+            MasterClockConfPtr_ = &PackedCellContainerManager::Instance().GetMasterClockAdaptivePackedCellContainerManager();
+            AdaptiveBackoffOfAPCPtr_ = &PackedCellContainerManager::Instance().GetAdaptiveBackoffOfAdaptivePackedCellContainerManager();
+            if (AdaptiveBackoffOfAPCPtr_ && MasterClockConfPtr_) {
+                AdaptiveBackoffOfAPCPtr_->AttachMasterClockToAadaptiveBackOff(MasterClockConfPtr_);
+            }
+        } catch (...) {
+            // best-effort; do not throw for integration issues
+            MasterClockConfPtr_ = nullptr;
+            AdaptiveBackoffOfAPCPtr_ = nullptr;
+            if (APCLogger_) APCLogger_("InitOwned", "Attach masterclock/backoff failed (non-fatal)");
+        }
     }
 
     void AdaptivePackedCellContainer::InitZeroState_() noexcept

@@ -91,8 +91,8 @@ namespace PredictedAdaptedEncoding
             std::atomic<NodeOfAdaptivePackedCellContainer_*> CleanUpStackHead_{nullptr};
 
             std::atomic<size_t>ThreadFreelistHead_{SIZE_MAX};
-            size_t  ThreadTableCapacity_{0};
             size_t MaxThreads_ = 4096;
+            size_t  ThreadTableCapacity_{0};
             std::unique_ptr<std::atomic<size_t>[]> ThreadNextIdxPtr_;
             std::unique_ptr<std::atomic<uint64_t>[]> ThreadEpochArrayPtr_;
             std::unique_ptr<std::atomic<uint64_t>[]> ThreadWaitSlotArrayPtr_;

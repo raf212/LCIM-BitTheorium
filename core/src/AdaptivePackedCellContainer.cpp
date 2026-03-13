@@ -451,7 +451,7 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    std::optional<uint64_t>AdaptivePackedCellContainer::TryAssemblePairedPtr_(size_t probable_idx, RelOffsetMode& ptr_position) const noexcept
+    std::optional<uint64_t>AdaptivePackedCellContainer::TryAssemblePairedPtr_(size_t probable_idx, RelOffsetMode& ptr_position_for_easy_return) const noexcept
     {
         if (!IfIdxValid_(probable_idx))
         {
@@ -478,7 +478,7 @@ namespace PredictedAdaptedEncoding
             val32_t head_val32 = PackedCell64_t::ExtractValue32(cell_data);
             val32_t tail_val32 = PackedCell64_t::ExtractValue32(tail_cell_data);
             uint64_t assembeled = (static_cast<uint64_t>(tail_val32) << VALBITS) | (static_cast<uint64_t>(head_val32));
-            ptr_position = RelOffsetMode::REL_OFFSET_HEAD_PTR;
+            ptr_position_for_easy_return = RelOffsetMode::REL_OFFSET_HEAD_PTR;
             return assembeled;
             
         }
@@ -501,7 +501,7 @@ namespace PredictedAdaptedEncoding
             val32_t tail_val32 = PackedCell64_t::ExtractValue32(cell_data);
             val32_t head_val32 = PackedCell64_t::ExtractValue32(head_cell_data);
             uint64_t assembeled = (static_cast<uint64_t>(tail_val32) << VALBITS) | (static_cast<uint64_t>(head_val32));
-            ptr_position = RelOffsetMode::RELOFFSET_TAIL_PTR;
+            ptr_position_for_easy_return = RelOffsetMode::RELOFFSET_TAIL_PTR;
             return assembeled;
         }
         else
@@ -657,7 +657,7 @@ namespace PredictedAdaptedEncoding
         // attach manager-provided master clock and adaptive backoff only after allocations succeed
         try {
             MasterClockConfPtr_ = &PackedCellContainerManager::Instance().GetMasterClockAdaptivePackedCellContainerManager();
-            AdaptiveBackoffOfAPCPtr_ = &PackedCellContainerManager::Instance().GetAdaptiveBackoffOfAdaptivePackedCellContainerManager();
+            AdaptiveBackoffOfAPCPtr_ = &PackedCellContainerManager::Instance().GetManagersAdaptiveBackoff();
             if (AdaptiveBackoffOfAPCPtr_ && MasterClockConfPtr_) {
                 AdaptiveBackoffOfAPCPtr_->AttachMasterClockToAadaptiveBackOff(MasterClockConfPtr_);
             }
@@ -916,6 +916,35 @@ namespace PredictedAdaptedEncoding
                 TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
             }
         }
+    }
+
+    bool AdaptivePackedCellContainer::PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries)
+    {
+        int publish_attempt = 0;
+
+        while (publish_attempt <= max_retries)
+        {
+            PublishResult publish_result = PublishHeapPtrPair_(target_publishable_ptr, REL_NONE);
+            if (publish_result.ResultStatus == PublishStatus::OK)
+            {
+                return true;
+            }
+            packed64_t observed = 0;
+            if (BackingPtr && ContainerCapacity_ > 0)
+            {
+                size_t idx = (
+                    std::hash<std::thread::id>{}(std::this_thread::get_id()) % ContainerCapacity_
+                );
+                observed = BackingPtr[idx].load(MoLoad_);
+            }
+            if (APCManagerPtr_)
+            {
+                auto& backoff = APCManagerPtr_->GetManagersAdaptiveBackoff();
+                backoff.AdaptiveBackOffPacked(observed);
+            }
+            ++publish_attempt;
+        }
+        return false;
     }
 
 

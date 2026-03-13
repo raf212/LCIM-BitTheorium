@@ -3,6 +3,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <cstdio>
+#include <iostream>
 
 #include "AtomicAdaptiveBackoff.hpp"
 #include "MasterClockConf.hpp"
@@ -51,9 +52,9 @@ public:
     struct QSBRGuard;
     
     struct RelEntryGuard;
-    size_t ContainerCapacity_{0};
 
 private:
+    size_t ContainerCapacity_{0};
     int UsedNode_ = 0;
     bool IsContainerOwned_{false};
     ContainerConf APCContainerCfg_;
@@ -107,6 +108,7 @@ private:
     //mc
     MasterClockConf* MasterClockConfPtr_{nullptr};
 
+    PackedCellContainerManager* APCManagerPtr_{nullptr};
 
     uint64_t ComputeMinThreadEpoch() const noexcept;
 
@@ -201,7 +203,7 @@ private:
 public:
     AdaptivePackedCellContainer(/* args */) noexcept :
         BackingPtr(nullptr), ContainerCapacity_(0), IsContainerOwned_(false), UsedNode_(0), APCContainerCfg_(),
-        RegionSize_(0), NumRegion_(0), MasterClockConfPtr_(nullptr)
+        RegionSize_(0), NumRegion_(0), MasterClockConfPtr_(nullptr), APCManagerPtr_(nullptr)
     {}
     ~AdaptivePackedCellContainer()
     {
@@ -226,6 +228,20 @@ public:
             return SIZE_MAX;
         }
         return ProducerCursor_.fetch_add(number_of_slots, std::memory_order_relaxed);
+    }
+
+    size_t GetOrSetContainerCapacity(std::optional<size_t>container_capacity_of_apc = std::nullopt) noexcept
+    {
+        if (container_capacity_of_apc)
+        {
+            ContainerCapacity_ = *container_capacity_of_apc;
+        }
+        return ContainerCapacity_;
+    }
+
+    size_t OccupancyAddSubOrGetAfterChange(int amount_should_be_changed_Use_negetive_for_decrese_positive_to_increase = 0)
+    {
+        return Occupancy_.fetch_add(amount_should_be_changed_Use_negetive_for_decrese_positive_to_increase) + amount_should_be_changed_Use_negetive_for_decrese_positive_to_increase;
     }
 
     size_t NextProducerSequence() noexcept;
@@ -267,7 +283,25 @@ public:
 
     }
     void TryReclaimRetiredWithMinEpoch(uint64_t min_epoch) noexcept;
+
+    void SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager)
+    {
+        if (pointer_of_global_apc_manager)
+        {
+            try
+            {
+                pointer_of_global_apc_manager->StartPCCManager();
+                APCManagerPtr_ = pointer_of_global_apc_manager;
+            }
+            catch(const std::exception& e)
+            {
+                std::cerr << e.what() << '\n';
+            }
+        }
+    }
+
+    bool PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries = 100);
 };
 
 
-}
+}  

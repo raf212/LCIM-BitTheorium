@@ -53,9 +53,14 @@ namespace PredictedAdaptedEncoding
                 return MasterClockConfAPCManager_;
             }
 
-            AtomicAdaptiveBackoff& GetAdaptiveBackoffOfAdaptivePackedCellContainerManager() noexcept
+            AtomicAdaptiveBackoff& GetManagersAdaptiveBackoff() noexcept
             {
                 return AdaptiveBackOffOfAPCManager_;
+            }
+
+            AtomicAdaptiveBackoff::PCBDecision GetCellsAdaptiveBackoffFromManager(packed64_t packed_cell) noexcept
+            {
+                return AdaptiveBackOffOfAPCManager_.AdaptiveBackOffPacked(packed_cell);
             }
 
             void SetLogger(std::function<void(const char*, const char*)> logger_for_apc_and_mannager) noexcept

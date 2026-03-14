@@ -14,8 +14,8 @@
 
 using namespace PredictedAdaptedEncoding;
 
-constexpr uint64_t NTH_ELEMENT = 50000ull;
-constexpr uint64_t BLOCK_SIZE = 200000ull;
+constexpr uint64_t NTH_ELEMENT = 5000000ull;
+constexpr uint64_t BLOCK_SIZE = 20000ull;
 constexpr unsigned PRODUCER_COUNT = 2u;
 constexpr unsigned CONSUMER_COUNT = 8u;
 constexpr size_t MIN_APC_CAPACITY = 4096;
@@ -53,12 +53,9 @@ static void SegmentedSiveSimplified(uint64_t left, uint64_t right, std::vector<u
         if (mark[p])
         {
             small.push_back(p);
-            if (p * p <= limit)
+            for (uint64_t q = p * p; q <= limit; q +=p)
             {
-                for (uint64_t q = p * p; q <= high; q++)
-                {
-                    mark[q] = 0;
-                }
+                mark[q] = 0;
             }
         }
     }
@@ -109,12 +106,15 @@ int main()
     task_cfg.InitialMode = PackedMode::MODE_VALUE32;
     TASK_APC.InitOwned(apc_capacity, REL_NODE0, task_cfg);
     TASK_APC.SetManagerForGlobalAPC(&apc_mannager_prime_test);
+    apc_mannager_prime_test.RequestForReclaimationOfTheAdaptivePackedCellContainer(&TASK_APC);
 
     AdaptivePackedCellContainer RESULT_APC;
     ContainerConf result_cfg = task_cfg;
     result_cfg.ProducerBlockSize = 32;
     RESULT_APC.InitOwned(RESULT_APC_CAPACITY, REL_NODE0, result_cfg);
     RESULT_APC.SetManagerForGlobalAPC(&apc_mannager_prime_test);
+    apc_mannager_prime_test.RequestForReclaimationOfTheAdaptivePackedCellContainer(&RESULT_APC);
+
 
     std::mutex collector_mutex;
     std::vector<uint64_t> all_primes_array;
@@ -133,7 +133,7 @@ int main()
         {
             uint64_t high = task_ranges[i].second;
             uint64_t low = task_ranges[i].first;
-            RangedTaskConf* range_task_conf_ptr = new RangedTaskConf(high, low);
+            RangedTaskConf* range_task_conf_ptr = new RangedTaskConf(low, high);
             bool ok = TASK_APC.PublishHeapPtrWithAdaptiveBackoff(reinterpret_cast<void*>(range_task_conf_ptr));
             if (!ok)
             {
@@ -265,20 +265,20 @@ int main()
                 }
                 else if(current_position == RelOffsetMode::RELOFFSET_TAIL_PTR)
                 {
-                    head_idx = (idx + task_apc_capacity + 1) % task_apc_capacity;
+                    head_idx = (idx + task_apc_capacity - 1) % task_apc_capacity;
                 }
                 else
                 {
                     continue;
                 }
-
-                packed64_t current_head = TASK_APC.BackingPtr[idx].load(MoLoad_);
+                
+                packed64_t current_head = TASK_APC.BackingPtr[head_idx].load(MoLoad_);
                 tag8_t locality_of_current_head = PackedCell64_t::ExtractLocalityFromPacked(current_head);
                 if(locality_of_current_head != ST_PUBLISHED)
                 {
                     continue;
                 }
-                packed64_t claimed_current_head = PackedCell64_t::SetLocalityInPacked(current_head, ST_PROCESSING);
+                packed64_t claimed_current_head = PackedCell64_t::SetLocalityInPacked(current_head, ST_CLAIMED);
                 packed64_t expected = current_head;
                 if (!TASK_APC.BackingPtr[head_idx].compare_exchange_strong(expected, claimed_current_head, EXsuccess_, EXfailure_))
                 {
@@ -286,7 +286,7 @@ int main()
                 }
                 size_t tail_idx = (head_idx + 1) % task_apc_capacity;
                 packed64_t current_tail = TASK_APC.BackingPtr[tail_idx].load(MoLoad_);
-                packed64_t claimed_tail = PackedCell64_t::SetLocalityInPacked(current_tail, ST_PROCESSING);
+                packed64_t claimed_tail = PackedCell64_t::SetLocalityInPacked(current_tail, ST_CLAIMED);
                 while (!TASK_APC.BackingPtr[tail_idx].compare_exchange_strong(current_tail, claimed_tail, EXsuccess_, EXfailure_))
                 {
                     apc_mannager_prime_test.GetCellsAdaptiveBackoffFromManager(current_tail);

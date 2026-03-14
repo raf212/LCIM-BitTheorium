@@ -6,13 +6,15 @@
 #include <atomic>
 #include <cassert>
 #include <deque>
+#include <algorithm>
+#include <cmath>
 
 #include "AdaptivePackedCellContainer.hpp"
 #include "PackedCellContainerManager.hpp"
 
 using namespace PredictedAdaptedEncoding;
 
-constexpr uint64_t NTH_ELEMENT = 5000000ull;
+constexpr uint64_t NTH_ELEMENT = 50000ull;
 constexpr uint64_t BLOCK_SIZE = 200000ull;
 constexpr unsigned PRODUCER_COUNT = 2u;
 constexpr unsigned CONSUMER_COUNT = 8u;
@@ -53,7 +55,7 @@ static void SegmentedSiveSimplified(uint64_t left, uint64_t right, std::vector<u
             small.push_back(p);
             if (p * p <= limit)
             {
-                for (uint64_t q = p * p; p <= high; p++)
+                for (uint64_t q = p * p; q <= high; q++)
                 {
                     mark[q] = 0;
                 }
@@ -62,22 +64,25 @@ static void SegmentedSiveSimplified(uint64_t left, uint64_t right, std::vector<u
     }
     for (uint64_t p : small)
     {
-        uint64_t start = (low + p - 1) / (p * p);
+        uint64_t start = std::max(p * p, (uint64_t)(std::ceil((double)low / p) * p));
         if (start < p * p)
         {
             start = p * p;
         }
-        for (uint64_t j = start; j < high; j +=p)
+        for (uint64_t j = start; j <= high; j +=p)
         {
             is_prime[j - low] = 0;
         }
     }
     for (uint64_t i = 0; i < width; i++)
     {
-        uint64_t value = low + i;
-        if (value >= 2)
+        if (is_prime[i])
         {
-            primes_out.push_back(value);
+            uint64_t value = low + i;
+            if (value >= 2)
+            {
+                primes_out.push_back(value);
+            }
         }
     }
 }
@@ -89,9 +94,9 @@ int main()
     apc_mannager_prime_test.StartPCCManager();
 
     std::vector<std::pair<uint64_t, uint64_t>> task_ranges;
-    for (size_t lo = 0; lo <= NTH_ELEMENT; lo += BLOCK_SIZE)
+    for (size_t lo = 2; lo <= NTH_ELEMENT; lo += BLOCK_SIZE)
     {
-        uint64_t hi = std::min(NTH_ELEMENT, lo + BLOCK_SIZE + 1);
+        uint64_t hi = std::min(NTH_ELEMENT, lo + BLOCK_SIZE - 1);
         task_ranges.emplace_back(lo, hi);
     }
     
@@ -126,8 +131,8 @@ int main()
         size_t end_idx = (task_ranges.size() * (producer_id + 1)) / PRODUCER_COUNT;
         for (size_t i = start_idx ; i < end_idx; i++)
         {
-            uint64_t high = task_ranges[i].first;
-            uint64_t low = task_ranges[i].second;
+            uint64_t high = task_ranges[i].second;
+            uint64_t low = task_ranges[i].first;
             RangedTaskConf* range_task_conf_ptr = new RangedTaskConf(high, low);
             bool ok = TASK_APC.PublishHeapPtrWithAdaptiveBackoff(reinterpret_cast<void*>(range_task_conf_ptr));
             if (!ok)
@@ -183,7 +188,6 @@ int main()
                     all_primes_array.insert(all_primes_array.end(), vector_ptr->begin(), vector_ptr->end());
                 }
                 //is there any way to autometically rfetire based on 16 bit clock by mannager ??
-                delete vector_ptr;
                 RESULT_APC.RetirePairedPtrAtIdx_(head_idx);
                 did_work = true;
             }//end scan
@@ -215,7 +219,7 @@ int main()
             apc_mannager_prime_test.UnRegisterAPCThread(thread_handle_consumer);
             return;
         }
-        size_t scan_offset = worker_id / task_apc_capacity;
+        size_t scan_offset = worker_id % task_apc_capacity;
         while (true)
         {
             bool did_work = false;
@@ -283,7 +287,7 @@ int main()
                 size_t tail_idx = (head_idx + 1) % task_apc_capacity;
                 packed64_t current_tail = TASK_APC.BackingPtr[tail_idx].load(MoLoad_);
                 packed64_t claimed_tail = PackedCell64_t::SetLocalityInPacked(current_tail, ST_PROCESSING);
-                while (!TASK_APC.BackingPtr->compare_exchange_strong(current_tail, claimed_tail, EXsuccess_, EXfailure_))
+                while (!TASK_APC.BackingPtr[tail_idx].compare_exchange_strong(current_tail, claimed_tail, EXsuccess_, EXfailure_))
                 {
                     apc_mannager_prime_test.GetCellsAdaptiveBackoffFromManager(current_tail);
                     continue;
@@ -311,7 +315,6 @@ int main()
 
                 std::vector<uint64_t>* local_primes = new std::vector<uint64_t>();
                 SegmentedSiveSimplified(range_task_ptr->StartingPoint, range_task_ptr->EndPoint, *local_primes);
-                delete range_task_ptr;
                 TASK_APC.RetirePairedPtrAtIdx_(head_idx);
                 if (local_primes->size() > SORT_OFFLOAD_SIZE)
                 {

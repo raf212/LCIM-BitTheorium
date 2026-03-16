@@ -12,6 +12,8 @@
 #include "AdaptivePackedCellContainer.hpp"
 #include "PackedCellContainerManager.hpp"
 
+#define FIRST_PRIME 2u
+
 using namespace PredictedAdaptedEncoding;
 
 constexpr uint64_t NTH_ELEMENT = 5000000ull;
@@ -37,7 +39,7 @@ struct RangedTaskConf
 
 static void SegmentedSiveSimplified(uint64_t left, uint64_t right, std::vector<uint64_t>& primes_out)
 {
-    if (right < 2 || left > right)
+    if (right < FIRST_PRIME || left > right)
     {
         return;
     }
@@ -48,7 +50,7 @@ static void SegmentedSiveSimplified(uint64_t left, uint64_t right, std::vector<u
     uint64_t limit = static_cast<uint64_t>(std::sqrt(high)) + 1;
     std::vector<char> mark(limit +1, 1);
     std::vector<uint64_t> small;
-    for (uint64_t p = 2; p <= limit; p++)
+    for (uint64_t p = FIRST_PRIME; p <= limit; p++)
     {
         if (mark[p])
         {
@@ -84,14 +86,38 @@ static void SegmentedSiveSimplified(uint64_t left, uint64_t right, std::vector<u
     }
 }
 
+struct StopWatch
+{
+    decltype(std::chrono::steady_clock::now()) StartStopWatch_;
+    StopWatch() noexcept :
+        StartStopWatch_(std::chrono::steady_clock::now())
+    {}
+    void ResetStopWatch() noexcept 
+    {
+        StartStopWatch_ = std::chrono::steady_clock::now();
+    }
+    uint64_t ElapsedMicroSecond() const noexcept
+    {
+        return static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - StartStopWatch_).count()
+        );
+    }
+};
+
+
 int main()
 {
-    std::cout<< "AdaptivePackedCellContainer + Manager + AtomicAdaptiveBackoff :: Prime number find and sort test\n";
+    std::ios::sync_with_stdio(true);
+    std ::cout.setf(std::ios::unitbuf);
+    std::cerr.setf(std::ios::unitbuf);
+
+    std::cout << "AdaptivePackedCellContainer + Manager + AtomicAdaptiveBackoff :: Prime number find and sort test\n";
+    std::cout << "Finding Upto Element : " << NTH_ELEMENT << ", Eack Block Size : " << BLOCK_SIZE << "\n";
     PackedCellContainerManager& apc_mannager_prime_test = PackedCellContainerManager::Instance();
     apc_mannager_prime_test.StartPCCManager();
 
     std::vector<std::pair<uint64_t, uint64_t>> task_ranges;
-    for (size_t lo = 2; lo <= NTH_ELEMENT; lo += BLOCK_SIZE)
+    for (size_t lo = FIRST_PRIME; lo <= NTH_ELEMENT; lo += BLOCK_SIZE)
     {
         uint64_t hi = std::min(NTH_ELEMENT, lo + BLOCK_SIZE - 1);
         task_ranges.emplace_back(lo, hi);
@@ -121,7 +147,9 @@ int main()
 
     std::mutex sort_queue_mutex;
     std::deque<std::vector<uint64_t>*> sort_task_queue;
-
+    std::condition_variable sort_cv;
+    std::mutex mutex_of_collector_cv;
+    std::condition_variable collector_cv;
     std::atomic<size_t> producer_done{0};
     std::atomic<bool> stop_collecting{false};
 

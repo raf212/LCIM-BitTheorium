@@ -98,6 +98,13 @@ namespace PredictedAdaptedEncoding {
     static constexpr tag8_t ST_RETIRED     = 0x6;
     static constexpr tag8_t ST_EPOCH_BUMP  = 0x7;
 
+    enum class PackedCellLocalityTypes : tag8_t
+    {
+        ST_IDLE = 0,
+        ST_PUBLISHED = 1,
+        ST_CLAIMED = 3
+    };
+
     //Relation(4 + 4) = 8 bit
     static constexpr tag8_t REL_NONE        = 0x00;
     static constexpr tag8_t REL_NODE0       = 0x00;

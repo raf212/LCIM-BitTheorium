@@ -268,7 +268,11 @@ public:
     }
     
     PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;
-    std::optional<uint64_t> TryAssemblePairedPtr_(size_t probable_idx, RelOffsetMode& ptr_position) const noexcept;
+    std::optional<uint64_t> TryAssemblePairedPtr_(size_t probable_idx, RelOffsetMode& ptr_position_for_easy_return) const noexcept;
+
+    std::optional<uint64_t> GetAssembledPtrWithTriCASReset(size_t probable_idx, RelOffsetMode& ptr_position_for_easy_return, 
+                                            std::optional<bool>ownership_cas = std::nullopt, std::optional<tag8_t>third_cas = std::nullopt) noexcept;
+
     void RetirePairedPtrAtIdx_(
         size_t probable_idx,
         DeviceFence_ fence = {}
@@ -301,6 +305,7 @@ public:
     }
 
     bool PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries = 100);
+
 };
 
 

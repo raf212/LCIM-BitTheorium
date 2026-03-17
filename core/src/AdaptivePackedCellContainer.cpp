@@ -463,7 +463,7 @@ namespace PredictedAdaptedEncoding
         {
             tag8_t head_locality = PackedCell64_t::ExtractLocalityFromPacked(cell_data);
             PackedMode head_celltype = static_cast<PackedMode>(PackedCell64_t::ExtractPCellTypeFromPacked(cell_data));
-            if (head_locality != ST_PUBLISHED || head_celltype != PackedMode::MODE_VALUE32)
+            if ((head_locality != ST_PUBLISHED && head_locality != ST_CLAIMED) || head_celltype != PackedMode::MODE_VALUE32)
             {
                 return std::nullopt;
             }
@@ -471,7 +471,7 @@ namespace PredictedAdaptedEncoding
             packed64_t tail_cell_data = BackingPtr[tail_idx].load(MoLoad_);
             tag8_t tail_locality = PackedCell64_t::ExtractLocalityFromPacked(tail_cell_data);
             PackedMode tell_celltype = static_cast<PackedMode>(PackedCell64_t::ExtractPCellTypeFromPacked(tail_cell_data));
-            if (tail_locality != ST_PUBLISHED || tell_celltype != PackedMode::MODE_VALUE32)
+            if ((tail_locality != ST_PUBLISHED && tail_locality != ST_CLAIMED) || tell_celltype != PackedMode::MODE_VALUE32)
             {
                 return std::nullopt;
             }
@@ -486,7 +486,7 @@ namespace PredictedAdaptedEncoding
         {
             tag8_t tail_locality = PackedCell64_t::ExtractLocalityFromPacked(cell_data);
             PackedMode tail_cell_type = static_cast<PackedMode>(PackedCell64_t::ExtractPCellTypeFromPacked(cell_data));
-            if (tail_locality != ST_PUBLISHED || tail_cell_type != PackedMode::MODE_VALUE32)
+            if ((tail_locality != ST_PUBLISHED && tail_locality != ST_CLAIMED) || tail_cell_type != PackedMode::MODE_VALUE32)
             {
                 return std::nullopt;
             }
@@ -494,7 +494,7 @@ namespace PredictedAdaptedEncoding
             packed64_t head_cell_data = BackingPtr[head_idx].load(MoLoad_);
             tag8_t head_locality = PackedCell64_t::ExtractLocalityFromPacked(head_cell_data);
             PackedMode head_cell_type = static_cast<PackedMode>(PackedCell64_t::ExtractPCellTypeFromPacked(head_cell_data));
-            if (head_locality != ST_PUBLISHED || head_cell_type != PackedMode::MODE_VALUE32)
+            if ((head_locality != ST_PUBLISHED && head_locality != ST_CLAIMED)|| head_cell_type != PackedMode::MODE_VALUE32)
             {
                 return std::nullopt;
             }
@@ -509,6 +509,140 @@ namespace PredictedAdaptedEncoding
             return std::nullopt;
         }
     }
+
+    std::optional<uint64_t> AdaptivePackedCellContainer::GetAssembledPtrWithTriCASReset(size_t probable_idx, RelOffsetMode& ptr_position_for_easy_return, 
+                                            std::optional<bool>ownership_cas, std::optional<tag8_t>third_cas) noexcept
+    {
+        auto maybe_first = TryAssemblePairedPtr_(probable_idx, ptr_position_for_easy_return);
+        size_t head_idx = 0, tail_idx = 0;
+        if (!maybe_first)
+        {
+            return std::nullopt;
+        }
+        if (!ownership_cas)
+        {
+            return maybe_first;
+        }
+        if (ptr_position_for_easy_return == RelOffsetMode::REL_OFFSET_HEAD_PTR)
+        {
+            head_idx = probable_idx;
+            tail_idx = (probable_idx + 1) % ContainerCapacity_;
+        }
+        else
+        {
+            head_idx = (probable_idx + ContainerCapacity_ - 1) % ContainerCapacity_;
+            tail_idx = probable_idx;
+        }
+        packed64_t oring_head = BackingPtr[head_idx].load(MoLoad_);
+        packed64_t oring_tail = BackingPtr[tail_idx].load(MoLoad_);
+
+        packed64_t claimed_head = PackedCell64_t::SetLocalityInPacked(oring_head, ST_CLAIMED);
+        packed64_t claimed_tail = PackedCell64_t::SetLocalityInPacked(oring_tail, ST_CLAIMED);
+
+        const int MAX_CLAIM_ATTEMPTS  = std::max<int>(BURNCYCLE_THRESHOLD, (1000 / 8)); // 8 represents number of threads
+        int attempt = 0;
+        bool head_claimed = false;
+        bool tail_claimed = false;
+
+        for (; attempt < MAX_CLAIM_ATTEMPTS; attempt++)
+        {
+            packed64_t expected_head = oring_head;
+            if (!BackingPtr[head_idx].compare_exchange_strong(expected_head, claimed_head, EXsuccess_, EXfailure_))
+            {
+                oring_head = expected_head;
+                auto maybe_retry = TryAssemblePairedPtr_(probable_idx, ptr_position_for_easy_return);
+                if (!maybe_retry)
+                {
+                    return std::nullopt;
+                }
+
+                if (ptr_position_for_easy_return == RelOffsetMode::REL_OFFSET_HEAD_PTR)
+                {
+                    head_idx = probable_idx;
+                    tail_idx = (probable_idx + 1) % ContainerCapacity_;
+                }
+                else
+                {
+                    head_idx = (probable_idx + ContainerCapacity_ - 1) % ContainerCapacity_;
+                    tail_idx = probable_idx;
+                }
+                
+                oring_head = BackingPtr[head_idx].load(MoLoad_);
+                oring_tail = BackingPtr[tail_idx].load(MoLoad_);
+                claimed_head = PackedCell64_t::SetLocalityInPacked(oring_head, ST_CLAIMED);
+                claimed_tail = PackedCell64_t::SetLocalityInPacked(oring_tail, ST_CLAIMED);
+                continue;
+            }
+            head_claimed = true;
+            packed64_t expected_tail = oring_tail;
+            if (!BackingPtr[tail_idx].compare_exchange_strong(expected_tail, claimed_tail, EXsuccess_, EXfailure_))
+            {
+                BackingPtr[head_idx].compare_exchange_strong(claimed_head, oring_head, EXsuccess_, EXfailure_);
+                BackingPtr[head_idx].notify_all();
+                head_claimed = false;
+
+                auto maybe_retry_2 = TryAssemblePairedPtr_(probable_idx, ptr_position_for_easy_return);
+                if (!maybe_retry_2)
+                {
+                    return std::nullopt;
+                }
+            oring_head = BackingPtr[head_idx].load(MoLoad_);
+            oring_tail = BackingPtr[tail_idx].load(MoLoad_);
+            claimed_head = PackedCell64_t::SetLocalityInPacked(oring_head, ST_CLAIMED);
+            claimed_tail = PackedCell64_t::SetLocalityInPacked(oring_tail, ST_CLAIMED);
+                if (APCManagerPtr_)
+                {
+                    APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(oring_tail);
+                }
+                continue;
+            }
+            tail_claimed = true;
+            break;
+        }
+        if (!head_claimed || !tail_claimed)
+        {
+            return std::nullopt;
+        }
+        
+        auto maybe_second = TryAssemblePairedPtr_(probable_idx, ptr_position_for_easy_return);
+        if (!maybe_second)
+        {
+            BackingPtr[head_idx].compare_exchange_strong(claimed_head, oring_head, EXsuccess_, EXfailure_);
+            BackingPtr[tail_idx].compare_exchange_strong(claimed_tail, oring_tail, EXsuccess_, EXfailure_);
+            BackingPtr[head_idx].notify_all();
+            BackingPtr[tail_idx].notify_all();
+            return std::nullopt;
+        }
+        if (!third_cas)
+        {
+            return maybe_second;
+        }
+
+        //t7his posion will be updated using enum class for best beheviour
+        tag8_t desired_locality = *third_cas;
+        packed64_t recycled_head = PackedCell64_t::SetLocalityInPacked(claimed_head, desired_locality);
+        packed64_t recycled_tail = PackedCell64_t::SetLocalityInPacked(claimed_tail, desired_locality);
+
+        bool head_recycled = BackingPtr[head_idx].compare_exchange_strong(claimed_head, recycled_head, EXsuccess_, EXfailure_);
+        bool tail_recycled = BackingPtr[tail_idx].compare_exchange_strong(claimed_tail, recycled_tail, EXsuccess_, EXfailure_);
+
+        if (!head_recycled || !tail_recycled) {
+            if (head_recycled) {
+                BackingPtr[head_idx].compare_exchange_strong(recycled_head, oring_head, EXsuccess_, EXfailure_);
+            }
+            if (tail_recycled) {
+                BackingPtr[tail_idx].compare_exchange_strong(recycled_tail, oring_tail, EXsuccess_, EXfailure_);
+            }
+            BackingPtr[head_idx].notify_all();
+            BackingPtr[tail_idx].notify_all();
+            return std::nullopt; 
+        }
+        
+        BackingPtr[head_idx].notify_all();
+        BackingPtr[tail_idx].notify_all();
+        return maybe_second;
+    }
+
 
     void AdaptivePackedCellContainer::RetirePairedPtrAtIdx_(
         size_t probable_idx,

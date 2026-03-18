@@ -227,22 +227,7 @@ namespace PredictedAdaptedEncoding {
         return static_cast<PackedCellDataType>((strl >> PCELL_DETATYPE_SHIFT) & PCELL_DATATYPE_MASK);
     }
 
-    inline constexpr int8_t DecodeRelOffsetSigned(tag8_t reloffset) noexcept
-    {
-        tag8_t r = reloffset & RELOFFSET_MASK;
-        if (r & (1u << (RELOFFSET_LEN - 1)))
-        {
-            return static_cast<tag8_t>(static_cast<int8_t>(r) | static_cast<int8_t>(~((1 << RELOFFSET_LEN) - 1)));
-        }
-        return static_cast<int8_t>(r);
-    }
 
-    inline constexpr bool DoseRelMatch(tag8_t slot_relbyte, tag8_t relmask) noexcept
-    {
-        tag8_t slot_rm = static_cast<tag8_t>((slot_relbyte >> RELOFFSET_SHIFT) & RELMASK_MASK);
-        return ((slot_rm & (relmask & RELMASK_MASK)) != 0);
-    }
-    
 
     template <typename To, typename From>
     inline To BitCastMaybe(const From& from_address)

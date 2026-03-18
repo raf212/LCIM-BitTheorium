@@ -29,6 +29,17 @@ struct ContainerConf
     static constexpr size_t MAXTLS = 8192;
 };
 
+struct AcquirePairedPointerStruct
+{
+    uint64_t AssembeledPtr = 0;
+    size_t HeadIdx = SIZE_MAX;
+    size_t TailIdx = SIZE_MAX;
+    packed64_t HeadScreenshot = 0;
+    packed64_t TailScreenshot = 0;
+    RelOffsetMode Position = RelOffsetMode::RELOFFSET_GENERIC_VALUE;
+    bool Ownership = false;
+};
+
 enum class PublishStatus : uint8_t
 {
     OK = 0,
@@ -76,8 +87,50 @@ private:
         void* HandleDeviceFencePtr = nullptr;
         std::function<bool(void*)> IsSignaled;
     };
-    struct RelEntry_;
-    //reloffset
+    struct RelEntry_
+    {
+        enum class APCKind : uint8_t
+        {
+            CHILD_CONTAINER = 0,
+            PACKED_NODE = 1,
+            HEAP_NODE = 2
+        };
+
+        APCKind Kind;
+        AdaptivePackedCellContainer* ChildContainerPtr;
+        size_t ChildBaseIdx;
+        packed64_t RelEntryPacked;
+
+        void* HeapPtr;
+        size_t HeapSize;
+
+        PackedCellDataType RECellDType;
+
+        FinalizerKind_ KindFinalizer;
+        std::function<void(void*)> FinalizerPtr;
+        DeviceFence_ APCDeviceFence;
+        std::atomic<uint64_t> RetireEpoch;
+        std::atomic<RelEntry_*> NextPtr;
+
+        //child container constructor
+        RelEntry_(AdaptivePackedCellContainer* apc_container = nullptr, size_t base = 0) noexcept :
+            Kind(APCKind::CHILD_CONTAINER), ChildContainerPtr(apc_container), ChildBaseIdx(base), RelEntryPacked(0),
+            HeapPtr(nullptr), HeapSize(0), RECellDType(PackedCellDataType::UnsignedPCellDataType),
+            KindFinalizer(FinalizerKind_::NONE), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr)
+        {}
+        //packed cell constructor
+        RelEntry_(packed64_t p) noexcept :
+            Kind(APCKind::PACKED_NODE), ChildContainerPtr(nullptr), ChildBaseIdx(0), RelEntryPacked(p),
+            HeapPtr(0), RECellDType(PackedCellDataType::UnsignedPCellDataType),
+            KindFinalizer(FinalizerKind_::NONE), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr)
+        {}
+        //heap constructor
+        RelEntry_(void* heap_ptr, size_t heap_size, PackedCellDataType pc_dtype) noexcept :
+            Kind(APCKind::HEAP_NODE), ChildContainerPtr(nullptr), ChildBaseIdx(0), RelEntryPacked(0),
+            HeapPtr(heap_ptr), HeapSize(heap_size), RECellDType(pc_dtype),
+            KindFinalizer(FinalizerKind_::HOST), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr)
+        {}
+    };    //reloffset
 
     //global epoch
     std::atomic<uint64_t>GlobalEpoch_{1};
@@ -267,16 +320,7 @@ public:
         
     }
     
-    PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;
-    std::optional<uint64_t> TryAssemblePairedPtr_(size_t probable_idx, RelOffsetMode& ptr_position_for_easy_return) const noexcept;
 
-    std::optional<uint64_t> GetAssembledPtrWithTriCASReset(size_t probable_idx, RelOffsetMode& ptr_position_for_easy_return, 
-                                            std::optional<bool>ownership_cas = std::nullopt, std::optional<tag8_t>third_cas = std::nullopt) noexcept;
-
-    void RetirePairedPtrAtIdx_(
-        size_t probable_idx,
-        DeviceFence_ fence = {}
-    ) noexcept;
 
     void TryReclaimRetired_() noexcept;
 
@@ -303,8 +347,26 @@ public:
             }
         }
     }
+    //Paired Pointer functions
+    //old
+    PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;
+    std::optional<uint64_t> TryAssemblePairedPtr_(size_t probable_idx, RelOffsetMode& ptr_position_for_easy_return) const noexcept;
 
+    std::optional<uint64_t> GetAssembledPtrWithTriCASReset(size_t probable_idx, RelOffsetMode& ptr_position_for_easy_return, 
+                                            std::optional<bool>ownership_cas = std::nullopt, std::optional<tag8_t>third_cas = std::nullopt) noexcept;
+
+    void RetirePairedPtrAtIdx_(
+        size_t probable_idx,
+        DeviceFence_ fence = {}
+    ) noexcept;
     bool PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries = 100);
+    //new
+    std::optional<AcquirePairedPointerStruct> AcquirePairedAtomicPtr(size_t probable_idx, bool claim_ownership = true, int max_claim_attempts = 256) noexcept;
+    bool ReleaseAcquiredPairedPtr(const AcquirePairedPointerStruct& acquired_pair_struct, tag8_t desired_locality = ST_IDLE) noexcept;
+    void RetiredAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_pair_struct, DeviceFence_ fence = {}) noexcept;
+    template<typename TypePtr>
+    std::optional<TypePtr> ViewPointerMemoryIfAssembeled(size_t probable_idx) noexcept;
+    
 
 };
 

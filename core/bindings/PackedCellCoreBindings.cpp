@@ -69,8 +69,6 @@ PYBIND11_MODULE(atomiccim_bind, m) {
     m.def("extract_pcelltype_from_strl", [](uint16_t strl) { return ExtractPCellTypeFromSTRL(static_cast<strl16_t>(strl)); });
     m.def("extract_relmask_from_strl", [](uint16_t strl) { return ExtractRelMaskFromSTRL(static_cast<strl16_t>(strl)); });
     m.def("extract_reloffset_from_strl", [](uint16_t strl) { return ExtractRelOffsetFromSTRL(static_cast<strl16_t>(strl)); });
-    m.def("decode_reloffset_signed", [](uint8_t ro) { return DecodeRelOffsetSigned(ro); });
-    m.def("dose_rel_match", [](uint8_t slot_relbyte, uint8_t relmask) { return DoseRelMatch(slot_relbyte, relmask); });
 
     // -------------------------
     // PackedCell helpers

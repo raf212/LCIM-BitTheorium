@@ -60,50 +60,6 @@ namespace PredictedAdaptedEncoding
         }
     };
     
-    struct AdaptivePackedCellContainer::RelEntry_
-    {
-        enum class APCKind : uint8_t
-        {
-            CHILD_CONTAINER = 0,
-            PACKED_NODE = 1,
-            HEAP_NODE = 2
-        };
-
-        APCKind Kind;
-        AdaptivePackedCellContainer* ChildContainerPtr;
-        size_t ChildBaseIdx;
-        packed64_t RelEntryPacked;
-
-        void* HeapPtr;
-        size_t HeapSize;
-
-        PackedCellDataType RECellDType;
-
-        FinalizerKind_ KindFinalizer;
-        std::function<void(void*)> FinalizerPtr;
-        DeviceFence_ APCDeviceFence;
-        std::atomic<uint64_t> RetireEpoch;
-        std::atomic<RelEntry_*> NextPtr;
-
-        //child container constructor
-        RelEntry_(AdaptivePackedCellContainer* apc_container = nullptr, size_t base = 0) noexcept :
-            Kind(APCKind::CHILD_CONTAINER), ChildContainerPtr(apc_container), ChildBaseIdx(base), RelEntryPacked(0),
-            HeapPtr(nullptr), HeapSize(0), RECellDType(PackedCellDataType::UnsignedPCellDataType),
-            KindFinalizer(FinalizerKind_::NONE), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr)
-        {}
-        //packed cell constructor
-        RelEntry_(packed64_t p) noexcept :
-            Kind(APCKind::PACKED_NODE), ChildContainerPtr(nullptr), ChildBaseIdx(0), RelEntryPacked(p),
-            HeapPtr(0), RECellDType(PackedCellDataType::UnsignedPCellDataType),
-            KindFinalizer(FinalizerKind_::NONE), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr)
-        {}
-        //heap constructor
-        RelEntry_(void* heap_ptr, size_t heap_size, PackedCellDataType pc_dtype) noexcept :
-            Kind(APCKind::HEAP_NODE), ChildContainerPtr(nullptr), ChildBaseIdx(0), RelEntryPacked(0),
-            HeapPtr(heap_ptr), HeapSize(heap_size), RECellDType(pc_dtype),
-            KindFinalizer(FinalizerKind_::HOST), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr)
-        {}
-    };
 
     uint64_t AdaptivePackedCellContainer::ComputeMinThreadEpoch() const noexcept
     {

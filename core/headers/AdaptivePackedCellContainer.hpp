@@ -316,13 +316,13 @@ public:
             return;
         }
         GlobalEpoch_.fetch_add(increment, std::memory_order_acq_rel);
-        TryReclaimRetired_();
+        TryReclaimRetirePairedPtr_();
         
     }
     
 
 
-    void TryReclaimRetired_() noexcept;
+    void TryReclaimRetirePairedPtr_() noexcept;
 
     bool PollDeviceFencesOnce_() noexcept;
 

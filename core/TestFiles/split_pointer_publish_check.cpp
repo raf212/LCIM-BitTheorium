@@ -204,8 +204,8 @@ int main()
     // Ask managers to advance epoch & attempt final reclaim (best-effort)
     producer_raw_APC.ManualAdvanceEpoch(2);
     publishing_APC_for_consumer.ManualAdvanceEpoch(2);
-    producer_raw_APC.TryReclaimRetired_();
-    publishing_APC_for_consumer.TryReclaimRetired_();
+    producer_raw_APC.TryReclaimRetirePairedPtr_();
+    publishing_APC_for_consumer.TryReclaimRetirePairedPtr_();
 
     // Unregister & cleanup
     producer_raw_APC.FreeAll();

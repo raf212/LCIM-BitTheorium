@@ -179,10 +179,36 @@ namespace PredictedAdaptedEncoding
             rel_entry_ptr->RetireEpoch.store(cur_epoch, MoStoreSeq_);
             //have to convert to mannager 
             RetirePushLocked_(rel_entry_ptr);
-            TryReclaimRetired_();
+            TryReclaimRetirePairedPtr_();
         }
-        
-        
+    }
+
+    template<typename PtrDtype>
+    std::optional<PtrDtype> AdaptivePackedCellContainer::ViewPointerMemoryIfAssembeled(size_t probable_idx) noexcept
+    {
+        static_assert(std::is_trivially_copyable_v<PtrDtype>, "Data Type must be trivally copyable");
+        auto maybe_ptr = AcquirePairedAtomicPtr(probable_idx, false);
+        if (!maybe_ptr)
+        {
+            return std::nullopt;
+        }
+        AcquirePairedPointerStruct acquire_paired_ptr_struct = *maybe_ptr;
+        QSBRGuard qsber_guard(this);
+        packed64_t now_head = BackingPtr[acquire_paired_ptr_struct.HeadIdx].load(MoLoad_);
+        packed64_t now_tail = BackingPtr[acquire_paired_ptr_struct.TailIdx].load(MoLoad_);
+        if (now_head != acquire_paired_ptr_struct.HeadScreenshot || now_tail != acquire_paired_ptr_struct.TailScreenshot)
+        {
+            return std::nullopt;
+        }
+        void* raw_ptr = reinterpret_cast<void*>(acquire_paired_ptr_struct.AssembeledPtr);
+        if (!raw_ptr)
+        {
+            return std::nullopt;
+        }
+
+        PtrDtype out;
+        std::memcpy(&out, raw_ptr, sizeof(PtrDtype));
+        return out;
     }
 
 }

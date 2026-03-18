@@ -351,7 +351,7 @@ PYBIND11_MODULE(atomiccim_bind, m) {
             "Poll device fences once (non-blocking)."
         )
         .def("TryReclaimingRetiredContainer",
-            &AdaptivePackedCellContainer::TryReclaimRetired_,
+            &AdaptivePackedCellContainer::TryReclaimRetirePairedPtr_,
             "Attempt reclaiming retired entries now."
         )
 

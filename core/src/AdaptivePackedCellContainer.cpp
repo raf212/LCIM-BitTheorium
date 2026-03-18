@@ -161,7 +161,7 @@ namespace PredictedAdaptedEncoding
         return signaled;
     }
 
-    void AdaptivePackedCellContainer::TryReclaimRetired_() noexcept
+    void AdaptivePackedCellContainer::TryReclaimRetirePairedPtr_() noexcept
     {
         size_t retire_count = RetireCount_.load(MoLoad_);
         if (retire_count == 0 || retire_count < RetireBatchThreshold_)
@@ -235,7 +235,7 @@ namespace PredictedAdaptedEncoding
                         {
                             if (APCLogger_)
                             {
-                                APCLogger_("TryReclaimRetired_()", "RelEntry finalizer threw an exception::cur_relentry->FinalizerPtr");
+                                APCLogger_("TryReclaimRetirePairedPtr_()", "RelEntry finalizer threw an exception::cur_relentry->FinalizerPtr");
                             }
                         }
                     }
@@ -331,7 +331,7 @@ namespace PredictedAdaptedEncoding
             }
             GlobalEpoch_.fetch_add(1, std::memory_order_acq_rel);
             PollDeviceFencesOnce_();
-            TryReclaimRetired_();
+            TryReclaimRetirePairedPtr_();
         }
     }
 
@@ -644,7 +644,7 @@ namespace PredictedAdaptedEncoding
             uint64_t cur_epoch = GlobalEpoch_.load(MoLoad_);
             rel_entry->RetireEpoch.store(cur_epoch, MoStoreSeq_);
             RetirePushLocked_(rel_entry);
-            TryReclaimRetired_();
+            TryReclaimRetirePairedPtr_();
         }
     }
 

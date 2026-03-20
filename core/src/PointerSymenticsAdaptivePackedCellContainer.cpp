@@ -30,7 +30,7 @@ namespace PredictedAdaptedEncoding
         while (curent_tries++ < max_claim_attempts)
         {
             packed64_t packed_cell_value64 = BackingPtr[probable_idx].load(MoLoad_);
-            RelOffsetMode curent_ptr_position = static_cast<RelOffsetMode>(PackedCell64_t::ExtractLocalityFromPacked(packed_cell_value64));
+            RelOffsetMode curent_ptr_position = static_cast<RelOffsetMode>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell_value64));
             size_t head_idx = SIZE_MAX;
             size_t tail_idx = SIZE_MAX;
             if (curent_ptr_position == RelOffsetMode::REL_OFFSET_HEAD_PTR)
@@ -58,40 +58,31 @@ namespace PredictedAdaptedEncoding
 
             tag8_t head_locality = PackedCell64_t::ExtractLocalityFromPacked(head_screenshot);
             tag8_t tail_locality = PackedCell64_t::ExtractLocalityFromPacked(tail_screenshot);
-            if (claim_ownership)
-            {
-                if (head_locality == ST_CLAIMED || tail_locality == ST_CLAIMED)
-                {
-                    return std::nullopt;
-                }
-            }
-            else
-            {
-                if (!((head_locality == ST_PUBLISHED || head_locality == ST_CLAIMED) && (tail_locality == ST_PUBLISHED || tail_locality == ST_CLAIMED)))
-                {
-                    return std::nullopt;
-                }
-            }
-            
-            uint64_t assembeled_probable_ptr = Assemble64BitFrom2Cell(head_screenshot, tail_screenshot);
-            
-            AcquirePairedPointerStruct acquired_paired_ptr_struct;
-            acquired_paired_ptr_struct.AssembeledPtr = assembeled_probable_ptr;
-            acquired_paired_ptr_struct.HeadIdx = head_idx;
-            acquired_paired_ptr_struct.TailIdx = tail_idx;
-            acquired_paired_ptr_struct.HeadScreenshot = head_screenshot;
-            acquired_paired_ptr_struct.Position = curent_ptr_position;
-            acquired_paired_ptr_struct.Ownership = false;
+
             if (!claim_ownership)
             {
-                return acquired_paired_ptr_struct;
+                if (head_locality != ST_PUBLISHED || tail_locality != ST_PUBLISHED)
+                {
+                    return std::nullopt;
+                }
+                AcquirePairedPointerStruct out_paired_ptr_struct{};
+                out_paired_ptr_struct.AssembeledPtr = Assemble64BitFrom2Cell(head_screenshot, tail_screenshot);
+                out_paired_ptr_struct.HeadIdx = head_idx;
+                out_paired_ptr_struct.TailIdx = tail_idx;
+                out_paired_ptr_struct.HeadScreenshot = head_screenshot;
+                out_paired_ptr_struct.Position = curent_ptr_position;
+                out_paired_ptr_struct.Ownership = false;
+                return out_paired_ptr_struct;
             }
             
-            packed64_t want_head_claimed = PackedCell64_t::SetLocalityInPacked(head_screenshot, ST_CLAIMED);
-            packed64_t want_tail_claimed = PackedCell64_t::SetLocalityInPacked(tail_screenshot, ST_CLAIMED);
-
+            if (head_locality != ST_PUBLISHED || tail_locality != ST_PUBLISHED)
+            {
+                return std::nullopt;
+            }
+            packed64_t want_head = PackedCell64_t::SetLocalityInPacked(head_screenshot, ST_CLAIMED);
+            packed64_t want_tail = PackedCell64_t::SetLocalityInPacked(tail_screenshot, ST_CLAIMED);
             packed64_t expected_head = head_screenshot;
-            if (!BackingPtr[head_idx].compare_exchange_strong(expected_head, want_head_claimed, EXsuccess_, EXfailure_))
+            if (!BackingPtr[head_idx].compare_exchange_strong(expected_head, want_head, EXsuccess_, EXfailure_))
             {
                 if (APCManagerPtr_)
                 {
@@ -99,11 +90,10 @@ namespace PredictedAdaptedEncoding
                 }
                 continue;
             }
-            
             packed64_t expected_tail = tail_screenshot;
-            if (!BackingPtr[tail_idx].compare_exchange_strong(expected_tail, want_tail_claimed, EXsuccess_, EXfailure_))
+            if (!BackingPtr[tail_idx].compare_exchange_strong(expected_tail, want_tail, EXsuccess_, EXfailure_))
             {
-                BackingPtr[head_idx].compare_exchange_strong(want_head_claimed, head_screenshot, EXsuccess_, EXfailure_);
+                BackingPtr[head_idx].compare_exchange_strong(want_head, head_screenshot, EXsuccess_, EXfailure_);
                 BackingPtr[head_idx].notify_all();
                 if (APCManagerPtr_)
                 {
@@ -112,10 +102,15 @@ namespace PredictedAdaptedEncoding
                 continue;
             }
             
-            acquired_paired_ptr_struct.Ownership = true;
-            acquired_paired_ptr_struct.HeadScreenshot = want_head_claimed;
-            acquired_paired_ptr_struct.TailScreenshot = want_tail_claimed;
-            return acquired_paired_ptr_struct;
+            AcquirePairedPointerStruct out_paired_ptr_struct_last{};
+            out_paired_ptr_struct_last.AssembeledPtr = Assemble64BitFrom2Cell(head_screenshot, tail_screenshot);
+            out_paired_ptr_struct_last.HeadIdx = head_idx;
+            out_paired_ptr_struct_last.TailIdx = tail_idx;
+            out_paired_ptr_struct_last.HeadScreenshot = head_screenshot;
+            out_paired_ptr_struct_last.TailScreenshot = tail_screenshot;
+            out_paired_ptr_struct_last.Position = curent_ptr_position;
+            out_paired_ptr_struct_last.Ownership = true;
+            return out_paired_ptr_struct_last;
         }
         return std::nullopt;
     }

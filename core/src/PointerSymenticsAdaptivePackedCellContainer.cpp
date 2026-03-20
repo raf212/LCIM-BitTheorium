@@ -134,11 +134,11 @@ namespace PredictedAdaptedEncoding
 
         if (!head_ok || !tail_ok)
         {
-            if (head_ok && !tail_ok)
+            if (head_ok)
             {
                 BackingPtr[acquired_paired_pointer_struct.HeadIdx].compare_exchange_strong(want_head, acquired_paired_pointer_struct.HeadScreenshot, EXsuccess_, EXfailure_);
             }
-            else if (!head_ok && tail_ok)
+            else if (tail_ok)
             {
                 BackingPtr[acquired_paired_pointer_struct.TailIdx].compare_exchange_strong(want_tail, acquired_paired_pointer_struct.TailScreenshot, EXsuccess_, EXfailure_);
             }
@@ -162,20 +162,17 @@ namespace PredictedAdaptedEncoding
         BackingPtr[acquired_paired_pointer_struct.TailIdx].store(idle32, MoStoreSeq_);
         BackingPtr[acquired_paired_pointer_struct.HeadIdx].notify_all();
         BackingPtr[acquired_paired_pointer_struct.TailIdx].notify_all();
-        Occupancy_.fetch_add(1, std::memory_order_acq_rel);
+        Occupancy_.fetch_sub(1, std::memory_order_acq_rel);
 
-        void* object_ptr = reinterpret_cast<void*>(acquired_paired_pointer_struct.AssembeledPtr);
-        if (object_ptr)
-        {
-            RelEntry_* rel_entry_ptr = new RelEntry_ (acquired_paired_pointer_struct.AssembeledPtr);
-            rel_entry_ptr->KindFinalizer = FinalizerKind_::NONE;
-            rel_entry_ptr->APCDeviceFence = std::move(device_fence);
-            uint64_t cur_epoch = GlobalEpoch_.load(MoLoad_);
-            rel_entry_ptr->RetireEpoch.store(cur_epoch, MoStoreSeq_);
-            //have to convert to mannager 
-            RetirePushLocked_(rel_entry_ptr);
-            TryReclaimRetirePairedPtr_();
-        }
+        // this should be a filure cast that gives me option to go deep insid6e cast function how I can cast a pointer to packed64_t in APC insted of using PublishheapPtr??
+        packed64_t packed_for_rel = static_cast<packed64_t>(acquired_paired_pointer_struct.AssembeledPtr);
+        RelEntry_* rel_entry_ptr = new RelEntry_(packed_for_rel);
+
+        rel_entry_ptr->APCDeviceFence = std::move(device_fence);
+        rel_entry_ptr->RetireEpoch.store(GlobalEpoch_.load(MoLoad_), MoStoreSeq_);
+        RetirePushLocked_(rel_entry_ptr);
+        TryReclaimRetirePairedPtr_();
+
     }
 
     template<typename PtrDtype>
@@ -201,7 +198,7 @@ namespace PredictedAdaptedEncoding
             return std::nullopt;
         }
 
-        PtrDtype out;
+        PtrDtype out{};
         std::memcpy(&out, raw_ptr, sizeof(PtrDtype));
         return out;
     }

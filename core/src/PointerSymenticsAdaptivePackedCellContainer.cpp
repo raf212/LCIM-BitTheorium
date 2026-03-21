@@ -151,7 +151,7 @@ namespace PredictedAdaptedEncoding
         return true;
     }
 
-    void AdaptivePackedCellContainer::RetiredAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_paired_pointer_struct, DeviceFence_ device_fence) noexcept
+    void AdaptivePackedCellContainer::RetireAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_paired_pointer_struct, DeviceFence_ device_fence) noexcept
     {
         if (!acquired_paired_pointer_struct.Ownership)
         {

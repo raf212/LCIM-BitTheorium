@@ -193,6 +193,7 @@ int main()
     std::mutex mutex_of_collector_cv;
     std::condition_variable collector_cv;
     std::atomic<size_t> producer_done{0};
+    std::atomic<bool> consumer_done{false};
 
     std::atomic<size_t> published_to_result{0};
     std::atomic<size_t> retired_from_task{0};
@@ -249,27 +250,16 @@ int main()
             }
             for (size_t idx = 0; idx < capacity_of_result_apc; idx++)
             {
-                RelOffsetMode ptr_position;
-                auto maybe_ptr_unsigned = RESULT_APC.TryAssemblePairedPtr_(idx, ptr_position);//TryAssemblePairedPtr_ directly returns the position via ptr_position
-                if (!maybe_ptr_unsigned)
+                auto maybe_aquired_paired_pointer_struct = RESULT_APC.AcquirePairedAtomicPtr(idx, true, 64);
+                if (!maybe_aquired_paired_pointer_struct || !maybe_aquired_paired_pointer_struct->Ownership)
                 {
                     continue;
                 }
-                //why I am just checking head-half??
-                size_t head_idx;
-                if (ptr_position == RelOffsetMode::REL_OFFSET_HEAD_PTR)
-                {
-                    head_idx = idx;
-                }
-                else
-                {
-                    head_idx = (idx + capacity_of_result_apc - 1) % capacity_of_result_apc;
-                }
-                uint64_t ptr_value = *maybe_ptr_unsigned;
-                auto vector_ptr = reinterpret_cast<std::vector<uint64_t>*>(ptr_value);
+
+                auto vector_ptr = reinterpret_cast<std::vector<uint64_t>*>(reinterpret_cast<void*>(maybe_aquired_paired_pointer_struct->AssembeledPtr));
                 if (!vector_ptr)
                 {
-                    RESULT_APC.RetirePairedPtrAtIdx_(head_idx); 
+                    RESULT_APC.RetireAcquiredPointerPair(*maybe_aquired_paired_pointer_struct);
                     did_work = true;
                     continue;
                 }
@@ -282,37 +272,40 @@ int main()
                 uint64_t marge_us = marge_stop_watch.ElapsedMicroSecond();
                 collector_marge_timer.AddSamplMicroSecond(marge_us);
                 //is there any way to autometically rfetire based on 16 bit clock by mannager ??
-                RESULT_APC.RetirePairedPtrAtIdx_(head_idx);
+                delete vector_ptr;
+                RESULT_APC.RetireAcquiredPointerPair(*maybe_aquired_paired_pointer_struct);
                 published_to_result.fetch_add(1, std::memory_order_relaxed);
                 did_work = true;
             }//end scan
-            bool no_sort_task = false;
-            //why lock how to efficiently use APC?
+
+
+            if (consumer_done.load(MoLoad_))
             {
-                std::lock_guard<std::mutex>lok(sort_queue_mutex);
-                no_sort_task = sort_task_queue.empty();
-            }
-            bool result_apc_has_any = false;
-            size_t cur_cap_of_result_apc = RESULT_APC.GetOrSetContainerCapacity();
-            //why another scan??
-            for (size_t i = 0; i < cur_cap_of_result_apc && result_apc_has_any; i++)
-            {
-                RelOffsetMode current_ptr_position_getter;
-                if (RESULT_APC.TryAssemblePairedPtr_(i, current_ptr_position_getter))
+                bool sort_empty;
                 {
-                    result_apc_has_any = true;
-                    break;
+                    std::lock_guard<std::mutex> lok(sort_queue_mutex);
+                    sort_empty = sort_task_queue.empty();
                 }
-                
-            }
-            
-            if (stop_collector.load(MoLoad_) && !result_apc_has_any && no_sort_task)
-            {
-                std::cout << "Collector shutting down condition met-----\n";
-                break;
+                if (sort_empty)
+                {
+                    bool any_remaining = false;
+                    for (size_t i = 0; i < capacity_of_result_apc && !any_remaining; i++)
+                    {
+                        auto acquired_paired_ptr_struct_2 = RESULT_APC.AcquirePairedAtomicPtr(i, false, 1);
+                        if (acquired_paired_ptr_struct_2)
+                        {
+                            any_remaining = true;
+                        }
+                        if (!any_remaining)
+                        {
+                            std::cout << "Collector Shutting down -> All Results Drained\n";
+                            break;
+                        }
+                    }
+                }
             }
             std::unique_lock<std::mutex> uniqlock(mutex_of_collector_cv);
-            collector_cv.wait_for(uniqlock, std::chrono::milliseconds(25));
+            collector_cv.wait_for(uniqlock, std::chrono::milliseconds(20));
         }
         apc_mannager_prime_test.UnRegisterAPCThread(thread_handle);
         collector_running.store(false);
@@ -369,86 +362,27 @@ int main()
             for (size_t probe = 0; probe < task_apc_capacity; probe++)
             {
                 size_t idx = (scan_offset + probe) % task_apc_capacity;
-                RelOffsetMode current_position;
-                auto maybe_ptr = TASK_APC.TryAssemblePairedPtr_(idx, current_position);
-                if (!maybe_ptr)
+                auto acquired_paired_ptr_struct = TASK_APC.AcquirePairedAtomicPtr(idx, true, 64);
+                if (!acquired_paired_ptr_struct)
                 {
                     packed64_t observed = TASK_APC.BackingPtr ? TASK_APC.BackingPtr[idx].load(MoLoad_) : 0;
                     apc_mannager_prime_test.GetCellsAdaptiveBackoffFromManager(observed);
                     continue;
                 }
-                size_t head_idx;
-                if (current_position == RelOffsetMode::REL_OFFSET_HEAD_PTR)
-                {
-                    head_idx = idx;
-                }
-                else if(current_position == RelOffsetMode::RELOFFSET_TAIL_PTR)
-                {
-                    head_idx = (idx + task_apc_capacity - 1) % task_apc_capacity;
-                }
-                else
+
+                if (!acquired_paired_ptr_struct->Ownership)
                 {
                     continue;
                 }
                 
-                packed64_t current_head = TASK_APC.BackingPtr[head_idx].load(MoLoad_);
-                tag8_t locality_of_current_head = PackedCell64_t::ExtractLocalityFromPacked(current_head);
-                if(locality_of_current_head != ST_PUBLISHED)
-                {
-                    continue;
-                }
 
-
-                // ST_CLAIMED -- Invarint not working have to fix only ST_PUBLISHED working --error 01
-                packed64_t claimed_current_head = PackedCell64_t::SetLocalityInPacked(current_head, ST_CLAIMED);
-                packed64_t expected = current_head;
-                if (!TASK_APC.BackingPtr[head_idx].compare_exchange_strong(expected, claimed_current_head, EXsuccess_, EXfailure_))
-                {
-                    continue;
-                }
-                size_t tail_idx = (head_idx + 1) % task_apc_capacity;
-                packed64_t current_tail = TASK_APC.BackingPtr[tail_idx].load(MoLoad_);
-                int attempts = 0;
-                bool tail_claimed = false;
-                while (attempts++ < MAX_TAIL_ATTEMPTS)
-                {
-                    packed64_t claimed_tail = PackedCell64_t::SetLocalityInPacked(current_tail, ST_CLAIMED);
-                    if (TASK_APC.BackingPtr[tail_idx].compare_exchange_strong(current_tail, claimed_tail, EXsuccess_, EXfailure_))
-                    {
-                        tail_claimed = true;
-                        break;
-                    }
-                    apc_mannager_prime_test.GetCellsAdaptiveBackoffFromManager(current_tail);
-                }                
-                // ----- end ---error 01
-                if (!tail_claimed)
-                {
-                    TASK_APC.BackingPtr[head_idx].store(current_head, MoStoreSeq_);
-                    TASK_APC.BackingPtr[head_idx].notify_all();
-                    continue;
-                }
-
-                RelOffsetMode position_of_ptr_2;
-                auto maybe_ptr_2 = TASK_APC.TryAssemblePairedPtr_(head_idx, position_of_ptr_2);
-                if (!maybe_ptr_2)
-                {
-                    packed64_t idle = PackedCell64_t::MakeInitialPacked(PackedMode::MODE_VALUE32);
-                    TASK_APC.BackingPtr[head_idx].store(idle, MoStoreSeq_);
-                    TASK_APC.BackingPtr[tail_idx].store(idle, MoStoreSeq_);
-                    TASK_APC.BackingPtr[head_idx].notify_all();
-                    TASK_APC.BackingPtr[tail_idx].notify_all();
-                    TASK_APC.OccupancyAddSubOrGetAfterChange(1);
-                    did_work = true;
-                    continue;
-                }
-                uint64_t ptr_value_unsigned = *maybe_ptr_2;
-                RangedTaskConf* range_task_ptr = reinterpret_cast<RangedTaskConf*>(ptr_value_unsigned);
+                RangedTaskConf* range_task_ptr = reinterpret_cast<RangedTaskConf*>(reinterpret_cast<void*>(acquired_paired_ptr_struct->AssembeledPtr));
                 if (range_task_ptr == nullptr)
                 {
-                    TASK_APC.RetirePairedPtrAtIdx_(head_idx);
+                    TASK_APC.RetireAcquiredPointerPair(*acquired_paired_ptr_struct);
                     retired_from_task.fetch_add(1, std::memory_order_relaxed);
                     did_work = true;
-                    goto CONSUMER_EXIT;
+                    continue;
                 }
                 StopWatch compute_stop_watch;
                 std::vector<uint64_t>* local_primes = new std::vector<uint64_t>();
@@ -456,8 +390,9 @@ int main()
                 uint64_t compute_us = compute_stop_watch.ElapsedMicroSecond();
                 consumer_compute_timer.AddSamplMicroSecond(compute_us);
                 task_processed.fetch_add(1, std::memory_order_relaxed);
-                TASK_APC.RetirePairedPtrAtIdx_(head_idx);
-                
+                // TASK_APC.RetirePairedPtrAtIdx_(head_idx);
+                TASK_APC.RetireAcquiredPointerPair(*acquired_paired_ptr_struct);
+
                 if (local_primes->empty())
                 {
                     delete local_primes;
@@ -469,7 +404,6 @@ int main()
                         std::lock_guard<std::mutex>lok(collector_mutex);
                         all_primes_array.insert(all_primes_array.end(), local_primes->begin(), local_primes->end());
                     }
-                    sort_cv.notify_one();
                     collector_cv.notify_one();
                 }
                 else
@@ -494,14 +428,6 @@ int main()
                 }
                 did_work = true;
             }
-            if (!did_work)
-            {
-                std::unique_lock<std::mutex> uniqlock(collector_mutex);
-                if (sort_task_queue.empty())
-                {
-                    sort_cv.wait_for(uniqlock, std::chrono::milliseconds(10));
-                }
-            }
             //what dose 0x3f means and why??
             if ((++local_loop_counter & 0x3f) == 0)
             {
@@ -509,8 +435,22 @@ int main()
                           << " retired_tasks=" << retired_from_task.load()
                           << " producers_done=" << producer_done.load() << "\n";
             }
+            bool all_producer_done = producer_done.load(MoLoad_) >= PRODUCER_COUNT;
+            size_t final_task_apc_occopency = TASK_APC.OccupancyAddSubOrGetAfterChange();
+            bool no_sort_queue;
+            {
+                std::unique_lock<std::mutex> uniqlock(collector_mutex);
+                no_sort_queue = sort_task_queue.empty();
+            }
+            if (all_producer_done && final_task_apc_occopency == 0 && no_sort_queue)
+            {
+                break;
+            }
+            if (!did_work)
+            {
+                std::this_thread::yield();
+            }
         }//end consumer
-CONSUMER_EXIT :
         apc_mannager_prime_test.UnRegisterAPCThread(thread_handle_consumer);
         std::cout << "Consumer stopped ID : " << worker_id << "\n";
     };
@@ -538,23 +478,6 @@ CONSUMER_EXIT :
     }
     
     std::cout<< "All producers joined\n";
-
-    for (unsigned i = 0; i < number_of_consumers; i++)
-    {
-        bool ok = TASK_APC.PublishHeapPtrWithAdaptiveBackoff(reinterpret_cast<void*>(nullptr));
-        int retry_null_ptr = 0;
-        while (!ok && retry_null_ptr < MAX_TAIL_ATTEMPTS)
-        {
-            std::this_thread::sleep_for(std::chrono::microseconds(50));
-            ok = TASK_APC.PublishHeapPtrWithAdaptiveBackoff(reinterpret_cast<void*>(nullptr));
-            ++retry_null_ptr;
-        }
-
-        if (!retry_null_ptr)
-        {
-            std::cerr << "Warning failed to publish sentinal " << i << " ->TASK_APC\n";
-        }
-    }
     
     sort_cv.notify_all();
 
@@ -563,21 +486,13 @@ CONSUMER_EXIT :
         thrd.join();
     }
     std::cout << "All consumers joined \n";
-
-    stop_collector.store(true, std::memory_order_release);
+    consumer_done.store(true, std::memory_order_seq_cst);
     collector_cv.notify_all();
-    sort_cv.notify_all();
-
-    size_t wait_itars = 0;
-    while (collector_running.load() && wait_itars < 1000)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        ++wait_itars;
-    }
+    
     if (collector_running.load())
     {
         std::cout << "WARNING :: Collector still Running, forcing notify and joining....\n";
-        collector_cv.notify_all();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     collector_thread.join();
 

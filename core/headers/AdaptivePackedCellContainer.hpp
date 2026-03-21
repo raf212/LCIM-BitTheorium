@@ -363,7 +363,7 @@ public:
     //new
     std::optional<AcquirePairedPointerStruct> AcquirePairedAtomicPtr(size_t probable_idx, bool claim_ownership = true, int max_claim_attempts = 256) noexcept;
     bool ReleaseAcquiredPairedPtr(const AcquirePairedPointerStruct& acquired_pair_struct, tag8_t desired_locality = ST_IDLE) noexcept;
-    void RetiredAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_pair_struct, DeviceFence_ fence = {}) noexcept;
+    void RetireAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_pair_struct, DeviceFence_ fence = {}) noexcept;
     template<typename TypePtr>
     std::optional<TypePtr> ViewPointerMemoryIfAssembeled(size_t probable_idx) noexcept;
     

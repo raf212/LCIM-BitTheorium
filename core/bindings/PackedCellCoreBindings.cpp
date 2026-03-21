@@ -24,15 +24,15 @@ PYBIND11_MODULE(atomiccim_bind, m) {
     m.attr("MAX_VAL") = MAX_VAL;
     m.attr("DEFAULT_INTERNAL_PRIORITY") = DEFAULT_INTERNAL_PRIORITY;
 
-    // locality constants
-    m.attr("ST_IDLE") = ST_IDLE;
-    m.attr("ST_PUBLISHED") = ST_PUBLISHED;
-    m.attr("ST_EXCEPTION_BIT_FAULTY") = ST_EXCEPTION_BIT_FAULTY;
-    m.attr("ST_CLAIMED") = ST_CLAIMED;
-    m.attr("ST_PROCESSING") = ST_PROCESSING;
-    m.attr("ST_COMPLETE") = ST_COMPLETE;
-    m.attr("ST_RETIRED") = ST_RETIRED;
-    m.attr("ST_EPOCH_BUMP") = ST_EPOCH_BUMP;
+    // // locality constants
+    // m.attr("ST_IDLE") = ST_IDLE;
+    // m.attr("ST_PUBLISHED") = ST_PUBLISHED;
+    // m.attr("ST_EXCEPTION_BIT_FAULTY") = ST_EXCEPTION_BIT_FAULTY;
+    // m.attr("ST_CLAIMED") = ST_CLAIMED;
+    // m.attr("ST_PROCESSING") = ST_PROCESSING;
+    // m.attr("ST_COMPLETE") = ST_COMPLETE;
+    // m.attr("ST_RETIRED") = ST_RETIRED;
+    // m.attr("ST_EPOCH_BUMP") = ST_EPOCH_BUMP;
 
     // relation constants (expose a handful)
     m.attr("REL_NONE") = REL_NONE;
@@ -51,18 +51,18 @@ PYBIND11_MODULE(atomiccim_bind, m) {
         .export_values();
 
 
-    // Expose small helpers from PackedStRel.h
-    m.def("make_strl4", 
-        [](uint8_t priority, uint8_t locality, uint8_t rel_mask, uint8_t rel_offset, uint8_t pc_type, PackedCellDataType pcdt) -> uint16_t {
-            return MakeSTRL4_t(priority, locality, rel_mask, rel_offset, pc_type, pcdt);
-        },
-        py::arg("priority"),
-        py::arg("locality"),
-        py::arg("rel_mask"),
-        py::arg("rel_offset"),
-        py::arg("pc_type") = 0,
-        py::arg("pc_dtype") = static_cast<PackedCellDataType>(PackedCellDataType::UnsignedPCellDataType)
-    );
+    // // Expose small helpers from PackedStRel.h
+    // m.def("make_strl4", 
+    //     [](uint8_t priority, uint8_t locality, uint8_t rel_mask, uint8_t rel_offset, uint8_t pc_type, PackedCellDataType pcdt) -> uint16_t {
+    //         return MakeSTRL4_t(priority, locality, rel_mask, rel_offset, pc_type, pcdt);
+    //     },
+    //     py::arg("priority"),
+    //     py::arg("locality"),
+    //     py::arg("rel_mask"),
+    //     py::arg("rel_offset"),
+    //     py::arg("pc_type") = 0,
+    //     py::arg("pc_dtype") = static_cast<PackedCellDataType>(PackedCellDataType::UnsignedPCellDataType)
+    // );
 
     m.def("extract_priority_from_strl", [](uint16_t strl) { return ExtractPriorityFromSTRL(static_cast<strl16_t>(strl)); });
     m.def("extract_locality_from_strl", [](uint16_t strl) { return ExtractLocalityFromSTRL(static_cast<strl16_t>(strl)); });
@@ -131,7 +131,7 @@ PYBIND11_MODULE(atomiccim_bind, m) {
     m.def("extract_clk16", [](uint64_t p) -> uint16_t { return PackedCell64_t::ExtractClk16(static_cast<packed64_t>(p)); });
     m.def("extract_clk48", [](uint64_t p) -> uint64_t { return PackedCell64_t::ExtractClk48(static_cast<packed64_t>(p)); });
     m.def("extract_priority_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractPriorityFromPacked(static_cast<packed64_t>(p)); });
-    m.def("extract_locality_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractLocalityFromPacked(static_cast<packed64_t>(p)); });
+    // m.def("extract_locality_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractLocalityFromPacked(static_cast<packed64_t>(p)); });
     m.def("extract_pcelltype_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractPCellTypeFromPacked(static_cast<packed64_t>(p)); });
     m.def("is_packed_cell_val32", [](uint64_t p) -> bool { return PackedCell64_t::IsPackedCellVal32(static_cast<packed64_t>(p)); });
     m.def("extract_relmask_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractRelMaskFromPacked(static_cast<packed64_t>(p)); });
@@ -140,9 +140,9 @@ PYBIND11_MODULE(atomiccim_bind, m) {
     m.def("set_priority_in_packed", [](uint64_t p, uint8_t priority) -> uint64_t {
         return PackedCell64_t::SetPriorityInPacked(static_cast<packed64_t>(p), priority);
     });
-    m.def("set_locality_in_packed", [](uint64_t p, uint8_t local_state) -> uint64_t {
-        return PackedCell64_t::SetLocalityInPacked(static_cast<packed64_t>(p), local_state);
-    });
+    // m.def("set_locality_in_packed", [](uint64_t p, uint8_t local_state) -> uint64_t {
+    //     return PackedCell64_t::SetLocalityInPacked(static_cast<packed64_t>(p), local_state);
+    // });
     m.def("blind_mode_switch_of_packed", [](int out_mode, uint64_t p) -> uint64_t {
         return PackedCell64_t::BlindModeSwitchOfPacked(static_cast<PackedMode>(out_mode), static_cast<packed64_t>(p));
     });

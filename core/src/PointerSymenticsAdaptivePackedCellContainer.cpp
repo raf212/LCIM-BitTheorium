@@ -56,12 +56,12 @@ namespace PredictedAdaptedEncoding
                 return std::nullopt;
             }
 
-            tag8_t head_locality = PackedCell64_t::ExtractLocalityFromPacked(head_screenshot);
-            tag8_t tail_locality = PackedCell64_t::ExtractLocalityFromPacked(tail_screenshot);
+            PackedCellLocalityTypes head_locality = PackedCell64_t::ExtractLocalityFromPacked(head_screenshot);
+            PackedCellLocalityTypes tail_locality = PackedCell64_t::ExtractLocalityFromPacked(tail_screenshot);
 
             if (!claim_ownership)
             {
-                if (head_locality != ST_PUBLISHED || tail_locality != ST_PUBLISHED)
+                if (head_locality != PackedCellLocalityTypes::ST_PUBLISHED || tail_locality != PackedCellLocalityTypes::ST_PUBLISHED)
                 {
                     return std::nullopt;
                 }
@@ -75,12 +75,12 @@ namespace PredictedAdaptedEncoding
                 return out_paired_ptr_struct;
             }
             
-            if (head_locality != ST_PUBLISHED || tail_locality != ST_PUBLISHED)
+            if (head_locality != PackedCellLocalityTypes::ST_PUBLISHED || tail_locality != PackedCellLocalityTypes::ST_PUBLISHED)
             {
                 return std::nullopt;
             }
-            packed64_t want_head = PackedCell64_t::SetLocalityInPacked(head_screenshot, ST_CLAIMED);
-            packed64_t want_tail = PackedCell64_t::SetLocalityInPacked(tail_screenshot, ST_CLAIMED);
+            packed64_t want_head = PackedCell64_t::SetLocalityInPacked(head_screenshot, PackedCellLocalityTypes::ST_CLAIMED);
+            packed64_t want_tail = PackedCell64_t::SetLocalityInPacked(tail_screenshot, PackedCellLocalityTypes::ST_CLAIMED);
             packed64_t expected_head = head_screenshot;
             if (!BackingPtr[head_idx].compare_exchange_strong(expected_head, want_head, EXsuccess_, EXfailure_))
             {
@@ -115,7 +115,7 @@ namespace PredictedAdaptedEncoding
         return std::nullopt;
     }
 
-    bool AdaptivePackedCellContainer::ReleaseAcquiredPairedPtr(const AcquirePairedPointerStruct& acquired_paired_pointer_struct, tag8_t desired_locality) noexcept
+    bool AdaptivePackedCellContainer::ReleaseAcquiredPairedPtr(const AcquirePairedPointerStruct& acquired_paired_pointer_struct, PackedCellLocalityTypes desired_locality) noexcept
     {
         if (!acquired_paired_pointer_struct.Ownership)
         {

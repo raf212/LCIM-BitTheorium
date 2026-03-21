@@ -360,12 +360,12 @@ namespace PredictedAdaptedEncoding
             size_t tail = (head + 1) % ContainerCapacity_;
             packed64_t cur_head = BackingPtr[head].load(MoLoad_);
             packed64_t cur_tail = BackingPtr[tail].load(MoLoad_);
-            tag8_t head_locality = PackedCell64_t::ExtractLocalityFromPacked(cur_head);
-            tag8_t tail_locality = PackedCell64_t::ExtractLocalityFromPacked(cur_tail);
-            if (head_locality == ST_IDLE && tail_locality == ST_IDLE)
+            PackedCellLocalityTypes head_locality = PackedCell64_t::ExtractLocalityFromPacked(cur_head);
+            PackedCellLocalityTypes tail_locality = PackedCell64_t::ExtractLocalityFromPacked(cur_tail);
+            if (head_locality == PackedCellLocalityTypes::ST_IDLE && tail_locality == PackedCellLocalityTypes::ST_IDLE)
             {
-                packed64_t claimed_cur_head = PackedCell64_t::SetLocalityInPacked(cur_head, ST_CLAIMED);
-                packed64_t claimed_cur_tail = PackedCell64_t::SetLocalityInPacked(cur_tail, ST_CLAIMED);
+                packed64_t claimed_cur_head = PackedCell64_t::SetLocalityInPacked(cur_head, PackedCellLocalityTypes::ST_CLAIMED);
+                packed64_t claimed_cur_tail = PackedCell64_t::SetLocalityInPacked(cur_tail, PackedCellLocalityTypes::ST_CLAIMED);
                 packed64_t expected_head = cur_head;
                 if (!BackingPtr[head].compare_exchange_strong(expected_head, claimed_cur_head, EXsuccess_, EXfailure_))
                 {
@@ -383,12 +383,12 @@ namespace PredictedAdaptedEncoding
                     else
                     {
                         val32_t tail_ptr_val32 = high32_half;
-                        strl16_t strl_tail = MakeSTRL4_t(ZERO_PRIORITY, ST_PUBLISHED, rel_mask_with_ptrflag, RELOFFSET_TAIL_PTR, static_cast<unsigned>(PackedMode::MODE_VALUE32));
+                        strl16_t strl_tail = MakeSTRL4_t(ZERO_PRIORITY, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask_with_ptrflag, RELOFFSET_TAIL_PTR, static_cast<unsigned>(PackedMode::MODE_VALUE32));
                         packed64_t tail_packed = PackedCell64_t::ComposeValue32u_64(tail_ptr_val32, 0u, strl_tail);
                         BackingPtr[tail].store(tail_packed, MoStoreSeq_);
 
                         val32_t head_ptr_value32 = low32_half;
-                        strl16_t strl_head = MakeSTRL4_t(DEFAULT_PAIRED_HEAD_HALF_PRIORITY, ST_PUBLISHED, rel_mask_with_ptrflag, REL_OFFSET_HEAD_PTR, static_cast<unsigned>(PackedMode::MODE_VALUE32));
+                        strl16_t strl_head = MakeSTRL4_t(DEFAULT_PAIRED_HEAD_HALF_PRIORITY, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask_with_ptrflag, REL_OFFSET_HEAD_PTR, static_cast<unsigned>(PackedMode::MODE_VALUE32));
                         packed64_t head_packed = PackedCell64_t::ComposeValue32u_64(head_ptr_value32, 0u, strl_head);
                         BackingPtr[head].store(head_packed, MoStoreSeq_);
                         BackingPtr[tail].notify_all();

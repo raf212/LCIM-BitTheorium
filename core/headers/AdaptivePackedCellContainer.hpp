@@ -354,7 +354,7 @@ public:
     bool PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries = 100);
     //new
     std::optional<AcquirePairedPointerStruct> AcquirePairedAtomicPtr(size_t probable_idx, bool claim_ownership = true, int max_claim_attempts = 256) noexcept;
-    bool ReleaseAcquiredPairedPtr(const AcquirePairedPointerStruct& acquired_pair_struct, tag8_t desired_locality = ST_IDLE) noexcept;
+    bool ReleaseAcquiredPairedPtr(const AcquirePairedPointerStruct& acquired_pair_struct, PackedCellLocalityTypes desired_locality = PackedCellLocalityTypes::ST_IDLE) noexcept;
     void RetireAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_pair_struct, DeviceFence_ fence = {}) noexcept;
     template<typename TypePtr>
     std::optional<TypePtr> ViewPointerMemoryIfAssembeled(size_t probable_idx) noexcept;

@@ -88,21 +88,22 @@ namespace PredictedAdaptedEncoding {
     static constexpr tag8_t PRIORITY_MIN = 0;
     static constexpr uint8_t MAX_PRIORITY   = static_cast<tag8_t>(PRIORITY_MASK);
 
-    // locality (4-bit)
-    static constexpr tag8_t ST_IDLE        = 0x0;
-    static constexpr tag8_t ST_PUBLISHED   = 0x1;
-    static constexpr tag8_t ST_EXCEPTION_BIT_FAULTY = 0x2;
-    static constexpr tag8_t ST_CLAIMED     = 0x3;
-    static constexpr tag8_t ST_PROCESSING  = 0x4;
-    static constexpr tag8_t ST_COMPLETE    = 0x5;
-    static constexpr tag8_t ST_RETIRED     = 0x6;
-    static constexpr tag8_t ST_EPOCH_BUMP  = 0x7;
+    // // locality (4-bit)
+    // static constexpr tag8_t ST_IDLE        = 0x0;
+    // static constexpr tag8_t ST_PUBLISHED   = 0x1;
+    // static constexpr tag8_t ST_EXCEPTION_BIT_FAULTY = 0x2;
+    // static constexpr tag8_t ST_CLAIMED     = 0x3;
+    // static constexpr tag8_t ST_PROCESSING  = 0x4;
+    // static constexpr tag8_t ST_COMPLETE    = 0x5;
+    // static constexpr tag8_t ST_RETIRED     = 0x6;
+    // static constexpr tag8_t ST_EPOCH_BUMP  = 0x7;
 
     enum class PackedCellLocalityTypes : tag8_t
     {
         ST_IDLE = 0,
         ST_PUBLISHED = 1,
-        ST_CLAIMED = 3
+        ST_CLAIMED = 2,
+        ST_EXCEPTION_BIT_FAULTY = 3
     };
 
     //Relation(4 + 4) = 8 bit
@@ -174,13 +175,13 @@ namespace PredictedAdaptedEncoding {
         return expected_pcdt;
     }
 
-    inline constexpr strl16_t MakeSTRL4_t(tag8_t priority, tag8_t locality, tag8_t rel_mask, tag8_t rel_offset, tag8_t pc_type = 0, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
+    inline constexpr strl16_t MakeSTRL4_t(tag8_t priority, PackedCellLocalityTypes locality, tag8_t rel_mask, tag8_t rel_offset, tag8_t pc_type = 0, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
     {
 
         assert(pc_type <= 1u);
         assert(rel_offset <= 3u);
         strl16_t prio = static_cast<strl16_t>(priority & PRIORITY_MASK);
-        strl16_t loc = static_cast<strl16_t>(locality & LOCALITY_MASK);
+        strl16_t loc = static_cast<strl16_t>(static_cast<tag8_t>(locality) & LOCALITY_MASK);
         strl16_t pctype = static_cast<strl16_t>(pc_type & PCTYPE_MASK);
         strl16_t rm = static_cast<strl16_t>(rel_mask & RELMASK_MASK);
         strl16_t ro = static_cast<strl16_t>(rel_offset & RELOFFSET_MASK);
@@ -202,9 +203,9 @@ namespace PredictedAdaptedEncoding {
         return static_cast<tag8_t>((strl >> PRIORITY_SHIFT) & PRIORITY_MASK);
     }
     
-    inline constexpr tag8_t ExtractLocalityFromSTRL(strl16_t strl) noexcept
+    inline constexpr PackedCellLocalityTypes ExtractLocalityFromSTRL(strl16_t strl) noexcept
     {
-        return static_cast<tag8_t>((strl >> LOCALITY_SHIFT) & LOCALITY_MASK);
+        return static_cast<PackedCellLocalityTypes>((strl >> LOCALITY_SHIFT) & LOCALITY_MASK);
     }
 
     inline constexpr tag8_t ExtractPCellTypeFromSTRL(strl16_t strl) noexcept

@@ -296,12 +296,7 @@ PYBIND11_MODULE(atomiccim_bind, m) {
         .def("InitContainerRegionOnIndex", &AdaptivePackedCellContainer::InitRegionIdx, py::arg("region_size"),
              "Initialize region index data structures (region_size > 0 required)."
         )
-        .def("StartBackgroungContainerReclaimer", &AdaptivePackedCellContainer::StartBackgroundReclaimerIfNeed,
-             "Start the optional background reclaimer thread (if enabled in ContainerConf)."
-        )
-        .def("StopBackGroundContainerReclaimer", &AdaptivePackedCellContainer::StopBackgroundReclaimer,
-             "Stop the optional background reclaimer thread and join it."
-        )
+
         .def("ReserveSlotsForProducer", &AdaptivePackedCellContainer::ReserveProducerSlots, 
             py::arg("number_of_slots"),
             "Reserve (number_of_slots) return sequense base / (SIZE_MAX/ Error)"
@@ -319,28 +314,7 @@ PYBIND11_MODULE(atomiccim_bind, m) {
             py::arg("address_ptr"), py::arg("rel_mask") = 0, py::arg("max_probes") = -1,
             "Publish a pointer pair using raw address (unsafe). Returns (status, index)."
         )
-        .def("TryAssemblePairedPtrFrmProbableIdx",
-            [](AdaptivePackedCellContainer &self, size_t probable_index) ->py::object
-            {
-                RelOffsetMode position = RelOffsetMode::RELOFFSET_GENERIC_VALUE;
-                auto opt = self.TryAssemblePairedPtr_(probable_index, position);
-                if (!opt)
-                {
-                    return py::none();
-                }
-                return py::make_tuple(py::int_(opt.value()), py::int_(static_cast<int>(position)));
-            },
-            py::arg("probable_idx"),
-            "Return None if not a paired ptr; otherwise return (assembled_address:uint64, rel_offset_mode:int)."
-        )
-        .def("RetirePtrPairFrmProbableIdx",
-            [](AdaptivePackedCellContainer &self, size_t probable_index)
-            {
-                self.RetirePairedPtrAtIdx_(probable_index);
-            },
-            py::arg("probable_idx"),
-            "Retire paired pointer at index (uses default finalizer/fence)."
-        )
+
         .def("MenualAdvanceContainerEpoch",
             &AdaptivePackedCellContainer::ManualAdvanceEpoch,
             py::arg("increment"),

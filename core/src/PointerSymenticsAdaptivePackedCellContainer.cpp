@@ -130,7 +130,7 @@ namespace PredictedAdaptedEncoding
         packed64_t expected_head = acquired_paired_pointer_struct.HeadScreenshot;
         bool head_ok = BackingPtr[acquired_paired_pointer_struct.HeadIdx].compare_exchange_strong(expected_head, want_head, EXsuccess_, EXfailure_);
         packed64_t expected_tail = acquired_paired_pointer_struct.TailScreenshot;
-        bool tail_ok = BackingPtr[acquired_paired_pointer_struct.TailScreenshot].compare_exchange_strong(expected_tail, want_tail, EXsuccess_, EXfailure_);
+        bool tail_ok = BackingPtr[acquired_paired_pointer_struct.TailIdx].compare_exchange_strong(expected_tail, want_tail, EXsuccess_, EXfailure_);
 
         if (!head_ok || !tail_ok)
         {

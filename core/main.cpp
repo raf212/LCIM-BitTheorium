@@ -133,7 +133,7 @@ struct AtomicTimerStatus
         return MaxMicroSecond.load(std::memory_order_relaxed);
     }
 
-    double AvarageMiliSecond() const noexcept
+    double AvarageMicoSecond() const noexcept
     {
         uint64_t samples = GetSampleCount();
         if (samples ==0)
@@ -441,7 +441,7 @@ int main()
             size_t final_task_apc_occopency = TASK_APC.OccupancyAddSubOrGetAfterChange();
             bool no_sort_queue;
             {
-                std::unique_lock<std::mutex> uniqlock(collector_mutex);
+                std::unique_lock<std::mutex> uniqlock(sort_queue_mutex);
                 no_sort_queue = sort_task_queue.empty();
             }
             if (all_producer_done && final_task_apc_occopency == 0 && no_sort_queue)
@@ -525,25 +525,25 @@ int main()
     std::cout << "\nProducer publish stats:\n";
     std::cout << "  samples: " << producer_publish_timer.GetSampleCount()
               << "  total: " << print_us(producer_publish_timer.GetTotalMicroSeconds())
-              << "  avg: " << std::fixed << std::setprecision(3) << producer_publish_timer.AvarageMiliSecond() << " us"
+              << "  avg: " << std::fixed << std::setprecision(3) << producer_publish_timer.AvarageMicoSecond() << " us"
               << "  max: " << print_us(producer_publish_timer.GetMaxMicroSecond()) << "\n";
 
     std::cout << "\nConsumer compute stats (per-task):\n";
     std::cout << "  tasks processed: " << task_processed.load()
               << "  total compute: " << print_us(consumer_compute_timer.GetTotalMicroSeconds())
-              << "  avg compute: " << std::fixed << std::setprecision(3) << consumer_compute_timer.AvarageMiliSecond() << " us"
+              << "  avg compute: " << std::fixed << std::setprecision(3) << consumer_compute_timer.AvarageMicoSecond() << " us"
               << "  max compute: " << print_us(consumer_compute_timer.GetMaxMicroSecond()) << "\n";
 
     std::cout << "\nConsumer result publish stats:\n";
     std::cout << "  samples: " << consumer_result_publish_timer.GetSampleCount()
               << "  total: " << print_us(consumer_result_publish_timer.GetTotalMicroSeconds())
-              << "  avg: " << std::fixed << std::setprecision(3) << consumer_result_publish_timer.AvarageMiliSecond() << " us"
+              << "  avg: " << std::fixed << std::setprecision(3) << consumer_result_publish_timer.AvarageMicoSecond() << " us"
               << "  max: " << print_us(consumer_result_publish_timer.GetMaxMicroSecond()) << "\n";
 
     std::cout << "\nCollector merge stats:\n";
     std::cout << "  samples: " << collector_marge_timer.GetSampleCount()
               << "  total: " << print_us(collector_marge_timer.GetTotalMicroSeconds())
-              << "  avg: " << std::fixed << std::setprecision(3) << collector_marge_timer.AvarageMiliSecond() << " us"
+              << "  avg: " << std::fixed << std::setprecision(3) << collector_marge_timer.AvarageMicoSecond() << " us"
               << "  max: " << print_us(collector_marge_timer.GetMaxMicroSecond()) << "\n";
 
     std::cout << "\nAPC counts:\n";

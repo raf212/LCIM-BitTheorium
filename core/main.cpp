@@ -296,11 +296,11 @@ int main()
                         {
                             any_remaining = true;
                         }
-                        if (!any_remaining)
-                        {
-                            std::cout << "Collector Shutting down -> All Results Drained\n";
-                            break;
-                        }
+                    }
+                    if (!any_remaining)
+                    {
+                        std::cout << "Collector Shutting down -> All Results Drained\n";
+                        break;
                     }
                 }
             }
@@ -396,13 +396,15 @@ int main()
                 if (local_primes->empty())
                 {
                     delete local_primes;
+                    did_work = true;
+                    continue;
                 }
                 
                 if (local_primes->size() > SORT_OFFLOAD_SIZE)
                 {
                     {
-                        std::lock_guard<std::mutex>lok(collector_mutex);
-                        all_primes_array.insert(all_primes_array.end(), local_primes->begin(), local_primes->end());
+                        std::lock_guard<std::mutex>lok(sort_queue_mutex);
+                        sort_task_queue.push_back(local_primes);
                     }
                     collector_cv.notify_one();
                 }

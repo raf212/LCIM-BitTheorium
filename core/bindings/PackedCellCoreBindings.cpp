@@ -135,7 +135,7 @@ PYBIND11_MODULE(atomiccim_bind, m) {
     m.def("extract_pcelltype_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractPCellTypeFromPacked(static_cast<packed64_t>(p)); });
     m.def("is_packed_cell_val32", [](uint64_t p) -> bool { return PackedCell64_t::IsPackedCellVal32(static_cast<packed64_t>(p)); });
     m.def("extract_relmask_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractRelMaskFromPacked(static_cast<packed64_t>(p)); });
-    m.def("extract_reloffset_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractRelOffsetFromPacked(static_cast<packed64_t>(p)); });
+    // m.def("extract_reloffset_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractRelOffsetFromPacked(static_cast<packed64_t>(p)); });
     // setters that return new packed value
     m.def("set_priority_in_packed", [](uint64_t p, uint8_t priority) -> uint64_t {
         return PackedCell64_t::SetPriorityInPacked(static_cast<packed64_t>(p), priority);
@@ -149,9 +149,9 @@ PYBIND11_MODULE(atomiccim_bind, m) {
     m.def("set_relmask_in_packed", [](uint64_t p, uint8_t relmask) -> uint64_t {
         return PackedCell64_t::SetRelMaskInPacked(static_cast<packed64_t>(p), relmask);
     });
-    m.def("set_reloffset_in_packed", [](uint64_t p, uint8_t reloffset) -> uint64_t {
-        return PackedCell64_t::SetRelOffsetInPacked(static_cast<packed64_t>(p), reloffset);
-    });
+    // m.def("set_reloffset_in_packed", [](uint64_t p, uint8_t reloffset) -> uint64_t {
+    //     return PackedCell64_t::SetRelOffsetInPacked(static_cast<packed64_t>(p), reloffset);
+    // });
 
     // AsValue: expose as bytes view (return python bytes representing 8 bytes)
     m.def("packed_as_bytes", [](uint64_t p) {

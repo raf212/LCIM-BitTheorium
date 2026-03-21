@@ -116,11 +116,6 @@ namespace PredictedAdaptedEncoding {
     static constexpr tag8_t REL_ALL_LOW_4   = static_cast<tag8_t>(RELMASK_MASK);
     static constexpr tag8_t REL_MASK4_NONE = 0;
 
-    //reloffset encodings 
-    static constexpr tag8_t RELOFFSET_GENERIC_VALUE = 0;
-    static constexpr tag8_t RELOFFSET_TAIL_PTR = 1;
-    static constexpr tag8_t REL_OFFSET_HEAD_PTR = 2;
-    static constexpr tag8_t REL_OFFSET_STANDALONE48 = 3;
     enum class PackedCellDataType : unsigned
     {
         UnsignedPCellDataType = 0,
@@ -135,7 +130,7 @@ namespace PredictedAdaptedEncoding {
         MODE_CLKVAL48 = 1
     };
 
-    enum class RelOffsetMode : unsigned
+    enum class RelOffsetMode : tag8_t
     {
         RELOFFSET_GENERIC_VALUE = 0,
         RELOFFSET_TAIL_PTR = 1,
@@ -175,16 +170,15 @@ namespace PredictedAdaptedEncoding {
         return expected_pcdt;
     }
 
-    inline constexpr strl16_t MakeSTRL4_t(tag8_t priority, PackedCellLocalityTypes locality, tag8_t rel_mask, tag8_t rel_offset, tag8_t pc_type = 0, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
+    inline constexpr strl16_t MakeSTRL4_t(tag8_t priority, PackedCellLocalityTypes locality, tag8_t rel_mask, RelOffsetMode rel_offset, tag8_t pc_type = 0, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
     {
 
         assert(pc_type <= 1u);
-        assert(rel_offset <= 3u);
         strl16_t prio = static_cast<strl16_t>(priority & PRIORITY_MASK);
         strl16_t loc = static_cast<strl16_t>(static_cast<tag8_t>(locality) & LOCALITY_MASK);
         strl16_t pctype = static_cast<strl16_t>(pc_type & PCTYPE_MASK);
         strl16_t rm = static_cast<strl16_t>(rel_mask & RELMASK_MASK);
-        strl16_t ro = static_cast<strl16_t>(rel_offset & RELOFFSET_MASK);
+        strl16_t ro = static_cast<strl16_t>(static_cast<tag8_t>(rel_offset) & RELOFFSET_MASK);
         strl16_t pcdt = static_cast<strl16_t>(static_cast<unsigned>(pc_datatype) & PCELL_DATATYPE_MASK);
 
         strl16_t strl = static_cast<strl16_t>(
@@ -218,9 +212,9 @@ namespace PredictedAdaptedEncoding {
         return static_cast<tag8_t>((strl >> RELMASK_SHIFT) & RELMASK_MASK);
     }
 
-    inline constexpr tag8_t ExtractRelOffsetFromSTRL(strl16_t strl) noexcept
+    inline constexpr RelOffsetMode ExtractRelOffsetFromSTRL(strl16_t strl) noexcept
     {
-        return static_cast<tag8_t>((strl >> RELOFFSET_SHIFT) & RELOFFSET_MASK);
+        return static_cast<RelOffsetMode>((strl >> RELOFFSET_SHIFT) & RELOFFSET_MASK);
     }
 
     inline constexpr PackedCellDataType ExtractPCellDataTypeFromSTRL(strl16_t strl) noexcept

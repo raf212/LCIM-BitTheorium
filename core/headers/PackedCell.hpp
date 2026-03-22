@@ -4,8 +4,8 @@
 #define MINIMUM_SLEEP_THRASHOLD_US 8
 namespace PredictedAdaptedEncoding
 {
-#define PC_MODE_V32 0u
-#define PC_MODE_CLK48 1u
+// #define PC_MODE_V32 0u
+// #define PC_MODE_CLK48 1u
 
     static inline constexpr packed64_t MaskBits(unsigned n) noexcept
     {
@@ -238,14 +238,14 @@ namespace PredictedAdaptedEncoding
             return ExtractLocalityFromSTRL(ExtractSTRL(p));
         }
 
-        static inline PackedMode ExtractPCellTypeFromPacked(packed64_t p) noexcept
+        static inline PackedMode ExtractModeOfPackedCellFromPacked(packed64_t p) noexcept
         {
             return ExtractPCellTypeFromSTRL(ExtractSTRL(p));
         }
 
         static inline bool IsPackedCellVal32(packed64_t p) noexcept
         {
-            if (ExtractPCellTypeFromPacked(p) == PackedMode::MODE_VALUE32)
+            if (ExtractModeOfPackedCellFromPacked(p) == PackedMode::MODE_VALUE32)
             {
                 return true;
             }

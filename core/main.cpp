@@ -24,7 +24,7 @@
 
 using namespace PredictedAdaptedEncoding;
 
-constexpr uint64_t NTH_ELEMENT = 500000000ull;
+constexpr uint64_t NTH_ELEMENT = 50000000ull;
 constexpr uint64_t BLOCK_SIZE  = 2000000ull;
 constexpr unsigned PRODUCER_COUNT = 2u;
 constexpr unsigned CONSUMER_COUNT = 10u;

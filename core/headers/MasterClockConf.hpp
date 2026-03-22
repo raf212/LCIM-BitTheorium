@@ -43,8 +43,8 @@ struct Timer48
         
         packed64_t MakeInitialCellTimer48_(uint64_t now_ticks) noexcept
         {
-            packed64_t init_clk48_packed = PackedCell64_t::ComposeCLK48u_64(now_ticks, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, PackedCellLocalityTypes::ST_IDLE, REL_NONE, 
-                RelOffsetMode::RELOFFSET_GENERIC_VALUE, static_cast<unsigned>(PackedMode::MODE_CLKVAL48)));
+            packed64_t init_clk48_packed = PackedCell64_t::ComposeCLK48u_64(now_ticks, MakeSTRL4_t(ZERO_PRIORITY, PackedCellLocalityTypes::ST_IDLE, REL_NONE, 
+                RelOffsetMode::RELOFFSET_GENERIC_VALUE, PackedMode::MODE_CLKVAL48));
             return init_clk48_packed;
         }
 
@@ -374,7 +374,7 @@ struct Timer48
             {
                 composed_rel_mask4 = ComputeRelationMask4FromCLK16(downshifted_clock16);
             }
-            strl16_t strl = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask4, RelOffsetMode::RELOFFSET_GENERIC_VALUE, static_cast<tag8_t>(PackedMode::MODE_VALUE32));
+            strl16_t strl = MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask4, RelOffsetMode::RELOFFSET_GENERIC_VALUE, PackedMode::MODE_VALUE32);
             packed64_t packed_value_mode_32 = PackedCell64_t::ComposeValue32u_64(value32, downshifted_clock16, strl);
 
             if (master_slot_id < MasterCLKCapacity && SlotLast48_)

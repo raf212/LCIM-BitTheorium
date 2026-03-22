@@ -124,7 +124,7 @@ namespace PredictedAdaptedEncoding {
         CharPCellDataType = 3
     };
 
-    enum class PackedMode : int
+    enum class PackedMode : tag8_t
     {
         MODE_VALUE32 = 0,
         MODE_CLKVAL48 = 1
@@ -170,13 +170,12 @@ namespace PredictedAdaptedEncoding {
         return expected_pcdt;
     }
 
-    inline constexpr strl16_t MakeSTRL4_t(tag8_t priority, PackedCellLocalityTypes locality, tag8_t rel_mask, RelOffsetMode rel_offset, tag8_t pc_type = 0, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
+    inline constexpr strl16_t MakeSTRL4_t(tag8_t priority, PackedCellLocalityTypes locality, tag8_t rel_mask, RelOffsetMode rel_offset, PackedMode pc_type = PackedMode::MODE_VALUE32, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
     {
 
-        assert(pc_type <= 1u);
         strl16_t prio = static_cast<strl16_t>(priority & PRIORITY_MASK);
         strl16_t loc = static_cast<strl16_t>(static_cast<tag8_t>(locality) & LOCALITY_MASK);
-        strl16_t pctype = static_cast<strl16_t>(pc_type & PCTYPE_MASK);
+        strl16_t pctype = static_cast<strl16_t>(static_cast<tag8_t>(pc_type) & PCTYPE_MASK);
         strl16_t rm = static_cast<strl16_t>(rel_mask & RELMASK_MASK);
         strl16_t ro = static_cast<strl16_t>(static_cast<tag8_t>(rel_offset) & RELOFFSET_MASK);
         strl16_t pcdt = static_cast<strl16_t>(static_cast<unsigned>(pc_datatype) & PCELL_DATATYPE_MASK);
@@ -202,9 +201,9 @@ namespace PredictedAdaptedEncoding {
         return static_cast<PackedCellLocalityTypes>((strl >> LOCALITY_SHIFT) & LOCALITY_MASK);
     }
 
-    inline constexpr tag8_t ExtractPCellTypeFromSTRL(strl16_t strl) noexcept
+    inline constexpr PackedMode ExtractPCellTypeFromSTRL(strl16_t strl) noexcept
     {
-        return static_cast<tag8_t>((strl >> PCTYPE_SHIFT) & PCTYPE_MASK);
+        return static_cast<PackedMode>((strl >> PCTYPE_SHIFT) & PCTYPE_MASK);
     }
 
     inline constexpr tag8_t ExtractRelMaskFromSTRL(strl16_t strl) noexcept

@@ -132,7 +132,7 @@ PYBIND11_MODULE(atomiccim_bind, m) {
     m.def("extract_clk48", [](uint64_t p) -> uint64_t { return PackedCell64_t::ExtractClk48(static_cast<packed64_t>(p)); });
     m.def("extract_priority_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractPriorityFromPacked(static_cast<packed64_t>(p)); });
     // m.def("extract_locality_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractLocalityFromPacked(static_cast<packed64_t>(p)); });
-    m.def("extract_pcelltype_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractPCellTypeFromPacked(static_cast<packed64_t>(p)); });
+    // m.def("extract_pcelltype_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractPCellTypeFromPacked(static_cast<packed64_t>(p)); });
     m.def("is_packed_cell_val32", [](uint64_t p) -> bool { return PackedCell64_t::IsPackedCellVal32(static_cast<packed64_t>(p)); });
     m.def("extract_relmask_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractRelMaskFromPacked(static_cast<packed64_t>(p)); });
     // m.def("extract_reloffset_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractRelOffsetFromPacked(static_cast<packed64_t>(p)); });

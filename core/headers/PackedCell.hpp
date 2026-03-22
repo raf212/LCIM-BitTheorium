@@ -22,18 +22,18 @@ namespace PredictedAdaptedEncoding
             packed64_t p = 0;
             if (mode == PackedMode::MODE_VALUE32)
             {
-                p = static_cast<packed64_t>(ComposeValue32u_64(0u, 0u, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, PackedCellLocalityTypes::ST_IDLE, 0u, RelOffsetMode::RELOFFSET_GENERIC_VALUE, PC_MODE_V32, pcdata_type)));
+                p = static_cast<packed64_t>(ComposeValue32u_64(0u, 0u, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, PackedCellLocalityTypes::ST_IDLE, 0u, RelOffsetMode::RELOFFSET_GENERIC_VALUE, PackedMode::MODE_VALUE32, pcdata_type)));
             }
             else if (mode == PackedMode::MODE_CLKVAL48)
             {
-                p = static_cast<packed64_t>(ComposeCLK48u_64(0u, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, PackedCellLocalityTypes::ST_IDLE, 0u, RelOffsetMode::RELOFFSET_GENERIC_VALUE, PC_MODE_CLK48, pcdata_type)));
+                p = static_cast<packed64_t>(ComposeCLK48u_64(0u, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, PackedCellLocalityTypes::ST_IDLE, 0u, RelOffsetMode::RELOFFSET_GENERIC_VALUE, PackedMode::MODE_CLKVAL48, pcdata_type)));
             }
             return p;
         }
 
         static inline packed64_t ComposeValue32u_64(val32_t v, clk16_t clk, strl16_t strl) noexcept
         {
-            if(ExtractPCellTypeFromSTRL(strl) != PC_MODE_V32)
+            if(ExtractPCellTypeFromSTRL(strl) != PackedMode::MODE_VALUE32)
             {
                 std::fputs(
                     "FATAL-> STRL defined mode MODE_CLKVAL48::Composing->PackedMode::MODE_VALUE32\n",
@@ -54,7 +54,7 @@ namespace PredictedAdaptedEncoding
             PackedMode pcmode = static_cast<PackedMode>(ExtractPCellTypeFromSTRL(strl));
             if (pcmode != PackedMode::MODE_VALUE32)
             {
-                return ComposeValue32u_64(0u, 0u, MakeSTRL4_t(MAX_PRIORITY, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY, 0u, RelOffsetMode::RELOFFSET_GENERIC_VALUE, 0u, PackedCellDataType::UnsignedPCellDataType)); // assert(false)->is an option
+                return ComposeValue32u_64(0u, 0u, MakeSTRL4_t(MAX_PRIORITY, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY, 0u, RelOffsetMode::RELOFFSET_GENERIC_VALUE, PackedMode::MODE_VALUE32, PackedCellDataType::UnsignedPCellDataType)); // assert(false)->is an option
             }
             PackedCellDataType strl_pcdt = ExtractPCellDataTypeFromSTRL(strl);
             assert(strl_pcdt == expected_pcdt && "STRL PackedCellDataType mismatch; ComposeValue32X_64 == MODE_VALUE32\n");
@@ -75,7 +75,7 @@ namespace PredictedAdaptedEncoding
             PackedMode pcmode = static_cast<PackedMode>(ExtractPCellTypeFromSTRL(strl));
             if (pcmode != PackedMode::MODE_CLKVAL48)
             {
-                return ComposeCLK48u_64(0u, MakeSTRL4_t(MAX_PRIORITY, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY, 0u, RelOffsetMode::RELOFFSET_GENERIC_VALUE, 0u, PackedCellDataType::UnsignedPCellDataType)); // assert(false)->is an option
+                return ComposeCLK48u_64(0u, MakeSTRL4_t(MAX_PRIORITY, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY, 0u, RelOffsetMode::RELOFFSET_GENERIC_VALUE, PackedMode::MODE_VALUE32, PackedCellDataType::UnsignedPCellDataType)); // assert(false)->is an option
             }
             PackedCellDataType strl_pcdt = ExtractPCellDataTypeFromSTRL(strl);
             assert(strl_pcdt == expected_pcdt && "STRL PackedCellDataType mismatch; ComposeCLKVal48X_64 == MODE_CLKVAL48");
@@ -175,7 +175,7 @@ namespace PredictedAdaptedEncoding
         
         static inline packed64_t ComposeCLK48u_64(uint64_t clk48, strl16_t strl) noexcept
         {
-            if(ExtractPCellTypeFromSTRL(strl) != PC_MODE_CLK48)
+            if(ExtractPCellTypeFromSTRL(strl) != PackedMode::MODE_CLKVAL48)
             {
                 std::fputs(
                     "FATAL-> STRL defined mode MODE_VALUE32::Composing->PackedMode::MODE_CLKVAL48\n",
@@ -238,14 +238,14 @@ namespace PredictedAdaptedEncoding
             return ExtractLocalityFromSTRL(ExtractSTRL(p));
         }
 
-        static inline tag8_t ExtractPCellTypeFromPacked(packed64_t p) noexcept
+        static inline PackedMode ExtractPCellTypeFromPacked(packed64_t p) noexcept
         {
             return ExtractPCellTypeFromSTRL(ExtractSTRL(p));
         }
 
         static inline bool IsPackedCellVal32(packed64_t p) noexcept
         {
-            if (ExtractPCellTypeFromPacked(p) == PC_MODE_V32)
+            if (ExtractPCellTypeFromPacked(p) == PackedMode::MODE_VALUE32)
             {
                 return true;
             }
@@ -275,7 +275,7 @@ namespace PredictedAdaptedEncoding
             }
             strl16_t sr = ExtractSTRL(p);
             PackedCellLocalityTypes locality = ExtractLocalityFromSTRL(sr);
-            tag8_t pctype = ExtractPCellTypeFromSTRL(sr);
+            PackedMode pctype = ExtractPCellTypeFromSTRL(sr);
             tag8_t rm = ExtractRelMaskFromSTRL(sr);
             RelOffsetMode ro = ExtractRelOffsetFromSTRL(sr);
             PackedCellDataType pcdata_type = ExtractPCellDataTypeFromSTRL(sr);
@@ -288,7 +288,7 @@ namespace PredictedAdaptedEncoding
         {
             strl16_t sr = ExtractSTRL(p);
             tag8_t prio = ExtractPriorityFromSTRL(sr);
-            tag8_t pctype = ExtractPCellTypeFromSTRL(sr);
+            PackedMode pctype = ExtractPCellTypeFromSTRL(sr);
             tag8_t rm = ExtractRelMaskFromSTRL(sr);
             RelOffsetMode ro = ExtractRelOffsetFromSTRL(sr);
             PackedCellDataType pcdata_type = ExtractPCellDataTypeFromSTRL(sr);
@@ -306,13 +306,13 @@ namespace PredictedAdaptedEncoding
             PackedCellDataType pcdata_type = ExtractPCellDataTypeFromSTRL(sr);
             if (out_mode == PackedMode::MODE_CLKVAL48)
             {
-                return ComposeCLK48u_64(ExtractClk48(p), MakeSTRL4_t(prio, loc, rm, ro, PC_MODE_CLK48, pcdata_type));
+                return ComposeCLK48u_64(ExtractClk48(p), MakeSTRL4_t(prio, loc, rm, ro, PackedMode::MODE_CLKVAL48, pcdata_type));
             }
             else if (out_mode == PackedMode::MODE_VALUE32)
             {
-                return ComposeValue32u_64(ExtractValue32(p), ExtractClk16(p), MakeSTRL4_t(prio, loc, rm, ro, PC_MODE_V32, pcdata_type));
+                return ComposeValue32u_64(ExtractValue32(p), ExtractClk16(p), MakeSTRL4_t(prio, loc, rm, ro, PackedMode::MODE_VALUE32, pcdata_type));
             }
-            return SetSTRLInPacked(0u, MakeSTRL4_t(MAX_PRIORITY, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY, 0u, RelOffsetMode::RELOFFSET_GENERIC_VALUE, 0u, PackedCellDataType::UnsignedPCellDataType));
+            return SetSTRLInPacked(0u, MakeSTRL4_t(MAX_PRIORITY, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY, 0u, RelOffsetMode::RELOFFSET_GENERIC_VALUE, PackedMode::MODE_VALUE32, PackedCellDataType::UnsignedPCellDataType));
         }
 
         static inline packed64_t SetRelMaskInPacked(packed64_t p, tag8_t rel_mask) noexcept
@@ -320,7 +320,7 @@ namespace PredictedAdaptedEncoding
             strl16_t sr = ExtractSTRL(p);
             tag8_t prio = ExtractPriorityFromSTRL(sr);
             PackedCellLocalityTypes loc = ExtractLocalityFromSTRL(sr);
-            tag8_t pctype = ExtractPCellTypeFromSTRL(sr);
+            PackedMode pctype = ExtractPCellTypeFromSTRL(sr);
             RelOffsetMode ro = ExtractRelOffsetFromSTRL(sr);
             PackedCellDataType pcdata_type = ExtractPCellDataTypeFromSTRL(sr);
             strl16_t new_strl = MakeSTRL4_t(prio, loc, rel_mask, ro, pctype, pcdata_type);
@@ -332,7 +332,7 @@ namespace PredictedAdaptedEncoding
             strl16_t sr = ExtractSTRL(p);
             tag8_t prio = ExtractPriorityFromSTRL(sr);
             PackedCellLocalityTypes loc = ExtractLocalityFromSTRL(sr);
-            tag8_t pctype = ExtractPCellTypeFromSTRL(sr);
+            PackedMode pctype = ExtractPCellTypeFromSTRL(sr);
             tag8_t rm = ExtractRelMaskFromSTRL(sr);
             PackedCellDataType pcdata_type = static_cast<PackedCellDataType>(ExtractPCellDataTypeFromSTRL(sr));
             strl16_t new_strl = MakeSTRL4_t(prio, loc, rm, rel_offset, pctype, pcdata_type);
@@ -344,7 +344,7 @@ namespace PredictedAdaptedEncoding
             strl16_t sr = ExtractSTRL(p);
             tag8_t prio = ExtractPriorityFromSTRL(sr);
             PackedCellLocalityTypes loc = ExtractLocalityFromSTRL(sr);
-            tag8_t pctype = ExtractPCellTypeFromSTRL(sr);
+            PackedMode pctype = ExtractPCellTypeFromSTRL(sr);
             tag8_t rm = ExtractRelMaskFromSTRL(sr);
             RelOffsetMode ro = ExtractRelOffsetFromSTRL(sr);
             strl16_t new_strl = MakeSTRL4_t(prio, loc, rm, ro, pctype, pc_dtype);

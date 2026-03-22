@@ -137,6 +137,14 @@ namespace PredictedAdaptedEncoding {
         REL_OFFSET_HEAD_PTR = 2,
         REL_OFFSET_STANDALONE48 = 3
     };
+
+    enum class RelOffsetMode48 : tag8_t
+    {
+        RELOFFSET_GENERIC_VALUE = 0,
+        RELOFFSET_PURE_TIMER = 1,
+        RESERVED = 2,
+        RELOFFSET_STANDALONE_PTR = 3
+    };
     
     template <typename pcdt32>
     static inline PackedCellDataType PCellTypeCheckUser()
@@ -189,6 +197,11 @@ namespace PredictedAdaptedEncoding {
             | pcdt
         );
         return strl;
+    }
+
+    inline constexpr strl16_t MakeStrl4ForMode48_t (tag8_t priority, PackedCellLocalityTypes locality, tag8_t rel_mask, RelOffsetMode48 rel_offset, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
+    {
+        return MakeSTRL4_t(priority, locality, rel_mask, static_cast<RelOffsetMode>(rel_offset), PackedMode::MODE_CLKVAL48, pc_datatype);
     }
 
     inline constexpr tag8_t ExtractPriorityFromSTRL(strl16_t strl) noexcept

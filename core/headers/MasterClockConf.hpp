@@ -65,7 +65,7 @@ struct Timer48
                 return;
             }
             SlotLast48_[master_clock_id].store(now_ticks, MoStoreSeq_);
-            SlotEpochHigh_[master_clock_id].store(now_ticks, MoStoreSeq_);
+            SlotEpochHigh_[master_clock_id].store(now_ticks / GetCLK16Window_(), MoStoreSeq_);
         }
 
         inline tag8_t ResolveRelMask4_(clk16_t clk16, tag8_t rel_mask4) const noexcept
@@ -251,7 +251,7 @@ struct Timer48
             return MasterClockSlotsPtr[mclock_id].load(MoLoad_);
         }
 
-        clk16_t GetImmidiateDownshiftedClock16(uint64_t now_ticks) noexcept
+        clk16_t GetImmidiateDownshiftedClock16(uint64_t now_ticks) const noexcept
         {
             return static_cast<clk16_t>((now_ticks >> TimerDownShift_) & MaskBits(CLK_B16));
         }
@@ -291,6 +291,7 @@ struct Timer48
             return StampFromMasterClockSlot(current_master_clock_id, rel_mask_4);
         }
 
+        //have to re-wrire 
         inline std::optional<uint64_t> ComputeReconstructed48fromCLK16(size_t master_clock_id, clk16_t clk16) const noexcept
         {
             if (!SlotLast48_ || master_clock_id >= MasterCLKCapacity || !SlotEpochHigh_)
@@ -407,7 +408,7 @@ struct Timer48
             return PackedCell64_t::ComposeValue32u_64(cell_value32, stamp_result.SequentialClock16, strl);
         }
 
-        inline packed64_t ComposeValue32WithCurretntThreadStamp16(
+        inline packed64_t ComposeValue32WithCurrentThreadStamp16(
             val32_t cel_value32,
             tag8_t rel_mask4,
             tag8_t priority = ZERO_PRIORITY,
@@ -487,6 +488,7 @@ struct Timer48
             return RefreshPackedCellClockOnly(old_packed, master_clock_slot_id, force_rel_mask4, should_owned);
         }
 
+        //Integrate AtomicAdaptiveBackoff
         inline bool TouchAtomicPackedCellClock(
             std::atomic<packed64_t>& atomic_cell,
             size_t master_slot_id,

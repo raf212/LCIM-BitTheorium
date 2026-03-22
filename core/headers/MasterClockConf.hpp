@@ -43,8 +43,8 @@ struct Timer48
         
         packed64_t MakeInitialCellTimer48_(uint64_t now_ticks) noexcept
         {
-            packed64_t init_clk48_packed = PackedCell64_t::ComposeCLK48u_64(now_ticks, MakeSTRL4_t(ZERO_PRIORITY, PackedCellLocalityTypes::ST_IDLE, REL_NONE, 
-                RelOffsetMode::RELOFFSET_GENERIC_VALUE, PackedMode::MODE_CLKVAL48));
+            packed64_t init_clk48_packed = PackedCell64_t::ComposeCLK48u_64(now_ticks, MakeStrl4ForMode48_t(ZERO_PRIORITY, PackedCellLocalityTypes::ST_IDLE, REL_NONE, 
+                RelOffsetMode48::RELOFFSET_GENERIC_VALUE));
             return init_clk48_packed;
         }
 
@@ -399,12 +399,12 @@ struct Timer48
             tag8_t priority = ZERO_PRIORITY,
             tag8_t rel_mask4 = REL_MASK4_NONE,
             PackedCellLocalityTypes locality_wanted = PackedCellLocalityTypes::ST_PUBLISHED,
-            RelOffsetMode reloffset_mode_wanted = RelOffsetMode::RELOFFSET_GENERIC_VALUE,
+            RelOffsetMode32 reloffset_mode_wanted = RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
             PackedCellDataType data_type_wanted = PackedCellDataType::UnsignedPCellDataType
         ) noexcept
         {
             StampResult stamp_result = StampFromMasterClockSlot(master_clock_slot_id, rel_mask4);
-            strl16_t strl = MakeSTRL4_t(priority, locality_wanted, stamp_result.RelMask4, reloffset_mode_wanted, PackedMode::MODE_VALUE32, data_type_wanted);
+            strl16_t strl = MakeSTRLMode32_t(priority, locality_wanted, stamp_result.RelMask4, reloffset_mode_wanted, data_type_wanted);
             return PackedCell64_t::ComposeValue32u_64(cell_value32, stamp_result.SequentialClock16, strl);
         }
 
@@ -413,7 +413,7 @@ struct Timer48
             tag8_t rel_mask4,
             tag8_t priority = ZERO_PRIORITY,
             PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
-            RelOffsetMode rel_offset = RelOffsetMode::RELOFFSET_GENERIC_VALUE,
+            RelOffsetMode32 rel_offset = RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
             PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType
 
         ) noexcept
@@ -424,7 +424,7 @@ struct Timer48
                 uint64_t now_ticks = MasterTimer48.NowTicks();
                 clk16_t clk16 = GetImmidiateDownshiftedClock16(now_ticks);
                 tag8_t rel_mask_internal = ResolveRelMask4_(clk16, rel_mask4);
-                strl16_t strl = MakeSTRL4_t(priority, locality, rel_mask_internal, rel_offset, PackedMode::MODE_VALUE32, dtype);
+                strl16_t strl = MakeSTRLMode32_t(priority, locality, rel_mask_internal, rel_offset, dtype);
                 return PackedCell64_t::ComposeValue32u_64(cel_value32, clk16, strl);
             }
             return ComposeValue32WithMasterClockStamp16(cel_value32, slot_id, priority, rel_mask4, locality, rel_offset, dtype);
@@ -436,12 +436,12 @@ struct Timer48
             tag8_t rel_mask4 = REL_MASK4_NONE,
             tag8_t priority = ZERO_PRIORITY,
             PackedCellLocalityTypes locality_wanted = PackedCellLocalityTypes::ST_PUBLISHED,
-            RelOffsetMode reloffset_mode_wanted = RelOffsetMode::RELOFFSET_GENERIC_VALUE,
+            RelOffsetMode48 reloffset_mode_wanted = RelOffsetMode48::RELOFFSET_PURE_TIMER,
             PackedCellDataType data_type_wanted = PackedCellDataType::UnsignedPCellDataType
         ) noexcept
         {
             StampResult stamp_result = StampFromMasterClockSlot(master_clock_slot_id, rel_mask4);
-            strl16_t strl = MakeSTRL4_t(priority, locality_wanted, stamp_result.RelMask4, reloffset_mode_wanted, PackedMode::MODE_CLKVAL48, data_type_wanted);
+            strl16_t strl = MakeStrl4ForMode48_t(priority, locality_wanted, stamp_result.RelMask4, reloffset_mode_wanted, data_type_wanted);
             uint64_t final48 = (clk_value48 != 0) ? clk_value48 : stamp_result.NowTicks;
             return PackedCell64_t::ComposeCLK48u_64(final48, strl);
         }
@@ -462,16 +462,23 @@ struct Timer48
             };
             PackedMode packed_mode = PackedCell64_t::ExtractModeOfPackedCellFromPacked(old_packed);
             PackedCellDataType packed_cell_dtype = PackedCell64_t::ExtractPCellDataTypeFromPacked(old_packed);
-            RelOffsetMode current_reloffset = PackedCell64_t::ExtractRelOffsetFromPacked(old_packed);
+            tag8_t current_reloffset = PackedCell64_t::ExtractRelOffsetFromPacked(old_packed);
             tag8_t rel_mask4 = stamp.RelMask4;
-            strl16_t strl = MakeSTRL4_t(priority, locality, rel_mask4, current_reloffset, packed_mode, packed_cell_dtype);
             if (packed_mode == PackedMode::MODE_VALUE32)
             {
                 val32_t cell_value32 = PackedCell64_t::ExtractValue32(old_packed);
+                strl16_t strl = MakeSTRLMode32_t(priority, locality, rel_mask4, static_cast<RelOffsetMode32>(current_reloffset), packed_cell_dtype);
                 return PackedCell64_t::ComposeValue32u_64(cell_value32, stamp.SequentialClock16, strl);
             }
-            uint64_t cell_clk48 = stamp.NowTicks;
-            return PackedCell64_t::ComposeCLK48u_64(cell_clk48, strl);
+            RelOffsetMode48 current_reloffset48 = static_cast<RelOffsetMode48>(current_reloffset);
+            if (current_reloffset48 == RelOffsetMode48::RELOFFSET_PURE_TIMER)
+            {
+                uint64_t cell_clk48 = stamp.NowTicks;
+                strl16_t strl = MakeStrl4ForMode48_t(priority, locality, rel_mask4, current_reloffset48, packed_cell_dtype);
+                return PackedCell64_t::ComposeCLK48u_64(cell_clk48, strl);
+            }
+            
+            return PackedCell64_t::SetLocalityInPacked(old_packed, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY);
         }
 
         inline packed64_t RefreshPackedCellClockOnlyForCurrentThread(

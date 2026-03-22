@@ -383,12 +383,12 @@ namespace PredictedAdaptedEncoding
                     else
                     {
                         val32_t tail_ptr_val32 = high32_half;
-                        strl16_t strl_tail = MakeSTRL4_t(ZERO_PRIORITY, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask_with_ptrflag, RelOffsetMode::RELOFFSET_TAIL_PTR, PackedMode::MODE_VALUE32);
+                        strl16_t strl_tail = MakeSTRLMode32_t(ZERO_PRIORITY, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask_with_ptrflag, RelOffsetMode32::RELOFFSET_TAIL_PTR);
                         packed64_t tail_packed = PackedCell64_t::ComposeValue32u_64(tail_ptr_val32, 0u, strl_tail);
                         BackingPtr[tail].store(tail_packed, MoStoreSeq_);
 
                         val32_t head_ptr_value32 = low32_half;
-                        strl16_t strl_head = MakeSTRL4_t(DEFAULT_PAIRED_HEAD_HALF_PRIORITY, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask_with_ptrflag, RelOffsetMode::REL_OFFSET_HEAD_PTR, PackedMode::MODE_VALUE32);
+                        strl16_t strl_head = MakeSTRLMode32_t(DEFAULT_PAIRED_HEAD_HALF_PRIORITY, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask_with_ptrflag, RelOffsetMode32::REL_OFFSET_HEAD_PTR);
                         packed64_t head_packed = PackedCell64_t::ComposeValue32u_64(head_ptr_value32, 0u, strl_head);
                         BackingPtr[head].store(head_packed, MoStoreSeq_);
                         BackingPtr[tail].notify_all();

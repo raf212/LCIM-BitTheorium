@@ -36,7 +36,7 @@ struct AcquirePairedPointerStruct
     size_t TailIdx = SIZE_MAX;
     packed64_t HeadScreenshot = 0;
     packed64_t TailScreenshot = 0;
-    RelOffsetMode Position = RelOffsetMode::RELOFFSET_GENERIC_VALUE;
+    RelOffsetMode32 Position = RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
     bool Ownership = false;
 };
 

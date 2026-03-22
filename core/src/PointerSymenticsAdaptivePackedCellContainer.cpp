@@ -30,15 +30,15 @@ namespace PredictedAdaptedEncoding
         while (curent_tries++ < max_claim_attempts)
         {
             packed64_t packed_cell_value64 = BackingPtr[probable_idx].load(MoLoad_);
-            RelOffsetMode curent_ptr_position = static_cast<RelOffsetMode>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell_value64));
+            RelOffsetMode32 curent_ptr_position = static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell_value64));
             size_t head_idx = SIZE_MAX;
             size_t tail_idx = SIZE_MAX;
-            if (curent_ptr_position == RelOffsetMode::REL_OFFSET_HEAD_PTR)
+            if (curent_ptr_position == RelOffsetMode32::REL_OFFSET_HEAD_PTR)
             {
                 head_idx = probable_idx;
                 tail_idx = (probable_idx + 1) % ContainerCapacity_;
             }
-            else if (curent_ptr_position == RelOffsetMode::RELOFFSET_TAIL_PTR)
+            else if (curent_ptr_position == RelOffsetMode32::RELOFFSET_TAIL_PTR)
             {
                 head_idx = (probable_idx + ContainerCapacity_ - 1) % ContainerCapacity_;
                 tail_idx = probable_idx;

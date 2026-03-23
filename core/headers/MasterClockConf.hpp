@@ -137,9 +137,9 @@ struct Timer48
                 return false;
             }
             //allocation 
-            MasterClockSlotsPtr = new std::atomic<packed64_t>[max_slots];
-            SlotLast48_.reset(new std::atomic<uint64_t>[max_slots]);
-            SlotEpochHigh_.reset(new std::atomic<uint64_t>[max_slots]);
+            auto temp_slots = std::make_unique<std::atomic<packed64_t>[]>(max_slots);
+            auto temp_last48 = std::make_unique<std::atomic<packed64_t>[]>(max_slots);
+            auto temp_epoch = std::make_unique<std::atomic<uint64_t>[]>(max_slots);
 
             uint64_t current_now_48 = MasterTimer48.NowTicks();
             packed64_t init_clk48_packed = MakeInitialCellTimer48_(current_now_48);
@@ -147,12 +147,15 @@ struct Timer48
             uint64_t initial_epoch = current_now_48 / window;
             for (size_t i = 0; i < max_slots; i++)
             {
-                MasterClockSlotsPtr[i].store(init_clk48_packed, MoStoreSeq_);
-                SlotLast48_[i].store(current_now_48, MoStoreSeq_);
-                SlotEpochHigh_[i].store(initial_epoch, MoStoreSeq_);
+                temp_slots[i].store(init_clk48_packed, MoStoreSeq_);
+                temp_last48[i].store(current_now_48, MoStoreSeq_);
+                temp_epoch[i].store(initial_epoch, MoStoreSeq_);
             }
+            MasterClockSlotsPtr = temp_slots.release();
+            SlotLast48_ = std::move(temp_last48);
+            SlotEpochHigh_ = std::move(temp_epoch);
             MasterCLKCapacity = max_slots;
-            MasterClockAlloc.store(0, MoStoreSeq_);
+            MasterClockAlloc.store(NO_VAL, MoStoreSeq_);
             OwnsSlots_ = true;
             return true;
                         
@@ -170,13 +173,15 @@ struct Timer48
             }
             MasterClockSlotsPtr = nullptr;
             MasterCLKCapacity = 0;
-            MasterClockAlloc.store(0, MoStoreSeq_);
+            MasterClockAlloc.store(NO_VAL, MoStoreSeq_);
             OwnsSlots_ = false;
             SlotLast48_.reset(nullptr);
             SlotEpochHigh_.reset(nullptr);
+
+            ThreadLocalMasterClockID_() = SIZE_MAX;
         }
 
-        size_t RegisterMasterClockSlot(packed64_t given_init_clk = 0, size_t master_clock_id = SIZE_MAX) noexcept
+        size_t ResetAndRegisterMasterClockSlot(packed64_t given_init_clk = 0, size_t master_clock_id = SIZE_MAX) noexcept
         {
             if (!MasterClockSlotsPtr || MasterCLKCapacity == 0)
             {
@@ -210,7 +215,7 @@ struct Timer48
             size_t id = MasterClockAlloc.fetch_add(1, std::memory_order_acq_rel);
             if (id < MasterCLKCapacity)
             {
-                return RegisterMasterClockSlot(given_init_clk, id);
+                return ResetAndRegisterMasterClockSlot(given_init_clk, id);
             }
             return SIZE_MAX;
         }
@@ -234,7 +239,7 @@ struct Timer48
             {
                 return current_thread_id;
             }
-            size_t fresh_master_clock_thread_id = RegisterMasterClockSlot();
+            size_t fresh_master_clock_thread_id = ResetAndRegisterMasterClockSlot();
             if (fresh_master_clock_thread_id != SIZE_MAX)
             {
                 ThreadLocalMasterClockID_() = fresh_master_clock_thread_id;
@@ -267,12 +272,19 @@ struct Timer48
 
         inline StampResult StampFromMasterClockSlot(size_t master_clock_id, unsigned rel_mask4 = REL_MASK4_NONE) noexcept
         {
-            StampResult stamp_result;
+            StampResult stamp_result{};
             uint64_t now_ticks = MasterTimer48.NowTicks();
             stamp_result.NowTicks = now_ticks;
             stamp_result.SequentialClock16 = GetImmidiateDownshiftedClock16(now_ticks);
             stamp_result.RelMask4 = ResolveRelMask4_(stamp_result.SequentialClock16, static_cast<tag8_t>(rel_mask4));
             RefreshSlotEpochState_(master_clock_id, now_ticks);
+            if (MasterClockSlotsPtr && master_clock_id < MasterCLKCapacity)
+            {
+                packed64_t packed_timer_48 = MakeInitialCellTimer48_(now_ticks);
+                MasterClockSlotsPtr[master_clock_id].store(packed_timer_48, MoStoreSeq_);
+                MasterClockSlotsPtr[master_clock_id].notify_all();
+            }
+            
             return stamp_result;
         }
 
@@ -291,7 +303,6 @@ struct Timer48
             return StampFromMasterClockSlot(current_master_clock_id, rel_mask_4);
         }
 
-        //have to re-wrire 
         inline std::optional<uint64_t> ComputeReconstructed48fromCLK16(size_t master_clock_id, clk16_t clk16) const noexcept
         {
             if (!SlotLast48_ || master_clock_id >= MasterCLKCapacity || !SlotEpochHigh_)
@@ -302,36 +313,33 @@ struct Timer48
             uint64_t current_epoch = SlotEpochHigh_[master_clock_id].load(MoLoad_);
             uint64_t window = GetCLK16Window_();
             uint64_t low_bits = (static_cast<uint64_t>(clk16) << TimerDownShift_) & (window - 1);
-            uint64_t candidate_master_time = current_epoch * window + low_bits;
-            uint64_t diffarance_in_time = (candidate_master_time > last48_clock) ? (candidate_master_time - last48_clock) : (last48_clock - candidate_master_time);
-            if (diffarance_in_time > GetHalfWindow_())
+            uint64_t best_candidate = current_epoch * window + low_bits;
+            uint64_t best_differance = (best_candidate > last48_clock) ? (best_candidate - last48_clock) : (last48_clock - best_candidate);
+            const uint64_t half_window = GetHalfWindow_();
+            if (best_candidate >= window)
             {
-                if (candidate_master_time > window)
+                uint64_t down = best_candidate - window;
+                uint64_t diffarance_down = (down > last48_clock) ? (down - last48_clock) : (last48_clock - down);
+                if (diffarance_down < best_differance)
                 {
-                    uint64_t down = candidate_master_time - window;
-                    uint64_t down2 = (down > last48_clock) ? (down - last48_clock) : (last48_clock - down);
-                    if (down2 < diffarance_in_time)
-                    {
-                        candidate_master_time = down;
-                        diffarance_in_time = down2;
-                    }
-                    {
-                        uint64_t up = candidate_master_time + window;
-                        uint64_t downed_up = (up > last48_clock) ? (up - last48_clock) : (last48_clock - up);
-                        if (downed_up < diffarance_in_time)
-                        {
-                            candidate_master_time = up;
-                            diffarance_in_time = downed_up;
-                        }
-                    }
+                    best_candidate = down;
+                    best_differance = diffarance_down;
                 }
             }
-        
-            if (diffarance_in_time  > GetHalfWindow_())
+            {
+                uint64_t up = best_candidate + window;
+                uint64_t difference_up = (up > last48_clock) ? (up - last48_clock) : (last48_clock - up);
+                if (difference_up < best_differance)
+                {
+                    best_candidate = up;
+                    best_differance = difference_up;
+                }
+            }
+            if (best_differance > half_window)
             {
                 return std::nullopt;
             }
-            return candidate_master_time & MaskBits(CLK_B48);
+            return best_candidate & MaskBits(CLK_B48);
         }
 
         inline void BackgroundRefreshSlotWithEpoch(size_t master_clock_id) noexcept
@@ -366,12 +374,12 @@ struct Timer48
             {
                 return NO_VAL;
             }
-            return SlotEpochHigh_[master_clock_id].load(MoStoreSeq_);
+            return SlotEpochHigh_[master_clock_id].load(MoLoad_);
         }
 
         inline uint8_t SetAndGetTimerDownshift(unsigned downshift_value = 0) noexcept
         {
-            if (downshift_value >= MIN_TIMER_DOWNSHIFT && downshift_value <= MAX_TIMER_DOWNSHIFT)
+            if (downshift_value >= MIN_TIMER_DOWNSHIFT && downshift_value <= MAX_TIMER_DOWNSHIFT && MasterClockSlotsPtr == nullptr)
             {
                 TimerDownShift_ = downshift_value;
             }
@@ -478,7 +486,7 @@ struct Timer48
                 return PackedCell64_t::ComposeCLK48u_64(cell_clk48, strl);
             }
             
-            return PackedCell64_t::SetLocalityInPacked(old_packed, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY);
+            return old_packed;
         }
 
         inline packed64_t RefreshPackedCellClockOnlyForCurrentThread(

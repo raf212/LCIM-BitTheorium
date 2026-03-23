@@ -243,7 +243,7 @@ PYBIND11_MODULE(atomiccim_bind, m) {
         .def("init_master_clock_slots", &MasterClockConf::InitMasterClockSlots, py::arg("max_slots"), py::arg("alignment") = 64)
         .def("free_master_clock_slots", &MasterClockConf::FreeMasterClockSlots)
         .def("register_master_clock_slot", [](MasterClockConf &self, uint64_t given_init_clk, std::optional<size_t> m_id_opt) -> py::size_t {
-            size_t id = (m_id_opt.has_value()) ? self.RegisterMasterClockSlot(static_cast<packed64_t>(given_init_clk), m_id_opt.value()) : self.RegisterMasterClockSlot(static_cast<packed64_t>(given_init_clk));
+            size_t id = (m_id_opt.has_value()) ? self.ResetAndRegisterMasterClockSlot(static_cast<packed64_t>(given_init_clk), m_id_opt.value()) : self.ResetAndRegisterMasterClockSlot(static_cast<packed64_t>(given_init_clk));
             return id;
         }, py::arg("given_init_clk") = 0, py::arg("m_id") = std::optional<size_t>{})
         .def("attach_thread_mclock_id", &MasterClockConf::AttachThreadMClockID)

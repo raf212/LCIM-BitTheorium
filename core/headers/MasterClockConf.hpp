@@ -26,6 +26,13 @@ struct Timer48
 };
     class MasterClockConf
     {
+    public:
+        struct StampResult
+        {
+            clk16_t SequentialClock16 = 0;
+            tag8_t RelMask4 = 0;
+            uint64_t NowTicks = 0;
+        };
     private:
 
         bool OwnsSlots_ = false;
@@ -77,7 +84,73 @@ struct Timer48
             return ComputeRelationMask4FromCLK16(clk16);
         }
 
+        inline StampResult StampFromMasterClockSlot_(size_t master_clock_id, unsigned rel_mask4 = REL_MASK4_NONE) noexcept
+        {
+            StampResult stamp_result{};
+            uint64_t now_ticks = MasterTimer48.NowTicks();
+            stamp_result.NowTicks = now_ticks;
+            stamp_result.SequentialClock16 = GetImmidiateDownshiftedClock16(now_ticks);
+            stamp_result.RelMask4 = ResolveRelMask4_(stamp_result.SequentialClock16, static_cast<tag8_t>(rel_mask4));
+            RefreshSlotEpochState_(master_clock_id, now_ticks);
+            if (MasterClockSlotsPtr && master_clock_id < MasterCLKCapacity)
+            {
+                packed64_t packed_timer_48 = MakeInitialCellTimer48_(now_ticks);
+                MasterClockSlotsPtr[master_clock_id].store(packed_timer_48, MoStoreSeq_);
+                MasterClockSlotsPtr[master_clock_id].notify_all();
+            }
+            
+            return stamp_result;
+        }
 
+        inline packed64_t ComposeValue32WithMasterClockStamp16_(
+            val32_t cell_value32,
+            size_t master_clock_slot_id,
+            tag8_t priority = ZERO_PRIORITY,
+            tag8_t rel_mask4 = REL_MASK4_NONE,
+            PackedCellLocalityTypes locality_wanted = PackedCellLocalityTypes::ST_PUBLISHED,
+            RelOffsetMode32 reloffset_mode_wanted = RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
+            PackedCellDataType data_type_wanted = PackedCellDataType::UnsignedPCellDataType
+        ) noexcept
+        {
+            StampResult stamp_result = StampFromMasterClockSlot_(master_clock_slot_id, rel_mask4);
+            strl16_t strl = MakeSTRLMode32_t(priority, locality_wanted, stamp_result.RelMask4, reloffset_mode_wanted, data_type_wanted);
+            return PackedCell64_t::ComposeValue32u_64(cell_value32, stamp_result.SequentialClock16, strl);
+        }
+
+        inline packed64_t RefreshPackedCellClockOnly_(
+            packed64_t old_packed,
+            size_t master_clock_id,
+            tag8_t force_rel_mask = REL_MASK4_NONE,
+            std::optional<PackedCellLocalityTypes> should_owned = std::nullopt
+        )
+        {
+            StampResult stamp = StampFromMasterClockSlot_(master_clock_id, force_rel_mask);
+            tag8_t priority = PackedCell64_t::ExtractPriorityFromPacked(old_packed);
+            PackedCellLocalityTypes locality = PackedCell64_t::ExtractLocalityFromPacked(old_packed);
+            if (should_owned)
+            {
+                locality = *should_owned;
+            };
+            PackedMode packed_mode = PackedCell64_t::ExtractModeOfPackedCellFromPacked(old_packed);
+            PackedCellDataType packed_cell_dtype = PackedCell64_t::ExtractPCellDataTypeFromPacked(old_packed);
+            tag8_t current_reloffset = PackedCell64_t::ExtractRelOffsetFromPacked(old_packed);
+            tag8_t rel_mask4 = stamp.RelMask4;
+            if (packed_mode == PackedMode::MODE_VALUE32)
+            {
+                val32_t cell_value32 = PackedCell64_t::ExtractValue32(old_packed);
+                strl16_t strl = MakeSTRLMode32_t(priority, locality, rel_mask4, static_cast<RelOffsetMode32>(current_reloffset), packed_cell_dtype);
+                return PackedCell64_t::ComposeValue32u_64(cell_value32, stamp.SequentialClock16, strl);
+            }
+            RelOffsetMode48 current_reloffset48 = static_cast<RelOffsetMode48>(current_reloffset);
+            if (current_reloffset48 == RelOffsetMode48::RELOFFSET_PURE_TIMER)
+            {
+                uint64_t cell_clk48 = stamp.NowTicks;
+                strl16_t strl = MakeStrl4ForMode48_t(priority, locality, rel_mask4, current_reloffset48, packed_cell_dtype);
+                return PackedCell64_t::ComposeCLK48u_64(cell_clk48, strl);
+            }
+            
+            return old_packed;
+        }
     public:
         Timer48& MasterTimer48;
         int UsedNode = 0;
@@ -118,12 +191,7 @@ struct Timer48
 
         MasterClockConf& operator = (MasterClockConf&& other) noexcept = delete;
 
-        struct StampResult
-        {
-            clk16_t SequentialClock16 = 0;
-            tag8_t RelMask4 = 0;
-            uint64_t NowTicks = 0;
-        };
+
 
         bool InitMasterClockSlots(size_t max_slots, size_t allignment = 64)
         {
@@ -270,23 +338,7 @@ struct Timer48
             return static_cast<tag8_t>((static_cast<unsigned>(clock16) >> RelShift_) & ((1u << REL_MASK_SIZE) - 1u));
         }
 
-        inline StampResult StampFromMasterClockSlot(size_t master_clock_id, unsigned rel_mask4 = REL_MASK4_NONE) noexcept
-        {
-            StampResult stamp_result{};
-            uint64_t now_ticks = MasterTimer48.NowTicks();
-            stamp_result.NowTicks = now_ticks;
-            stamp_result.SequentialClock16 = GetImmidiateDownshiftedClock16(now_ticks);
-            stamp_result.RelMask4 = ResolveRelMask4_(stamp_result.SequentialClock16, static_cast<tag8_t>(rel_mask4));
-            RefreshSlotEpochState_(master_clock_id, now_ticks);
-            if (MasterClockSlotsPtr && master_clock_id < MasterCLKCapacity)
-            {
-                packed64_t packed_timer_48 = MakeInitialCellTimer48_(now_ticks);
-                MasterClockSlotsPtr[master_clock_id].store(packed_timer_48, MoStoreSeq_);
-                MasterClockSlotsPtr[master_clock_id].notify_all();
-            }
-            
-            return stamp_result;
-        }
+
 
         inline StampResult StampFromCurrentThread(unsigned rel_mask_4 = REL_MASK4_NONE) noexcept
         {
@@ -300,7 +352,7 @@ struct Timer48
                 stamp_result.RelMask4 = ResolveRelMask4_(stamp_result.SequentialClock16, static_cast<tag8_t>(rel_mask_4));
                 return stamp_result;
             }
-            return StampFromMasterClockSlot(current_master_clock_id, rel_mask_4);
+            return StampFromMasterClockSlot_(current_master_clock_id, rel_mask_4);
         }
 
         inline std::optional<uint64_t> ComputeReconstructed48fromCLK16(size_t master_clock_id, clk16_t clk16) const noexcept
@@ -401,21 +453,6 @@ struct Timer48
             return ComputeReconstructed48fromCLK16(master_ckock_id, clock16);
         }
 
-        inline packed64_t ComposeValue32WithMasterClockStamp16(
-            val32_t cell_value32,
-            size_t master_clock_slot_id,
-            tag8_t priority = ZERO_PRIORITY,
-            tag8_t rel_mask4 = REL_MASK4_NONE,
-            PackedCellLocalityTypes locality_wanted = PackedCellLocalityTypes::ST_PUBLISHED,
-            RelOffsetMode32 reloffset_mode_wanted = RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
-            PackedCellDataType data_type_wanted = PackedCellDataType::UnsignedPCellDataType
-        ) noexcept
-        {
-            StampResult stamp_result = StampFromMasterClockSlot(master_clock_slot_id, rel_mask4);
-            strl16_t strl = MakeSTRLMode32_t(priority, locality_wanted, stamp_result.RelMask4, reloffset_mode_wanted, data_type_wanted);
-            return PackedCell64_t::ComposeValue32u_64(cell_value32, stamp_result.SequentialClock16, strl);
-        }
-
         inline packed64_t ComposeValue32WithCurrentThreadStamp16(
             val32_t cel_value32,
             tag8_t rel_mask4,
@@ -435,7 +472,7 @@ struct Timer48
                 strl16_t strl = MakeSTRLMode32_t(priority, locality, rel_mask_internal, rel_offset, dtype);
                 return PackedCell64_t::ComposeValue32u_64(cel_value32, clk16, strl);
             }
-            return ComposeValue32WithMasterClockStamp16(cel_value32, slot_id, priority, rel_mask4, locality, rel_offset, dtype);
+            return ComposeValue32WithMasterClockStamp16_(cel_value32, slot_id, priority, rel_mask4, locality, rel_offset, dtype);
         }
 
         inline packed64_t ComposeClockCell48WithMasterClock(
@@ -448,46 +485,13 @@ struct Timer48
             PackedCellDataType data_type_wanted = PackedCellDataType::UnsignedPCellDataType
         ) noexcept
         {
-            StampResult stamp_result = StampFromMasterClockSlot(master_clock_slot_id, rel_mask4);
+            StampResult stamp_result = StampFromMasterClockSlot_(master_clock_slot_id, rel_mask4);
             strl16_t strl = MakeStrl4ForMode48_t(priority, locality_wanted, stamp_result.RelMask4, reloffset_mode_wanted, data_type_wanted);
             uint64_t final48 = (clk_value48 != 0) ? clk_value48 : stamp_result.NowTicks;
             return PackedCell64_t::ComposeCLK48u_64(final48, strl);
         }
 
-        inline packed64_t RefreshPackedCellClockOnly(
-            packed64_t old_packed,
-            size_t master_clock_id,
-            tag8_t force_rel_mask = REL_MASK4_NONE,
-            std::optional<PackedCellLocalityTypes> should_owned = std::nullopt
-        )
-        {
-            StampResult stamp = StampFromMasterClockSlot(master_clock_id, force_rel_mask);
-            tag8_t priority = PackedCell64_t::ExtractPriorityFromPacked(old_packed);
-            PackedCellLocalityTypes locality = PackedCell64_t::ExtractLocalityFromPacked(old_packed);
-            if (should_owned)
-            {
-                locality = *should_owned;
-            };
-            PackedMode packed_mode = PackedCell64_t::ExtractModeOfPackedCellFromPacked(old_packed);
-            PackedCellDataType packed_cell_dtype = PackedCell64_t::ExtractPCellDataTypeFromPacked(old_packed);
-            tag8_t current_reloffset = PackedCell64_t::ExtractRelOffsetFromPacked(old_packed);
-            tag8_t rel_mask4 = stamp.RelMask4;
-            if (packed_mode == PackedMode::MODE_VALUE32)
-            {
-                val32_t cell_value32 = PackedCell64_t::ExtractValue32(old_packed);
-                strl16_t strl = MakeSTRLMode32_t(priority, locality, rel_mask4, static_cast<RelOffsetMode32>(current_reloffset), packed_cell_dtype);
-                return PackedCell64_t::ComposeValue32u_64(cell_value32, stamp.SequentialClock16, strl);
-            }
-            RelOffsetMode48 current_reloffset48 = static_cast<RelOffsetMode48>(current_reloffset);
-            if (current_reloffset48 == RelOffsetMode48::RELOFFSET_PURE_TIMER)
-            {
-                uint64_t cell_clk48 = stamp.NowTicks;
-                strl16_t strl = MakeStrl4ForMode48_t(priority, locality, rel_mask4, current_reloffset48, packed_cell_dtype);
-                return PackedCell64_t::ComposeCLK48u_64(cell_clk48, strl);
-            }
-            
-            return old_packed;
-        }
+
 
         inline packed64_t RefreshPackedCellClockOnlyForCurrentThread(
             packed64_t old_packed,
@@ -500,7 +504,7 @@ struct Timer48
             {
                 return old_packed;
             }
-            return RefreshPackedCellClockOnly(old_packed, master_clock_slot_id, force_rel_mask4, should_owned);
+            return RefreshPackedCellClockOnly_(old_packed, master_clock_slot_id, force_rel_mask4, should_owned);
         }
 
         //Integrate AtomicAdaptiveBackoff
@@ -514,7 +518,7 @@ struct Timer48
             packed64_t current_cell = atomic_cell.load(MoLoad_);
             while (true)
             {
-                packed64_t current_cell_updated = RefreshPackedCellClockOnly(current_cell, master_slot_id, force_rel_mask4, should_owned);
+                packed64_t current_cell_updated = RefreshPackedCellClockOnly_(current_cell, master_slot_id, force_rel_mask4, should_owned);
                 if (atomic_cell.compare_exchange_weak(current_cell, current_cell_updated, EXsuccess_, EXfailure_))
                 {
                     return true;

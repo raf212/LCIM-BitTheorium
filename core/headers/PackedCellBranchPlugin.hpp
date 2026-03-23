@@ -1,5 +1,6 @@
 #pragma once
 #include "PackedCell.hpp"
+#include "MasterClockConf.hpp"
 
 namespace PredictedAdaptedEncoding
 {
@@ -45,9 +46,28 @@ public:
         MAX_DEPTH = 21,
         RESERVED_UPTO = 63
     };
+
+    inline packed64_t PackValue32InPackedCellwithClock16(
+        val32_t value32,
+        tag8_t priority,
+        PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
+        tag8_t rel_mask = REL_NONE,
+        RelOffsetMode32 reloffset_mode32 = RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
+        PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType
+    )
+    {
+
+        
+    }
 private:
     std::atomic<packed64_t>* PackedCellPtr_{nullptr};
     size_t BranchCapacity_{0};
+    MasterClockConf* MasterClockConfPtr_{nullptr};
+
+    inline bool ValidMeteIdx_(MetaIndexOfAPCBranch idx) const noexcept
+    {
+        return PackedCellPtr_ && static_cast<size_t>(idx) < BranchCapacity_ && static_cast<size_t>(idx) < META_CELLS;
+    }
 
 };
 

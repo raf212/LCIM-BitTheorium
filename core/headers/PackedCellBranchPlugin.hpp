@@ -54,19 +54,118 @@ public:
         tag8_t rel_mask = REL_NONE,
         RelOffsetMode32 reloffset_mode32 = RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
         PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType
-    )
+    ) noexcept
     {
-
-        
+        if (MasterClockConfPtr_)
+        {
+            return MasterClockConfPtr_->ComposeValue32WithCurrentThreadStamp16(value32, rel_mask, priority, locality, reloffset_mode32, dtype);
+        }
+        strl16_t strl_moded32 = MakeSTRLMode32_t(priority, locality, rel_mask, reloffset_mode32, dtype);
+        return PackedCell64_t::ComposeValue32u_64(value32, NO_VAL, strl_moded32);
     }
+
+    inline packed64_t PackPureClock48AsPackedCell(
+        std::optional<uint64_t> clock48 = std::nullopt,
+        tag8_t priority = ZERO_PRIORITY,
+        PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
+        tag8_t rel_mask = REL_NONE,
+        RelOffsetMode48 reloffset = RelOffsetMode48::RELOFFSET_PURE_TIMER,
+        PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType
+    ) noexcept
+    {
+        if ((reloffset != RelOffsetMode48::RELOFFSET_PURE_TIMER))
+        {
+            return PackedCell64_t::ComposeCLK48u_64(NO_VAL, MakeStrl4ForMode48_t(MAX_PRIORITY, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY, rel_mask, reloffset, dtype));
+        }
+        
+        if (MasterClockConfPtr_)
+        {
+            size_t master_clock_slot_id = MasterClockConfPtr_->EnsureOrAssignThreadIdForMasterClock();
+            if (master_clock_slot_id != SIZE_MAX)
+            {
+                return MasterClockConfPtr_->ComposeClockCell48WithMasterClock(master_clock_slot_id, clock48, rel_mask, priority, locality, reloffset, dtype);
+            }
+        }
+        
+        strl16_t strl_clock48 = MakeStrl4ForMode48_t(priority, locality, rel_mask, reloffset, dtype);
+        if (clock48)
+        {
+            return PackedCell64_t::ComposeCLK48u_64(clock48.value(), strl_clock48);
+        }
+        Timer48 now_timer;
+        return PackedCell64_t::ComposeCLK48u_64((now_timer.NowTicks() & MaskBits(CLK_B48)), strl_clock48);
+    }
+
+    void WriteBrenchMeta32(
+        MetaIndexOfAPCBranch idx,
+        uint32_t value32,
+        tag8_t priority = ZERO_PRIORITY
+    ) noexcept
+    {
+        size_t index = static_cast<size_t>(idx);
+        if (!ValidMeteIdx_(idx))
+        {
+            return;
+        }
+        PackedCellContainerPtr_[index].store(PackValue32InPackedCellwithClock16(value32, priority, PackedCellLocalityTypes::ST_PUBLISHED, REL_NONE), MoStoreSeq_);
+        PackedCellContainerPtr_[index].notify_all();
+    }
+
+    void WriteOrUpdateMetaClock48(tag8_t priority = ZERO_PRIORITY, std::optional<uint64_t>meta_clock_48) noexcept
+    {
+        size_t idx = static_cast<size_t>(MetaIndexOfAPCBranch::LOCAL_CLOCK48);
+        packed64_t wanted_cell = PackPureClock48AsPackedCell(meta_clock_48, priority, PackedCellLocalityTypes::ST_PUBLISHED);
+        PackedCellContainerPtr_[idx].store(wanted_cell, MoStoreSeq_);
+        PackedCellContainerPtr_[idx].notify_all();
+    }
+
 private:
-    std::atomic<packed64_t>* PackedCellPtr_{nullptr};
+    std::atomic<packed64_t>* PackedCellContainerPtr_{nullptr};
     size_t BranchCapacity_{0};
     MasterClockConf* MasterClockConfPtr_{nullptr};
 
     inline bool ValidMeteIdx_(MetaIndexOfAPCBranch idx) const noexcept
     {
-        return PackedCellPtr_ && static_cast<size_t>(idx) < BranchCapacity_ && static_cast<size_t>(idx) < META_CELLS;
+        return PackedCellContainerPtr_ && static_cast<size_t>(idx) < BranchCapacity_ && static_cast<size_t>(idx) < META_CELLS;
+    }
+
+public:
+    PackedCellBranchPlugin() noexcept = default;
+
+    void Bind(std::atomic<packed64_t>* packed_cells, size_t capacity, MasterClockConf* master_clock_ptr) noexcept
+    {
+        PackedCellContainerPtr_ = packed_cells;
+        BranchCapacity_ = capacity;
+        MasterClockConfPtr_ = master_clock_ptr;
+    }
+
+    bool IsBound() const noexcept
+    {
+        return PackedCellContainerPtr_ != nullptr && BranchCapacity_ >= META_CELLS;
+    }
+
+    size_t PayloadBegain() const noexcept
+    {
+        return META_CELLS;
+    }
+
+    size_t PayloadCapacity() const noexcept
+    {
+        return BranchCapacity_ > META_CELLS ? (BranchCapacity_ - META_CELLS) : 0u;
+    }
+
+    //continue here
+    void InitRootBranch(
+        uint64_t branch_id,
+        size_t total_capacity,
+        uint32_t split_threshold_percantage,
+        uint32_t max_depth,
+        uint32_t region_size = 0,
+        uint32_t region_count = 0,
+        uint8_t priority = ZERO_PRIORITY
+    ) noexcept
+    {
+
     }
 
 };

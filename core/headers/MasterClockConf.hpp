@@ -476,8 +476,8 @@ struct Timer48
         }
 
         inline packed64_t ComposeClockCell48WithMasterClock(
-            uint64_t clk_value48,
             size_t master_clock_slot_id,
+            std::optional<uint64_t> clk_value48 = std::nullopt,
             tag8_t rel_mask4 = REL_MASK4_NONE,
             tag8_t priority = ZERO_PRIORITY,
             PackedCellLocalityTypes locality_wanted = PackedCellLocalityTypes::ST_PUBLISHED,
@@ -487,7 +487,11 @@ struct Timer48
         {
             StampResult stamp_result = StampFromMasterClockSlot_(master_clock_slot_id, rel_mask4);
             strl16_t strl = MakeStrl4ForMode48_t(priority, locality_wanted, stamp_result.RelMask4, reloffset_mode_wanted, data_type_wanted);
-            uint64_t final48 = (clk_value48 != 0) ? clk_value48 : stamp_result.NowTicks;
+            uint64_t final48 = stamp_result.NowTicks;
+            if (clk_value48)
+            {
+                final48 = clk_value48.value();
+            }
             return PackedCell64_t::ComposeCLK48u_64(final48, strl);
         }
 

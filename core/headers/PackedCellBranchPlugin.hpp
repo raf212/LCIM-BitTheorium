@@ -66,6 +66,22 @@ private:
     {
         return PackedCellContainerPtr_ && static_cast<size_t>(idx) < BranchCapacity_ && static_cast<size_t>(idx) < METACELL_COUNT;
     }
+
+    void WriteBrenchMeta32_(
+        MetaIndexOfAPCBranch idx,
+        uint32_t value32,
+        tag8_t priority = ZERO_PRIORITY,
+        tag8_t rel_mask4 = REL_MASK4_NONE
+    ) noexcept
+    {
+        size_t index = static_cast<size_t>(idx);
+        if (!ValidMeteIdx_(idx))
+        {
+            return;
+        }
+        PackedCellContainerPtr_[index].store(PackValue32InPackedCellwithClock16(value32, priority, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask4), MoStoreSeq_);
+        PackedCellContainerPtr_[index].notify_all();
+    }
 public:
     //checked top
     inline packed64_t PackValue32InPackedCellwithClock16(
@@ -117,21 +133,7 @@ public:
         return PackedCell64_t::ComposeCLK48u_64((now_timer.NowTicks() & MaskBits(CLK_B48)), strl_clock48);
     }
 
-    void WriteBrenchMeta32(
-        MetaIndexOfAPCBranch idx,
-        uint32_t value32,
-        tag8_t priority = ZERO_PRIORITY,
-        tag8_t rel_mask4 = REL_MASK4_NONE
-    ) noexcept
-    {
-        size_t index = static_cast<size_t>(idx);
-        if (!ValidMeteIdx_(idx))
-        {
-            return;
-        }
-        PackedCellContainerPtr_[index].store(PackValue32InPackedCellwithClock16(value32, priority, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask4), MoStoreSeq_);
-        PackedCellContainerPtr_[index].notify_all();
-    }
+
 
     void WriteOrUpdateMetaClock48(tag8_t priority = ZERO_PRIORITY, std::optional<uint64_t>meta_clock_48 = std::nullopt) noexcept
     {
@@ -141,7 +143,7 @@ public:
         PackedCellContainerPtr_[idx].notify_all();
     }
 
-    inline bool CASMeta32(
+    inline bool UpdateBranchMeta32CAS(
         MetaIndexOfAPCBranch idx,
         uint32_t expected_value,
         uint32_t desired_value,
@@ -209,34 +211,34 @@ public:
             return;
         }
         
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::MAGIC_ID, BRANCH_MAGIC, priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::VERSION, BRANCH_VERSION, priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::CAPACITY, static_cast<uint32_t>(std::min<size_t>(total_capacity, UINT32_MAX)), priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::BRANCH_ID, static_cast<uint32_t>(std::min<uint32_t>(branch_id, UINT32_MAX)), priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::PARENT_BRANCH_ID, static_cast<uint32_t>(std::min<uint32_t>(parent_bramch_id, UINT32_MAX)), priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::LEFT_CHILD_ID, BRANCH_SENTINAL, priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::RIGHT_CHILD_ID, BRANCH_SENTINAL, priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::CURRENT_TREE_POSITION, static_cast<uint32_t>(current_tree_position), priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::BRANCH_DEPTH, current_depth, priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::BRANCH_PRIORITY, branch_priority, priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::FLAGS, NO_VAL, priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::CURRENT_ACTIVE_THREADS, NO_VAL, priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT, NO_VAL, priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::SAFE_POINT, NO_VAL, priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::SPLIT_THRESHOLD_PERCENTAGE, split_threshold_percantage, priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::MAX_DEPTH, max_depth, priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::PAYLOAD_BEGIN, static_cast<uint32_t>(METACELL_COUNT), priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::PAYLOAD_END, static_cast<uint32_t>(std::min<size_t>(total_capacity, UINT32_MAX)), priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::MAGIC_ID, BRANCH_MAGIC, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::VERSION, BRANCH_VERSION, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::CAPACITY, static_cast<uint32_t>(std::min<size_t>(total_capacity, UINT32_MAX)), priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::BRANCH_ID, static_cast<uint32_t>(std::min<uint32_t>(branch_id, UINT32_MAX)), priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::PARENT_BRANCH_ID, static_cast<uint32_t>(std::min<uint32_t>(parent_bramch_id, UINT32_MAX)), priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::LEFT_CHILD_ID, BRANCH_SENTINAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::RIGHT_CHILD_ID, BRANCH_SENTINAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::CURRENT_TREE_POSITION, static_cast<uint32_t>(current_tree_position), priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::BRANCH_DEPTH, current_depth, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::BRANCH_PRIORITY, branch_priority, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::FLAGS, NO_VAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::CURRENT_ACTIVE_THREADS, NO_VAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT, NO_VAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::SAFE_POINT, NO_VAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::SPLIT_THRESHOLD_PERCENTAGE, split_threshold_percantage, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::MAX_DEPTH, max_depth, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::PAYLOAD_BEGIN, static_cast<uint32_t>(METACELL_COUNT), priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::PAYLOAD_END, static_cast<uint32_t>(std::min<size_t>(total_capacity, UINT32_MAX)), priority);
         WriteOrUpdateMetaClock48(priority, NO_VAL);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::LAST_SPLIT_EPOCH, NO_VAL, priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::REGION_SIZE, region_size, priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::REGION_COUNT, region_count, priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::READY_REL_MASK, NO_VAL, priority);
-        WriteBrenchMeta32(MetaIndexOfAPCBranch::EOF_APC_HEADER, EOF_HEADER, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::LAST_SPLIT_EPOCH, NO_VAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::REGION_SIZE, region_size, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::REGION_COUNT, region_count, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::READY_REL_MASK, NO_VAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::EOF_APC_HEADER, EOF_HEADER, priority);
 
     }
 
-    val32_t ReadMetaCellValue(MetaIndexOfAPCBranch idx) noexcept
+    val32_t ReadTotalMetaCell(MetaIndexOfAPCBranch idx) noexcept
     {
         if (!ValidMeteIdx_(idx) || idx == MetaIndexOfAPCBranch::LOCAL_CLOCK48)
         {
@@ -273,7 +275,23 @@ public:
             return false;
         }
         
-        return CASMeta32(current_tree_position, BRANCH_SENTINAL, child_id);
+        return UpdateBranchMeta32CAS(current_tree_position, BRANCH_SENTINAL, child_id);
+    }
+
+    bool TryIncrementActiveThreadCount() noexcept
+    {
+        while (true)
+        {
+            uint32_t current_thread_count = ReadTotalMetaCell(MetaIndexOfAPCBranch::CURRENT_ACTIVE_THREADS);
+            if (current_thread_count == UINT32_MAX)
+            {
+                return false;
+            }
+            if (UpdateBranchMeta32CAS(MetaIndexOfAPCBranch::CURRENT_ACTIVE_THREADS, current_thread_count, current_thread_count + 1))
+            {
+                return true;
+            }
+        }
     }
 
 };

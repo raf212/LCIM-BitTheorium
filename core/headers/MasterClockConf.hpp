@@ -206,7 +206,7 @@ struct Timer48
             }
             //allocation 
             auto temp_slots = std::make_unique<std::atomic<packed64_t>[]>(max_slots);
-            auto temp_last48 = std::make_unique<std::atomic<packed64_t>[]>(max_slots);
+            auto temp_last48 = std::make_unique<std::atomic<uint64_t>[]>(max_slots);
             auto temp_epoch = std::make_unique<std::atomic<uint64_t>[]>(max_slots);
 
             uint64_t current_now_48 = MasterTimer48.NowTicks();
@@ -515,6 +515,7 @@ struct Timer48
         inline bool TouchAtomicPackedCellClock(
             std::atomic<packed64_t>& atomic_cell,
             size_t master_slot_id,
+            packed64_t* updated_full_clock_cell_easy_return_ptr = nullptr,
             tag8_t force_rel_mask4 = REL_MASK4_NONE,
             std::optional<PackedCellLocalityTypes> should_owned = std::nullopt
         ) noexcept
@@ -525,6 +526,10 @@ struct Timer48
                 packed64_t current_cell_updated = RefreshPackedCellClockOnly_(current_cell, master_slot_id, force_rel_mask4, should_owned);
                 if (atomic_cell.compare_exchange_weak(current_cell, current_cell_updated, EXsuccess_, EXfailure_))
                 {
+                    if (updated_full_clock_cell_easy_return_ptr)
+                    {
+                        *updated_full_clock_cell_easy_return_ptr = current_cell_updated;
+                    }
                     return true;
                 }
             }
@@ -532,6 +537,7 @@ struct Timer48
 
         inline bool TouchAtomicPackedCellClockForCurrentThread(
             std::atomic<packed64_t>& atomic_cell,
+            packed64_t* updated_full_clock_cell_easy_return_ptr = nullptr,
             tag8_t force_rel_mask4 = REL_MASK4_NONE,
             std::optional<PackedCellLocalityTypes> should_owned = std::nullopt
         ) noexcept
@@ -541,7 +547,7 @@ struct Timer48
             {
                 return false;
             }
-            return TouchAtomicPackedCellClock(atomic_cell, master_clock_slot_id, force_rel_mask4, should_owned);
+            return TouchAtomicPackedCellClock(atomic_cell, master_clock_slot_id, updated_full_clock_cell_easy_return_ptr, force_rel_mask4, should_owned);
             
         }
 

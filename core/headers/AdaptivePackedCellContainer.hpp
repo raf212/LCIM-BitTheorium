@@ -7,6 +7,7 @@
 
 #include "AtomicAdaptiveBackoff.hpp"
 #include "MasterClockConf.hpp"
+#include "PackedCellBranchPlugin.hpp"
 #include "PackedCellContainerManager.hpp"
 
 namespace PredictedAdaptedEncoding

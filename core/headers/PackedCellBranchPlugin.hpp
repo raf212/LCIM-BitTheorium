@@ -8,9 +8,10 @@ namespace PredictedAdaptedEncoding
 class PackedCellBranchPlugin final
 {
 public:
-    static constexpr size_t META_CELLS = 64;
+    static constexpr size_t METACELL_COUNT = 64;
     static constexpr uint32_t BRANCH_MAGIC = 0x41504342u;
     static constexpr uint32_t BRANCH_VERSION = 1u;
+    static constexpr uint32_t BRANCH_SENTINAL = UINT32_MAX;
 
     enum class TreePosition : uint32_t
     {
@@ -35,8 +36,8 @@ public:
         CURRENT_TREE_POSITION = 10,
         FLAGS = 11,
         PAYLOAD_BEGIN = 12,
-        PAYLOAD_ENS = 13,
-        OCCUPANCY_ANAPSHOT = 14,
+        PAYLOAD_END = 13,
+        OCCUPANCY_SNAPSHOT = 14,
         LOCAL_CLOCK48 = 15,
         LAST_SPLIT_EPOCH = 16,
         REGION_SIZE = 17,
@@ -111,7 +112,7 @@ public:
         PackedCellContainerPtr_[index].notify_all();
     }
 
-    void WriteOrUpdateMetaClock48(tag8_t priority = ZERO_PRIORITY, std::optional<uint64_t>meta_clock_48) noexcept
+    void WriteOrUpdateMetaClock48(tag8_t priority = ZERO_PRIORITY, std::optional<uint64_t>meta_clock_48 = std::nullopt) noexcept
     {
         size_t idx = static_cast<size_t>(MetaIndexOfAPCBranch::LOCAL_CLOCK48);
         packed64_t wanted_cell = PackPureClock48AsPackedCell(meta_clock_48, priority, PackedCellLocalityTypes::ST_PUBLISHED);
@@ -126,7 +127,7 @@ private:
 
     inline bool ValidMeteIdx_(MetaIndexOfAPCBranch idx) const noexcept
     {
-        return PackedCellContainerPtr_ && static_cast<size_t>(idx) < BranchCapacity_ && static_cast<size_t>(idx) < META_CELLS;
+        return PackedCellContainerPtr_ && static_cast<size_t>(idx) < BranchCapacity_ && static_cast<size_t>(idx) < METACELL_COUNT;
     }
 
 public:
@@ -141,31 +142,83 @@ public:
 
     bool IsBound() const noexcept
     {
-        return PackedCellContainerPtr_ != nullptr && BranchCapacity_ >= META_CELLS;
+        return PackedCellContainerPtr_ != nullptr && BranchCapacity_ >= METACELL_COUNT;
     }
 
     size_t PayloadBegain() const noexcept
     {
-        return META_CELLS;
+        return METACELL_COUNT;
     }
 
     size_t PayloadCapacity() const noexcept
     {
-        return BranchCapacity_ > META_CELLS ? (BranchCapacity_ - META_CELLS) : 0u;
+        return BranchCapacity_ > METACELL_COUNT ? (BranchCapacity_ - METACELL_COUNT) : 0u;
     }
 
     //continue here
-    void InitRootBranch(
-        uint64_t branch_id,
+    void InitRootOrChildBranch(
+        uint32_t branch_id,
+        uint32_t parent_bramch_id,
         size_t total_capacity,
+        TreePosition current_tree_position,
         uint32_t split_threshold_percantage,
+        uint32_t current_depth,
         uint32_t max_depth,
         uint32_t region_size = 0,
         uint32_t region_count = 0,
+        uint8_t branch_priority = ZERO_PRIORITY,
         uint8_t priority = ZERO_PRIORITY
     ) noexcept
     {
+        if (!IsBound())
+        {
+            return;
+        }
+        
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::MAGIC_ID, BRANCH_MAGIC, priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::VERSION, BRANCH_VERSION, priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::CAPACITY, static_cast<uint32_t>(std::min<size_t>(total_capacity, UINT32_MAX)), priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::BRANCH_ID, static_cast<uint32_t>(std::min<uint32_t>(branch_id, UINT32_MAX)), priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::PARENT_BRANCH_ID, static_cast<uint32_t>(std::min<uint32_t>(parent_bramch_id, UINT32_MAX)), priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::LEFT_CHILD_ID, BRANCH_SENTINAL, priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::RIGHT_CHILD_ID, BRANCH_SENTINAL, priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::CURRENT_ACTIVE_THREADS, NO_VAL, priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::BRANCH_DEPTH, current_depth, priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::BRANCH_PRIORITY, branch_priority, priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::CURRENT_TREE_POSITION, static_cast<uint32_t>(current_tree_position), priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::FLAGS, NO_VAL, priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::PAYLOAD_BEGIN, static_cast<uint32_t>(METACELL_COUNT), priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::PAYLOAD_END, static_cast<uint32_t>(std::min<size_t>(total_capacity, UINT32_MAX)), priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT, NO_VAL, priority);
+        WriteOrUpdateMetaClock48(priority, NO_VAL);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::LAST_SPLIT_EPOCH, NO_VAL, priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::REGION_SIZE, region_size, priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::REGION_COUNT, region_count, priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::READY_REL_MASK, NO_VAL, priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::SPLIT_THRESHOLD_PERCENTAGE, split_threshold_percantage, priority);
+        WriteBrenchMeta32(MetaIndexOfAPCBranch::MAX_DEPTH, max_depth, priority);
 
+    }
+
+    val32_t ReadMetaCellValue(MetaIndexOfAPCBranch idx) noexcept
+    {
+        if (!ValidMeteIdx_(idx) || idx == MetaIndexOfAPCBranch::LOCAL_CLOCK48)
+        {
+            return NO_VAL;
+        }
+        size_t index = static_cast<size_t>(idx);
+        return PackedCell64_t::ExtractValue32(PackedCellContainerPtr_[index].load(MoLoad_));
+    }
+
+    void TouchLocalMetaClock48(packed64_t* updated_full_clock_cell_easy_return_ptr = nullptr) noexcept
+    {
+        if (!MasterClockConfPtr_)
+        {
+            return;
+        }
+        MasterClockConfPtr_->TouchAtomicPackedCellClockForCurrentThread(
+            PackedCellContainerPtr_[static_cast<size_t>(MetaIndexOfAPCBranch::LOCAL_CLOCK48)], updated_full_clock_cell_easy_return_ptr
+        );
     }
 
 };

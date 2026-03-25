@@ -30,7 +30,6 @@ struct ContainerConf
     static constexpr size_t MAXTLS = 8192;
 
     bool EnableBranching = true;
-    static constexpr size_t ReservedHeaderCells = PackedCellBranchPlugin::METACELL_COUNT;
     uint32_t BranchSplitThresholdPercentage = 70;
     uint32_t BranchMaxDepth = 8;
     size_t BranchMinChildCapacity = 256;
@@ -73,6 +72,7 @@ public:
 
 private:
     size_t ContainerCapacity_{0};
+    size_t ContainerPayloadCapacity_{0};
     int UsedNode_ = 0;
     bool IsContainerOwned_{false};
     ContainerConf APCContainerCfg_;
@@ -81,7 +81,12 @@ private:
     std::atomic<size_t> ConsumerCursor_{0};
 
     AtomicAdaptiveBackoff* AdaptiveBackoffOfAPCPtr_{nullptr};
-
+    MasterClockConf* MasterClockConfPtr_{nullptr};
+    PackedCellContainerManager* APCManagerPtr_{nullptr};
+    //branch
+    std::unique_ptr<PackedCellBranchPlugin> BranchPluginOfAPC_;
+    static inline std::atomic<uint32_t> GlobalBranchIdAlloc_{1};
+    std::atomic<bool>BranchCreateInFlight_{false};
     enum class FinalizerKind_ : uint8_t 
     {
         NONE = 0,
@@ -103,24 +108,24 @@ private:
             HEAP_NODE = 2
         };
 
-        APCKind Kind;
-        AdaptivePackedCellContainer* ChildContainerPtr;
-        size_t ChildBaseIdx;
-        packed64_t RelEntryPacked;
+        APCKind Kind = APCKind::PACKED_NODE;
+        AdaptivePackedCellContainer* ChildContainerPtr = nullptr;
+        size_t ChildBaseIdx = NO_VAL;
+        packed64_t RelEntryPacked = NO_VAL;
 
-        void* HeapPtr;
-        size_t HeapSize;
+        void* HeapPtr = nullptr;
+        size_t HeapSize = 0;
 
-        PackedCellDataType RECellDType;
+        PackedCellDataType RECellDType = PackedCellDataType::UnsignedPCellDataType;
 
-        FinalizerKind_ KindFinalizer;
-        std::function<void(void*)> FinalizerPtr;
-        DeviceFence_ APCDeviceFence;
-        std::atomic<uint64_t> RetireEpoch;
-        std::atomic<RelEntry_*> NextPtr;
+        FinalizerKind_ KindFinalizer = FinalizerKind_::NONE;
+        std::function<void(void*)> FinalizerPtr = nullptr;
+        DeviceFence_ APCDeviceFence{};
+        std::atomic<uint64_t> RetireEpoch{NO_VAL};
+        std::atomic<RelEntry_*> NextPtr{nullptr};
 
-        uint32_t ChildBranchId;
-        uint32_t ParentBranchId;
+        uint32_t ChildBranchId = NO_VAL;
+        uint32_t ParentBranchId = NO_VAL;
 
         //child container constructor
         RelEntry_(
@@ -129,27 +134,22 @@ private:
             uint32_t parent_branch_id = 0,
             size_t base = 0
         ) noexcept :
-            Kind(APCKind::CHILD_CONTAINER), ChildContainerPtr(apc_container), ChildBaseIdx(base), RelEntryPacked(0),
-            HeapPtr(nullptr), HeapSize(0), RECellDType(PackedCellDataType::UnsignedPCellDataType),
-            KindFinalizer(FinalizerKind_::NONE), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr), ChildBranchId(child_branch_id), ParentBranchId(parent_branch_id)
+            Kind(APCKind::CHILD_CONTAINER), ChildContainerPtr(apc_container), ChildBaseIdx(base), 
+            ChildBranchId(child_branch_id), ParentBranchId(parent_branch_id)
         {}
         //packed cell constructor
         RelEntry_(packed64_t p) noexcept :
-            Kind(APCKind::PACKED_NODE), ChildContainerPtr(nullptr), ChildBaseIdx(0), RelEntryPacked(p),
-            HeapPtr(0), RECellDType(PackedCellDataType::UnsignedPCellDataType),
-            KindFinalizer(FinalizerKind_::NONE), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr), ChildBranchId(NO_VAL), ParentBranchId(NO_VAL)
+            Kind(APCKind::PACKED_NODE), RelEntryPacked(p)
         {}
         //heap constructor
         RelEntry_(void* heap_ptr, size_t heap_size, PackedCellDataType pc_dtype) noexcept :
-            Kind(APCKind::HEAP_NODE), ChildContainerPtr(nullptr), ChildBaseIdx(0), RelEntryPacked(0),
-            HeapPtr(heap_ptr), HeapSize(heap_size), RECellDType(pc_dtype),
-            KindFinalizer(FinalizerKind_::HOST), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr), ChildBranchId(NO_VAL), ParentBranchId(NO_VAL)
+            Kind(APCKind::HEAP_NODE),HeapPtr(heap_ptr), 
+            HeapSize(heap_size), RECellDType(pc_dtype),
+            KindFinalizer(FinalizerKind_::HOST)
         {}
     };    //reloffset
-
-    //global epoch
-    std::atomic<uint64_t>GlobalEpoch_{1};
     //epoch-table
+    std::atomic<uint64_t>GlobalEpoch_{1};
     std::unique_ptr<std::atomic<uint64_t>[]> ThreadEpochArray_;
     size_t ThreadEpochCapacity_{0};
     std::atomic<size_t> RetireCount_{0};
@@ -159,13 +159,13 @@ private:
 
     //retire
     std::atomic<RelEntry_*> RetireHead_{nullptr};
-    unsigned RetireBatchThreshold_{16};
+    unsigned RetireBatchThreshold_{16}; //why 16??
     //reclaimation
     std::thread BackgroundThread_;
     std::mutex BackgroundMutex_;
     std::condition_variable BackgroundCondVar_;
     bool BackgroundThreadStop_{false};
-    //Tools
+    //Tools -- these should be encoded in header ??
     std::atomic<uint64_t> TotalRetired_{0};
     std::atomic<uint64_t> TotalReclaimed_{0};
     std::atomic<uint64_t> RetireQueDepthMax_{0};
@@ -173,19 +173,42 @@ private:
     std::atomic<uint64_t> TotalCasFailure_{0};
     //logging hook
     std::function<void(const char*, const char*)> APCLogger_;
-    //mc
-    MasterClockConf* MasterClockConfPtr_{nullptr};
-
-    PackedCellContainerManager* APCManagerPtr_{nullptr};
-
-    //branch
-    std::unique_ptr<PackedCellBranchPlugin> BranchPluginOfAPC_;
-    static inline std::atomic<uint32_t> GlobalBranchIdAlloc_{1};
-    std::atomic<bool>BranchCreateInFlight_{false};
+    //region/index
+    size_t RegionSize_{0};
+    size_t NumRegion_{0};
+    std::unique_ptr<std::atomic<uint8_t>[]> RegionRelArray_{nullptr};
+    std::vector<std::vector<uint64_t>> RelBitmaps_;
+    std::unique_ptr<std::atomic<uint64_t>[]> RegionEpochArray_{nullptr};
+    static inline thread_local std::vector<std::pair<size_t, packed64_t>> TLSCandidates_;
+    //--??
 
     uint64_t ComputeMinThreadEpoch() const noexcept;
 
     size_t RegisterThreadForQSBRImplementation_() noexcept;
+
+    void RetirePushLocked_(RelEntry_* rel_entry_ptr) noexcept;
+
+    static bool DeviceFenceSatisfied_(const RelEntry_& rel_entry_address) noexcept;
+    
+    void BackgroundReclaimerMainThread_() noexcept;
+
+    size_t GetHashedRendomizedStep_(size_t sequense_number) noexcept;
+
+    void UpdateRegionRelForIdx_(size_t idx, tag8_t rel_mask) noexcept;
+
+    void InitZeroState_() noexcept;
+
+    void RefreshAPCMeta_() noexcept;
+
+    inline bool IfAnyValid_() const noexcept
+    {
+        return (BackingPtr && ContainerCapacity_ > 0);
+    }
+
+    inline bool IfValidPayloadIndex_(size_t idx) const noexcept
+    {
+        return (BackingPtr && idx < ContainerCapacity_ && idx >= PackedCellBranchPlugin::METACELL_COUNT);
+    }
 
     inline void QSBRCurThreadRegisterIfNeed_() noexcept
     {
@@ -215,42 +238,15 @@ private:
         PackedCellContainerManager::Instance().ExtitCriticalContainer(ThreadHandleAPCTL_);
     }
 
-    void RetirePushLocked_(RelEntry_* rel_entry_ptr) noexcept;
-
-    static bool DeviceFenceSatisfied_(const RelEntry_& rel_entry_address) noexcept;
-    
-    void BackgroundReclaimerMainThread_() noexcept;
-
-    //region/index
-    size_t RegionSize_{0};
-    size_t NumRegion_{0};
-    std::unique_ptr<std::atomic<uint8_t>[]> RegionRelArray_{nullptr};
-    std::vector<std::vector<uint64_t>> RelBitmaps_;
-    std::unique_ptr<std::atomic<uint64_t>[]> RegionEpochArray_{nullptr};
-
-    static inline thread_local std::vector<std::pair<size_t, packed64_t>> TLSCandidates_;
-
-    inline bool IfAnyValid_() const noexcept
+    inline size_t SuggestedChildCapacity_() const noexcept
     {
-        return (BackingPtr && ContainerCapacity_ > 0);
+        const size_t child_payload = std::max<size_t>(APCContainerCfg_.BranchMinChildCapacity, ContainerCapacity_);
+        return child_payload;
     }
-
-    inline bool IfValidPayloadIndex_(size_t idx) const noexcept
-    {
-        return (BackingPtr && idx < ContainerCapacity_ && idx >= PackedCellBranchPlugin::METACELL_COUNT);
-    }
-
-    size_t GetHashedRendomizedStep_(size_t sequense_number) noexcept;
-
-    void UpdateRegionRelForIdx_(size_t idx, tag8_t rel_mask) noexcept;
-
-    void InitZeroState_()noexcept;
 
 public:
-    AdaptivePackedCellContainer(/* args */) noexcept :
-        BackingPtr(nullptr), ContainerCapacity_(0), IsContainerOwned_(false), UsedNode_(0), APCContainerCfg_(),
-        RegionSize_(0), NumRegion_(0), MasterClockConfPtr_(nullptr), APCManagerPtr_(nullptr)
-    {}
+    AdaptivePackedCellContainer(/* args */) noexcept  = default;
+
     ~AdaptivePackedCellContainer()
     {
         {
@@ -269,26 +265,7 @@ public:
 
     uint32_t GetBranchId() const noexcept;
 
-    PackedCellBranchPlugin* GetBranchPlugin() noexcept
-    {
-        return BranchPluginOfAPC_.get();
-    }
-
     size_t ReserveProducerSlots(size_t number_of_slots) noexcept;
-
-    size_t GetOrSetContainerCapacity(std::optional<size_t>container_capacity_of_apc = std::nullopt) noexcept
-    {
-        if (container_capacity_of_apc)
-        {
-            ContainerCapacity_ = *container_capacity_of_apc;
-        }
-        return ContainerCapacity_;
-    }
-
-    size_t OccupancyAddSubOrGetAfterChange(int amount_should_be_changed_Use_negetive_for_decrese_positive_to_increase = 0)
-    {
-        return Occupancy_.fetch_add(amount_should_be_changed_Use_negetive_for_decrese_positive_to_increase) + amount_should_be_changed_Use_negetive_for_decrese_positive_to_increase;
-    }
 
     size_t NextProducerSequence() noexcept;
 
@@ -301,17 +278,6 @@ public:
     void FreeAll() noexcept;
 
     void InitRegionIdx(size_t region_size);
-    
-    void ManualAdvanceEpoch(uint64_t increment) noexcept
-    {
-        if (increment == 0)
-        {
-            return;
-        }
-        GlobalEpoch_.fetch_add(increment, std::memory_order_acq_rel);
-        TryReclaimRetirePairedPtr_();
-        
-    }
     
     void TryReclaimRetirePairedPtr_() noexcept;
 
@@ -332,8 +298,41 @@ public:
     void RetireAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_pair_struct, DeviceFence_ fence = {}) noexcept;
     template<typename TypePtr>
     std::optional<TypePtr> ViewPointerMemoryIfAssembeled(size_t probable_idx) noexcept;
-    
+    //
+    void ManualAdvanceEpoch(uint64_t increment) noexcept
+    {
+        if (increment == 0)
+        {
+            return;
+        }
+        GlobalEpoch_.fetch_add(increment, std::memory_order_acq_rel);
+        TryReclaimRetirePairedPtr_();
+        
+    }
 
+    size_t GetOrSetTotalContainerCapacity(std::optional<size_t>container_capacity_of_apc = std::nullopt) noexcept
+    {
+        if (container_capacity_of_apc)
+        {
+            ContainerCapacity_ = *container_capacity_of_apc;
+            ContainerPayloadCapacity_ = ContainerCapacity_ - PackedCellBranchPlugin::METACELL_COUNT;
+        }
+        return ContainerCapacity_;
+    }
+
+    size_t OccupancyAddSubOrGetAfterChange(int delta = 0)
+    {
+        return Occupancy_.fetch_add(delta) + delta;
+    }
+
+    PackedCellBranchPlugin* GetBranchPlugin() noexcept
+    {
+        return BranchPluginOfAPC_.get();
+    }
+    const PackedCellBranchPlugin* GetBranchPlugin() const noexcept
+    {
+        return BranchPluginOfAPC_.get();
+    }
 };
 
 

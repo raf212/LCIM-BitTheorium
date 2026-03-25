@@ -910,4 +910,21 @@ namespace PredictedAdaptedEncoding
         }
     }
 
+
+    void AdaptivePackedCellContainer::RefreshAPCMeta_() noexcept
+    {
+        if (!BranchPluginOfAPC_)
+        {
+            return;
+        }
+        BranchPluginOfAPC_->UpdateOccupancySnapshot(
+            static_cast<uint32_t>(std::min<size_t>(Occupancy_.load(MoLoad_), UINT32_MAX))
+        );
+        if (MasterClockConfPtr_)
+        {
+            BranchPluginOfAPC_->TouchLocalMetaClock48();
+        }
+    }
+
+
 }

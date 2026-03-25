@@ -199,7 +199,7 @@ private:
 
     inline bool IfValidPayloadIndex_(size_t idx) const noexcept
     {
-        return (BackingPtr && idx < ContainerCapacity_ && idx >= PackedCellBranchPlugin::METACELL_COUNT);
+        return (BackingPtr && idx < ContainerCapacity_ && idx >= PayloadBegain());
     }
 
     inline void QSBRCurThreadRegisterIfNeed_() noexcept
@@ -275,10 +275,8 @@ public:
 
     bool PollDeviceFencesOnce_() noexcept;
 
-    void TryCreateBranchIfNeeded() noexcept
-    {
-
-    }
+    void TryCreateBranchIfNeeded() noexcept;
+    
     void TryReclaimRetiredWithMinEpoch(uint64_t min_epoch) noexcept;
 
     void SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager) noexcept;
@@ -327,7 +325,12 @@ public:
 
     inline size_t GetPayloadCapacity() const noexcept
     {
-        return ContainerCapacity_ > PackedCellBranchPlugin::METACELL_COUNT ? (ContainerCapacity_ - PackedCellBranchPlugin::METACELL_COUNT) : NO_VAL;
+        return ContainerCapacity_ > PayloadBegain() ? (ContainerCapacity_ - PayloadBegain()) : NO_VAL;
+    }
+
+    const uint32_t PayloadBegain() const noexcept
+    {
+        return PackedCellBranchPlugin::METACELL_COUNT;
     }
 };
 

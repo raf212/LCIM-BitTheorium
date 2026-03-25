@@ -23,9 +23,9 @@ namespace PredictedAdaptedEncoding
         }
 
         size_t base = ProducerCursor_.fetch_add(number_of_slots, std::memory_order_relaxed);
-        if (base < PackedCellBranchPlugin::METACELL_COUNT)
+        if (base < PayloadBegain())
         {
-            const size_t delta = PackedCellBranchPlugin::METACELL_COUNT - base;
+            const size_t delta = PayloadBegain() - base;
             base = ProducerCursor_.fetch_add(delta, std::memory_order_relaxed) + delta;
         }
         return base;
@@ -97,7 +97,7 @@ namespace PredictedAdaptedEncoding
     struct AdaptivePackedCellContainer::RelEntryGuard
     {
         QSBRGuard QSBRGuardRE;
-        RelEntry_* RelEntryPtr;
+        RelEntry_* RelEntryPtr{nullptr};
         RelEntryGuard() noexcept :
             QSBRGuardRE(nullptr), RelEntryPtr(nullptr)
         {}
@@ -343,6 +343,11 @@ namespace PredictedAdaptedEncoding
         {
             return { PublishStatus::INVALID, SIZE_MAX};
         }
+        if (GetPayloadCapacity() < 2)
+        {
+            return {PublishStatus::FULL, SIZE_MAX};
+        }
+        
         uint64_t full_ptrval = reinterpret_cast<uint64_t>(object_ptr);
         uint32_t low32_half = static_cast<uint32_t>(full_ptrval & MaskBits(VALBITS));
         uint32_t high32_half = static_cast<uint32_t>((full_ptrval >> VALBITS) & MaskBits(VALBITS));
@@ -352,10 +357,10 @@ namespace PredictedAdaptedEncoding
             return {PublishStatus::INVALID, SIZE_MAX};
         }
         
-        size_t start = next_sequence % ContainerCapacity_;
+        size_t start = (next_sequence - PayloadBegain()) % ContainerCapacity_;
         size_t step = GetHashedRendomizedStep_(next_sequence);
         int probes = 0;
-        size_t idx = start;
+        size_t idx = start + PayloadBegain();
         while (true)
         {
             size_t head = idx;
@@ -412,6 +417,11 @@ namespace PredictedAdaptedEncoding
 
     void AdaptivePackedCellContainer::UpdateRegionRelForIdx_(size_t idx, tag8_t rel_mask) noexcept
     {
+        if (BranchPluginOfAPC_)
+        {
+            BranchPluginOfAPC_->OrReadyRelMask(rel_mask);
+        }
+        
         if (RegionSize_ == 0)
         {
             return;
@@ -471,6 +481,11 @@ namespace PredictedAdaptedEncoding
         {
             throw std::invalid_argument("Capacity == 0");
         }
+        if (capacity <= PayloadBegain() + 2)
+        {
+            throw std::invalid_argument("Capacity is too small for APC.");
+        }
+        
         BackingPtr = new std::atomic<packed64_t>[capacity];
         packed64_t idle_cell = PackedCell64_t::MakeInitialPacked(container_cfg.InitialMode);
         for (size_t i = 0; i < capacity; i++)
@@ -510,24 +525,37 @@ namespace PredictedAdaptedEncoding
             if (APCLogger_) APCLogger_("InitOwned", "Attach masterclock/backoff failed (non-fatal)");
         }
         BranchPluginOfAPC_ = std::make_unique<PackedCellBranchPlugin>();
+        BranchPluginOfAPC_->Bind(BackingPtr, ContainerCapacity_, MasterClockConfPtr_);
+        const uint32_t new_branch_id = GlobalBranchIdAlloc_.fetch_add(1, std::memory_order_acq_rel);
+        const uint32_t region_count_u32 = APCContainerCfg_.RegionSize == NO_VAL ? NO_VAL : static_cast<uint32_t>((ContainerCapacity_ + APCContainerCfg_.RegionSize -1) / APCContainerCfg_.RegionSize);
 
-        if (MasterClockConfPtr_)
-        {
-            BranchPluginOfAPC_->Bind(BackingPtr, ContainerCapacity_, MasterClockConfPtr_);
-        }
-        
-
-
+        BranchPluginOfAPC_->InitRootOrChildBranch(
+            new_branch_id,
+            NO_VAL,
+            ContainerCapacity_,
+            PackedCellBranchPlugin::TreePosition::ROOT,
+            APCContainerCfg_.BranchSplitThresholdPercentage,
+            0u,
+            APCContainerCfg_.BranchMaxDepth,
+            static_cast<uint32_t>(APCContainerCfg_.RegionSize),
+            region_count_u32,
+            ZERO_PRIORITY,
+            ZERO_PRIORITY
+        );
+        ProducerCursor_.store(PayloadBegain(), MoStoreUnSeq_);
+        ConsumerCursor_.store(PayloadBegain(), MoStoreUnSeq_);
+        RefreshAPCMeta_();
     }
 
     void AdaptivePackedCellContainer::InitZeroState_() noexcept
     {
         Occupancy_.store(0, MoStoreUnSeq_);
-        ProducerCursor_.store(PackedCellBranchPlugin::METACELL_COUNT, MoStoreUnSeq_);
-        ConsumerCursor_.store(PackedCellBranchPlugin::METACELL_COUNT, MoStoreUnSeq_);
+        ProducerCursor_.store(PayloadBegain(), MoStoreUnSeq_);
+        ConsumerCursor_.store(PayloadBegain(), MoStoreUnSeq_);
         RetireHead_.store(nullptr, MoStoreSeq_);
         RetireCount_.store(0, MoStoreSeq_);
         GlobalEpoch_.store(1, MoStoreSeq_);
+        BranchCreateInFlight_.store(false, MoStoreUnSeq_);
     }
 
     void AdaptivePackedCellContainer::FreeAll() noexcept
@@ -542,6 +570,7 @@ namespace PredictedAdaptedEncoding
         }
         AdaptiveBackoffOfAPCPtr_ = nullptr;
         MasterClockConfPtr_ = nullptr;
+        BranchPluginOfAPC_.reset();
         
         StopBackgroundReclaimer();
         if (BackingPtr)
@@ -647,7 +676,7 @@ namespace PredictedAdaptedEncoding
         thread_local size_t block_left = 0;
         if (block_left == 0)
         {
-            size_t block = std::min<size_t>(APCContainerCfg_.ProducerBlockSize, ContainerCapacity_);
+            size_t block = std::min<size_t>(APCContainerCfg_.ProducerBlockSize, GetPayloadCapacity());
             size_t base = ReserveProducerSlots(block);
             if (base == SIZE_MAX)
             {
@@ -779,10 +808,10 @@ namespace PredictedAdaptedEncoding
                 return true;
             }
             packed64_t observed = 0;
-            if (BackingPtr && ContainerCapacity_ > 0)
+            if (BackingPtr && GetPayloadCapacity() > 0)
             {
-                size_t idx = (
-                    std::hash<std::thread::id>{}(std::this_thread::get_id()) % ContainerCapacity_
+                size_t idx = ( PayloadBegain() +
+                    (std::hash<std::thread::id>{}(std::this_thread::get_id()) % ContainerCapacity_)
                 );
                 observed = BackingPtr[idx].load(MoLoad_);
             }
@@ -791,6 +820,11 @@ namespace PredictedAdaptedEncoding
                 auto& backoff = APCManagerPtr_->GetManagersAdaptiveBackoff();
                 backoff.AdaptiveBackOffPacked(observed);
             }
+            if (APCContainerCfg_.EnableBranching && BranchPluginOfAPC_ && BranchPluginOfAPC_->ShouldSplitNow() && APCManagerPtr_)
+            {
+                APCManagerPtr_->RequestBranchCreationForTheAdaptivePackedCellContainer(this);
+            }
+            
             ++publish_attempt;
         }
         return false;
@@ -862,5 +896,118 @@ namespace PredictedAdaptedEncoding
         }
     }
 
+    void AdaptivePackedCellContainer::TryCreateBranchIfNeeded() noexcept
+    {
+        if (!APCContainerCfg_.EnableBranching || !BranchPluginOfAPC_ || !APCManagerPtr_)
+        {
+            return;
+        }
+        if (!BranchPluginOfAPC_->ShouldSplitNow())
+        {
+            return;
+        }
+        
+        bool expected = false;
+        if (!BranchCreateInFlight_.compare_exchange_strong(expected, true, EXsuccess_, EXfailure_))
+        {
+            return;
+        }
+
+        auto clear_flag = [&]() noexcept
+        {
+            BranchCreateInFlight_.store(false, MoStoreSeq_);
+        };
+        
+        PackedCellBranchPlugin::TreePosition branch_tree_position = PackedCellBranchPlugin::TreePosition::TREE_OVERFLOW;
+        if (BranchPluginOfAPC_->ReadMetaCellValue32(
+            PackedCellBranchPlugin::MetaIndexOfAPCBranch::RIGHT_CHILD_ID ) == PackedCellBranchPlugin::BRANCH_SENTINAL
+        )
+        {
+            branch_tree_position = PackedCellBranchPlugin::TreePosition::RIGHT;
+        }
+        else
+        {
+            clear_flag();
+            return;
+        }
+
+        AdaptivePackedCellContainer* child_container = nullptr;
+
+        try
+        {
+            const size_t child_capacity = SuggestedChildCapacity_();
+            if (child_capacity <= PayloadBegain() + 2)
+            {
+                clear_flag();
+                return;
+            }
+
+            child_container = new AdaptivePackedCellContainer();
+            ContainerConf child_container_conf = APCContainerCfg_;
+            child_container->SetManagerForGlobalAPC(APCManagerPtr_);
+            child_container->InitOwned(child_capacity, UsedNode_, child_container_conf);
+
+            const uint32_t child_brunch_id = child_container->GetBranchId();
+            const uint32_t parent_id_current_brunch_id = GetBranchId();
+            const uint32_t parent_depth_current_depth = BranchPluginOfAPC_->ReadMetaCellValue32(
+                PackedCellBranchPlugin::MetaIndexOfAPCBranch::BRANCH_DEPTH
+            );
+            uint32_t region_count = static_cast<uint32_t>(
+                APCContainerCfg_.RegionSize == NO_VAL ? NO_VAL : ((child_capacity + APCContainerCfg_.RegionSize -1) / APCContainerCfg_.RegionSize)
+            );
+            child_container->GetBranchPlugin()->InitRootOrChildBranch(
+                child_brunch_id,
+                parent_id_current_brunch_id,
+                child_capacity,
+                branch_tree_position,
+                APCContainerCfg_.BranchSplitThresholdPercentage,
+                parent_depth_current_depth + 1u,
+                APCContainerCfg_.BranchMaxDepth,
+                static_cast<uint32_t>(APCContainerCfg_.RegionSize),
+                region_count,
+                static_cast<uint8_t>(BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::BRANCH_PRIORITY)),
+                ZERO_PRIORITY
+            );
+            if (!BranchPluginOfAPC_->TryAttachChildAPC(branch_tree_position, child_brunch_id))
+            {
+                child_container->FreeAll();
+                delete child_container;
+                clear_flag();
+                return;
+            }
+            RelEntry_* rel_entry = new RelEntry_(
+                child_container,
+                child_brunch_id,
+                parent_id_current_brunch_id,
+                PayloadBegain()
+            );
+            rel_entry->RetireEpoch.store(GlobalEpoch_.load(MoLoad_), MoStoreSeq_);
+            RetirePushLocked_(rel_entry);
+            APCManagerPtr_->RegisterAdaptivePackedCellContainer(child_container);
+            APCManagerPtr_->RequestForReclaimationOfTheAdaptivePackedCellContainer(child_container);
+
+            BranchPluginOfAPC_->WriteOrUpdateMetaClock48();
+            
+        }
+        catch(...)
+        {
+            if (child_container)
+            {
+                try
+                {
+                    child_container->FreeAll();
+                }
+                catch(...)
+                {
+                }
+                delete child_container;
+            }
+        }
+        clear_flag();
+
+    }
+
+
+    
 
 }

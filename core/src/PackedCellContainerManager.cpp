@@ -340,7 +340,7 @@ namespace PredictedAdaptedEncoding
             if (head_registry_ptr->APCContainerPtr == apc_ptr)
             {
                 uint32_t expected = 0;
-                if (head_registry_ptr->RequestedBranchedAPC.compare_exchange_strong(expected, 1u, EXsuccess_, EXfailure_))
+                if (head_registry_ptr->ReclaimationNeededAPC.compare_exchange_strong(expected, 1u, EXsuccess_, EXfailure_))
                 {
                     PushANodeAtHeadInStackOfAdaptivePackedCellContainer_(WorkStackHeadPtr_, head_registry_ptr);
                     ManagerWakeCounter_.fetch_add(1, std::memory_order_release);

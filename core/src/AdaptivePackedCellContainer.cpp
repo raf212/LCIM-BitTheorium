@@ -37,14 +37,14 @@ namespace PredictedAdaptedEncoding
             (static_cast<uint64_t>(sequense_number) * ID_HASH_GOLDEN_CONST) ^ (static_cast<uint64_t>(sequense_number >> (VALBITS + 1)))
         );
         size_t step = 1;
-        if (ContainerCapacity_ > 1)
+        if (ContainerPayloadCapacity_ > 1)
         {
-            step = static_cast<size_t>((mix_hash % (ContainerCapacity_ - 1)) + 1);
+            step = static_cast<size_t>((mix_hash % (ContainerPayloadCapacity_ - 1)) + 1);
         }
         return step;
     }
 
-    void AdaptivePackedCellContainer::SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager)
+    void AdaptivePackedCellContainer::SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager) noexcept
     {
         if (pointer_of_global_apc_manager)
         {
@@ -53,21 +53,21 @@ namespace PredictedAdaptedEncoding
                 pointer_of_global_apc_manager->StartPCCManager();
                 APCManagerPtr_ = pointer_of_global_apc_manager;
             }
-            catch(const std::exception& e)
+            catch(...)
             {
-                std::cerr << e.what() << '\n';
+                pointer_of_global_apc_manager = nullptr;
             }
         }
     }
 
     struct AdaptivePackedCellContainer::QSBRGuard
     {
-        bool IsQSBRGuardActive;
-        AdaptivePackedCellContainer* ParentContainer;
+        bool IsQSBRGuardActive{false};
+        AdaptivePackedCellContainer* ParentContainer{nullptr};
         
 
         QSBRGuard(AdaptivePackedCellContainer* apc_ptr = nullptr) noexcept :
-            ParentContainer(apc_ptr), IsQSBRGuardActive(false)
+            ParentContainer(apc_ptr)
         {
             if (ParentContainer)
             {
@@ -115,58 +115,6 @@ namespace PredictedAdaptedEncoding
     };
     
 
-    uint64_t AdaptivePackedCellContainer::ComputeMinThreadEpoch() const noexcept
-    {
-        if (!ThreadEpochArray_)
-        {
-            return std::numeric_limits<uint64_t>::max();
-        }
-        uint64_t min_epoch = std::numeric_limits<uint64_t>::max();
-        for (size_t i = 0; i < ThreadEpochCapacity_; i++)
-        {
-            uint64_t val = ThreadEpochArray_[i].load(MoLoad_);
-            if (val == std::numeric_limits<uint64_t>::max())
-            {
-                continue;
-            }
-            if (val < min_epoch)
-            {
-                min_epoch = val;
-            }
-        }
-        return min_epoch;
-    }
-    
-    size_t AdaptivePackedCellContainer::RegisterThreadForQSBRImplementation_() noexcept
-    {
-        if (QSBRThreadIdx_ != SIZE_MAX)
-        {
-            return QSBRThreadIdx_;
-        }
-        if (!ThreadEpochArray_)
-        {
-            return SIZE_MAX;
-        }
-        uint64_t sentinal = std::numeric_limits<uint64_t>::max();
-        uint64_t cur_epoch = GlobalEpoch_.load(MoLoad_);
-        for (size_t i = 0; i < ThreadEpochCapacity_; i++)
-        {
-            uint64_t val = ThreadEpochArray_[i].load(std::memory_order_relaxed);
-            if (val == sentinal)
-            {
-                if (ThreadEpochArray_[i].compare_exchange_strong(val, cur_epoch, EXsuccess_, EXfailure_))
-                {
-                    QSBRThreadIdx_ = i;
-                    return i;
-                }
-                else
-                {
-                    TotalCasFailure_.fetch_add(1, MoStoreUnSeq_);
-                }
-            }
-        }
-        return SIZE_MAX;
-    }
 
     void AdaptivePackedCellContainer::RetirePushLocked_(RelEntry_* rel_entry_ptr) noexcept
     {
@@ -229,7 +177,7 @@ namespace PredictedAdaptedEncoding
             return;
         }
         RetireCount_.store(0, MoStoreSeq_);
-        uint64_t min_epoch = ComputeMinThreadEpoch();
+        uint64_t min_epoch = std::numeric_limits<uint64_t>::max();
         RelEntry_* cur_relentry = stolen;
         RelEntry_* keep_head = nullptr;
         RelEntry_* keep_tail = nullptr;
@@ -533,17 +481,7 @@ namespace PredictedAdaptedEncoding
         IsContainerOwned_ = true;
         APCContainerCfg_ = container_cfg;
         RetireBatchThreshold_ = std::max<unsigned>(1, APCContainerCfg_.RetireBatchThreshold);
-        size_t tls_size = std::min<size_t>(APCContainerCfg_.MaxTlsCandidates ? APCContainerCfg_.MaxTlsCandidates : APCContainerCfg_.MAXTLS, APCContainerCfg_.MAXTLS);
-        ThreadEpochArray_.reset(
-            new std::atomic<uint64_t>[tls_size]
-        );
-        ThreadEpochCapacity_ = tls_size;
-        for (size_t i = 0; i < ThreadEpochCapacity_; i++)
-        {
-            ThreadEpochArray_[i].store(std::numeric_limits<uint64_t>::max(), MoStoreUnSeq_);
-        }
         InitZeroState_();
-
 
         if (APCContainerCfg_.RegionSize)
         {
@@ -642,8 +580,6 @@ namespace PredictedAdaptedEncoding
             stolen = next_ptr;
         }
         RetireCount_.store(0, MoStoreUnSeq_);
-        ThreadEpochArray_.reset();
-        ThreadEpochCapacity_ = 0;
         RegionRelArray_.reset();
         RelBitmaps_.clear();
 

@@ -150,11 +150,7 @@ private:
     };    //reloffset
     //epoch-table
     std::atomic<uint64_t>GlobalEpoch_{1};
-    std::unique_ptr<std::atomic<uint64_t>[]> ThreadEpochArray_;
-    size_t ThreadEpochCapacity_{0};
     std::atomic<size_t> RetireCount_{0};
-
-    static inline thread_local size_t QSBRThreadIdx_ = SIZE_MAX;
     static inline thread_local PackedCellContainerManager::ThreadHandlePCCM  ThreadHandleAPCTL_ = {};
 
     //retire
@@ -182,9 +178,6 @@ private:
     static inline thread_local std::vector<std::pair<size_t, packed64_t>> TLSCandidates_;
     //--??
 
-    uint64_t ComputeMinThreadEpoch() const noexcept;
-
-    size_t RegisterThreadForQSBRImplementation_() noexcept;
 
     void RetirePushLocked_(RelEntry_* rel_entry_ptr) noexcept;
 
@@ -289,7 +282,7 @@ public:
     }
     void TryReclaimRetiredWithMinEpoch(uint64_t min_epoch) noexcept;
 
-    void SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager);
+    void SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager) noexcept;
     //Paired Pointer functions
     PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;
     bool PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries = 100);

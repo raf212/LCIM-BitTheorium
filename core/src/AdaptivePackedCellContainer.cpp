@@ -37,9 +37,9 @@ namespace PredictedAdaptedEncoding
             (static_cast<uint64_t>(sequense_number) * ID_HASH_GOLDEN_CONST) ^ (static_cast<uint64_t>(sequense_number >> (VALBITS + 1)))
         );
         size_t step = 1;
-        if (ContainerPayloadCapacity_ > 1)
+        if (GetPayloadCapacity() > 1)
         {
-            step = static_cast<size_t>((mix_hash % (ContainerPayloadCapacity_ - 1)) + 1);
+            step = static_cast<size_t>((mix_hash % (GetPayloadCapacity() - 1)) + 1);
         }
         return step;
     }

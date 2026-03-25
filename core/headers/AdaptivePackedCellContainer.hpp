@@ -72,7 +72,6 @@ public:
 
 private:
     size_t ContainerCapacity_{0};
-    size_t ContainerPayloadCapacity_{0};
     int UsedNode_ = 0;
     bool IsContainerOwned_{false};
     ContainerConf APCContainerCfg_;
@@ -308,7 +307,6 @@ public:
         if (container_capacity_of_apc)
         {
             ContainerCapacity_ = *container_capacity_of_apc;
-            ContainerPayloadCapacity_ = ContainerCapacity_ - PackedCellBranchPlugin::METACELL_COUNT;
         }
         return ContainerCapacity_;
     }
@@ -325,6 +323,11 @@ public:
     const PackedCellBranchPlugin* GetBranchPlugin() const noexcept
     {
         return BranchPluginOfAPC_.get();
+    }
+
+    inline size_t GetPayloadCapacity() const noexcept
+    {
+        return ContainerCapacity_ > PackedCellBranchPlugin::METACELL_COUNT ? (ContainerCapacity_ - PackedCellBranchPlugin::METACELL_COUNT) : NO_VAL;
     }
 };
 

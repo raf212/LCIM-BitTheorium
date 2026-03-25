@@ -18,7 +18,7 @@ namespace PredictedAdaptedEncoding
         size_t probable_idx, bool claim_ownership, int max_claim_attempts
     ) noexcept
     {
-        if (!IfIdxValid_(probable_idx))
+        if (!IfValidPayloadIndex_(probable_idx))
         {
             return std::nullopt;
         }
@@ -121,7 +121,7 @@ namespace PredictedAdaptedEncoding
         {
             return false;
         }
-        if (!IfIdxValid_(acquired_paired_pointer_struct.HeadIdx) || !IfIdxValid_(acquired_paired_pointer_struct.TailIdx))
+        if (!IfValidPayloadIndex_(acquired_paired_pointer_struct.HeadIdx) || !IfValidPayloadIndex_(acquired_paired_pointer_struct.TailIdx))
         {
             return false;
         }

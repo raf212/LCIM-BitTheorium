@@ -235,9 +235,9 @@ private:
         return (BackingPtr && ContainerCapacity_ > 0);
     }
 
-    inline bool IfIdxValid_(size_t idx) const noexcept
+    inline bool IfValidPayloadIndex_(size_t idx) const noexcept
     {
-        return (BackingPtr && idx < ContainerCapacity_);
+        return (BackingPtr && idx < ContainerCapacity_ && idx >= PackedCellBranchPlugin::METACELL_COUNT);
     }
 
     size_t GetHashedRendomizedStep_(size_t sequense_number) noexcept;
@@ -268,6 +268,11 @@ public:
     AdaptivePackedCellContainer& operator = (const AdaptivePackedCellContainer&) = delete;
 
     uint32_t GetBranchId() const noexcept;
+
+    PackedCellBranchPlugin* GetBranchPlugin() noexcept
+    {
+        return BranchPluginOfAPC_.get();
+    }
 
     size_t ReserveProducerSlots(size_t number_of_slots) noexcept;
 
@@ -308,8 +313,6 @@ public:
         
     }
     
-
-
     void TryReclaimRetirePairedPtr_() noexcept;
 
     bool PollDeviceFencesOnce_() noexcept;

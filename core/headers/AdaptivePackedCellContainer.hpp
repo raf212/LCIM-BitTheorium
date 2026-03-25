@@ -28,6 +28,12 @@ struct ContainerConf
     unsigned RetireBatchThreshold = 16;
     unsigned BackgroundEpochAdvanceMS = 50;
     static constexpr size_t MAXTLS = 8192;
+
+    bool EnableBranching = true;
+    size_t ReservedHeaderCells = PackedCellBranchPlugin::METACELL_COUNT;
+    uint32_t BranchSplitThresholdPercentage = 70;
+    uint32_t BranchMaxDepth = 8;
+    size_t BranchMinChildCapacity = 256;
 };
 
 struct AcquirePairedPointerStruct
@@ -113,23 +119,31 @@ private:
         std::atomic<uint64_t> RetireEpoch;
         std::atomic<RelEntry_*> NextPtr;
 
+        uint32_t ChildBranchId;
+        uint32_t ParentBranchId;
+
         //child container constructor
-        RelEntry_(AdaptivePackedCellContainer* apc_container = nullptr, size_t base = 0) noexcept :
+        RelEntry_(
+            AdaptivePackedCellContainer* apc_container = nullptr, 
+            uint32_t child_branch_id = 0,
+            uint32_t parent_branch_id = 0,
+            size_t base = 0
+        ) noexcept :
             Kind(APCKind::CHILD_CONTAINER), ChildContainerPtr(apc_container), ChildBaseIdx(base), RelEntryPacked(0),
             HeapPtr(nullptr), HeapSize(0), RECellDType(PackedCellDataType::UnsignedPCellDataType),
-            KindFinalizer(FinalizerKind_::NONE), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr)
+            KindFinalizer(FinalizerKind_::NONE), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr), ChildBranchId(child_branch_id), ParentBranchId(parent_branch_id)
         {}
         //packed cell constructor
         RelEntry_(packed64_t p) noexcept :
             Kind(APCKind::PACKED_NODE), ChildContainerPtr(nullptr), ChildBaseIdx(0), RelEntryPacked(p),
             HeapPtr(0), RECellDType(PackedCellDataType::UnsignedPCellDataType),
-            KindFinalizer(FinalizerKind_::NONE), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr)
+            KindFinalizer(FinalizerKind_::NONE), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr), ChildBranchId(NO_VAL), ParentBranchId(NO_VAL)
         {}
         //heap constructor
         RelEntry_(void* heap_ptr, size_t heap_size, PackedCellDataType pc_dtype) noexcept :
             Kind(APCKind::HEAP_NODE), ChildContainerPtr(nullptr), ChildBaseIdx(0), RelEntryPacked(0),
             HeapPtr(heap_ptr), HeapSize(heap_size), RECellDType(pc_dtype),
-            KindFinalizer(FinalizerKind_::HOST), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr)
+            KindFinalizer(FinalizerKind_::HOST), FinalizerPtr(nullptr), APCDeviceFence{}, RetireEpoch(0), NextPtr(nullptr), ChildBranchId(NO_VAL), ParentBranchId(NO_VAL)
         {}
     };    //reloffset
 
@@ -163,6 +177,11 @@ private:
     MasterClockConf* MasterClockConfPtr_{nullptr};
 
     PackedCellContainerManager* APCManagerPtr_{nullptr};
+
+    //branch
+    std::unique_ptr<PackedCellBranchPlugin> BranchPluginOfAPC_;
+    static inline std::atomic<uint64_t> GlobalBranchIDAlloc_{1};
+    std::atomic<bool>BranchCreateInFlight_{false};
 
     uint64_t ComputeMinThreadEpoch() const noexcept;
 
@@ -281,7 +300,14 @@ public:
         {
             return SIZE_MAX;
         }
-        return ProducerCursor_.fetch_add(number_of_slots, std::memory_order_relaxed);
+
+        size_t base = ProducerCursor_.fetch_add(number_of_slots, std::memory_order_relaxed);
+        if (base < PackedCellBranchPlugin::METACELL_COUNT)
+        {
+            const size_t delta = PackedCellBranchPlugin::METACELL_COUNT - base;
+            base = ProducerCursor_.fetch_add(delta, std::memory_order_relaxed) + delta;
+        }
+        return base;
     }
 
     size_t GetOrSetContainerCapacity(std::optional<size_t>container_capacity_of_apc = std::nullopt) noexcept

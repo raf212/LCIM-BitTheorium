@@ -30,7 +30,7 @@ struct ContainerConf
     static constexpr size_t MAXTLS = 8192;
 
     bool EnableBranching = true;
-    size_t ReservedHeaderCells = PackedCellBranchPlugin::METACELL_COUNT;
+    static constexpr size_t ReservedHeaderCells = PackedCellBranchPlugin::METACELL_COUNT;
     uint32_t BranchSplitThresholdPercentage = 70;
     uint32_t BranchMaxDepth = 8;
     size_t BranchMinChildCapacity = 256;
@@ -180,7 +180,7 @@ private:
 
     //branch
     std::unique_ptr<PackedCellBranchPlugin> BranchPluginOfAPC_;
-    static inline std::atomic<uint64_t> GlobalBranchIDAlloc_{1};
+    static inline std::atomic<uint32_t> GlobalBranchIdAlloc_{1};
     std::atomic<bool>BranchCreateInFlight_{false};
 
     uint64_t ComputeMinThreadEpoch() const noexcept;
@@ -221,22 +221,6 @@ private:
     
     void BackgroundReclaimerMainThread_() noexcept;
 
-    //3 function bellow are demos 
-    inline constexpr bool IsPointerValue32_(val32_t value) noexcept
-    {
-        (void)value;
-        return true;
-    }
-    //demo
-    inline constexpr val32_t MakePointerValue32_(uint32_t idx) noexcept
-    {
-        return idx;
-    }
-    //demo
-    inline constexpr uint32_t DecodePointerIdx_(val32_t value) noexcept
-    {
-        return value;
-    }
     //region/index
     size_t RegionSize_{0};
     size_t NumRegion_{0};
@@ -256,18 +240,7 @@ private:
         return (BackingPtr && idx < ContainerCapacity_);
     }
 
-    size_t GetHashedRendomizedStep_(size_t sequense_number) noexcept
-    {
-        uint64_t mix_hash = (
-            (static_cast<uint64_t>(sequense_number) * ID_HASH_GOLDEN_CONST) ^ (static_cast<uint64_t>(sequense_number >> (VALBITS + 1)))
-        );
-        size_t step = 1;
-        if (ContainerCapacity_ > 1)
-        {
-            step = static_cast<size_t>((mix_hash % (ContainerCapacity_ - 1)) + 1);
-        }
-        return step;
-    }
+    size_t GetHashedRendomizedStep_(size_t sequense_number) noexcept;
 
     void UpdateRegionRelForIdx_(size_t idx, tag8_t rel_mask) noexcept;
 
@@ -294,21 +267,9 @@ public:
     AdaptivePackedCellContainer(const AdaptivePackedCellContainer&) = delete;
     AdaptivePackedCellContainer& operator = (const AdaptivePackedCellContainer&) = delete;
 
-    size_t ReserveProducerSlots(size_t number_of_slots) noexcept
-    {
-        if (!IfAnyValid_() || number_of_slots == 0)
-        {
-            return SIZE_MAX;
-        }
+    uint32_t GetBranchId() const noexcept;
 
-        size_t base = ProducerCursor_.fetch_add(number_of_slots, std::memory_order_relaxed);
-        if (base < PackedCellBranchPlugin::METACELL_COUNT)
-        {
-            const size_t delta = PackedCellBranchPlugin::METACELL_COUNT - base;
-            base = ProducerCursor_.fetch_add(delta, std::memory_order_relaxed) + delta;
-        }
-        return base;
-    }
+    size_t ReserveProducerSlots(size_t number_of_slots) noexcept;
 
     size_t GetOrSetContainerCapacity(std::optional<size_t>container_capacity_of_apc = std::nullopt) noexcept
     {
@@ -359,27 +320,10 @@ public:
     }
     void TryReclaimRetiredWithMinEpoch(uint64_t min_epoch) noexcept;
 
-    void SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager)
-    {
-        if (pointer_of_global_apc_manager)
-        {
-            try
-            {
-                pointer_of_global_apc_manager->StartPCCManager();
-                APCManagerPtr_ = pointer_of_global_apc_manager;
-            }
-            catch(const std::exception& e)
-            {
-                std::cerr << e.what() << '\n';
-            }
-        }
-    }
+    void SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager);
     //Paired Pointer functions
-    //old
     PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;
-
     bool PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries = 100);
-    //new
     std::optional<AcquirePairedPointerStruct> AcquirePairedAtomicPtr(size_t probable_idx, bool claim_ownership = true, int max_claim_attempts = 256) noexcept;
     bool ReleaseAcquiredPairedPtr(const AcquirePairedPointerStruct& acquired_pair_struct, PackedCellLocalityTypes desired_locality = PackedCellLocalityTypes::ST_IDLE) noexcept;
     void RetireAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_pair_struct, DeviceFence_ fence = {}) noexcept;

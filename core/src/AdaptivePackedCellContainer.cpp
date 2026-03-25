@@ -5,7 +5,61 @@
 namespace PredictedAdaptedEncoding
 {
     class PackedCellContainerManager;
-    
+
+    uint32_t AdaptivePackedCellContainer::GetBranchId() const noexcept
+    {
+        if (BranchPluginOfAPC_)
+        {
+            return BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::BRANCH_ID);
+        }
+        return NO_VAL;
+    }
+
+    size_t AdaptivePackedCellContainer::ReserveProducerSlots(size_t number_of_slots) noexcept
+    {
+        if (!IfAnyValid_() || number_of_slots == 0)
+        {
+            return SIZE_MAX;
+        }
+
+        size_t base = ProducerCursor_.fetch_add(number_of_slots, std::memory_order_relaxed);
+        if (base < PackedCellBranchPlugin::METACELL_COUNT)
+        {
+            const size_t delta = PackedCellBranchPlugin::METACELL_COUNT - base;
+            base = ProducerCursor_.fetch_add(delta, std::memory_order_relaxed) + delta;
+        }
+        return base;
+    }
+
+    size_t AdaptivePackedCellContainer::GetHashedRendomizedStep_(size_t sequense_number) noexcept
+    {
+        uint64_t mix_hash = (
+            (static_cast<uint64_t>(sequense_number) * ID_HASH_GOLDEN_CONST) ^ (static_cast<uint64_t>(sequense_number >> (VALBITS + 1)))
+        );
+        size_t step = 1;
+        if (ContainerCapacity_ > 1)
+        {
+            step = static_cast<size_t>((mix_hash % (ContainerCapacity_ - 1)) + 1);
+        }
+        return step;
+    }
+
+    void AdaptivePackedCellContainer::SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager)
+    {
+        if (pointer_of_global_apc_manager)
+        {
+            try
+            {
+                pointer_of_global_apc_manager->StartPCCManager();
+                APCManagerPtr_ = pointer_of_global_apc_manager;
+            }
+            catch(const std::exception& e)
+            {
+                std::cerr << e.what() << '\n';
+            }
+        }
+    }
+
     struct AdaptivePackedCellContainer::QSBRGuard
     {
         bool IsQSBRGuardActive;
@@ -517,13 +571,22 @@ namespace PredictedAdaptedEncoding
             AdaptiveBackoffOfAPCPtr_ = nullptr;
             if (APCLogger_) APCLogger_("InitOwned", "Attach masterclock/backoff failed (non-fatal)");
         }
+        BranchPluginOfAPC_ = std::make_unique<PackedCellBranchPlugin>();
+
+        if (MasterClockConfPtr_)
+        {
+            BranchPluginOfAPC_->Bind(BackingPtr, ContainerCapacity_, MasterClockConfPtr_);
+        }
+        
+
+
     }
 
     void AdaptivePackedCellContainer::InitZeroState_() noexcept
     {
         Occupancy_.store(0, MoStoreUnSeq_);
-        ProducerCursor_.store(0, MoStoreUnSeq_);
-        ConsumerCursor_.store(0, MoStoreUnSeq_);
+        ProducerCursor_.store(PackedCellBranchPlugin::METACELL_COUNT, MoStoreUnSeq_);
+        ConsumerCursor_.store(PackedCellBranchPlugin::METACELL_COUNT, MoStoreUnSeq_);
         RetireHead_.store(nullptr, MoStoreSeq_);
         RetireCount_.store(0, MoStoreSeq_);
         GlobalEpoch_.store(1, MoStoreSeq_);

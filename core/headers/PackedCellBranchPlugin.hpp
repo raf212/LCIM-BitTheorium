@@ -238,7 +238,7 @@ public:
 
     }
 
-    val32_t ReadTotalMetaCell(MetaIndexOfAPCBranch idx) noexcept
+    val32_t ReadMetaCellValue32(MetaIndexOfAPCBranch idx) noexcept
     {
         if (!ValidMeteIdx_(idx) || idx == MetaIndexOfAPCBranch::LOCAL_CLOCK48)
         {
@@ -278,21 +278,72 @@ public:
         return UpdateBranchMeta32CAS(current_tree_position, BRANCH_SENTINAL, child_id);
     }
 
-    bool TryIncrementActiveThreadCount() noexcept
+    bool TryIncrementOrDecrementActiveThreadCount(int8_t change_count) noexcept
     {
+        ///for now
+        if (change_count < 0)
+        {
+            change_count = -1;
+        }
+        else if (change_count > 0)
+        {
+            change_count = 1;
+        }
+        ///
+        
+        
         while (true)
         {
-            uint32_t current_thread_count = ReadTotalMetaCell(MetaIndexOfAPCBranch::CURRENT_ACTIVE_THREADS);
+            uint32_t current_thread_count = ReadMetaCellValue32(MetaIndexOfAPCBranch::CURRENT_ACTIVE_THREADS);
             if (current_thread_count == UINT32_MAX)
             {
                 return false;
             }
-            if (UpdateBranchMeta32CAS(MetaIndexOfAPCBranch::CURRENT_ACTIVE_THREADS, current_thread_count, current_thread_count + 1))
+            if (UpdateBranchMeta32CAS(MetaIndexOfAPCBranch::CURRENT_ACTIVE_THREADS, current_thread_count, current_thread_count + change_count))
             {
                 return true;
             }
         }
     }
+
+    void UpdateOccupancySnapshot(uint32_t new_occupancy) noexcept
+    {
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT, new_occupancy);
+    }
+
+    void OrReadyRelMask(tag8_t rel_mask) noexcept
+    {
+        while (true)
+        {
+            val32_t current_branch_rel_mask = ReadMetaCellValue32(MetaIndexOfAPCBranch::READY_REL_MASK);
+            uint32_t next = current_branch_rel_mask | static_cast<uint32_t>(rel_mask & RELMASK_MASK);
+            if (UpdateBranchMeta32CAS(MetaIndexOfAPCBranch::READY_REL_MASK, current_branch_rel_mask, next))
+            {
+                return;
+            }
+        }
+    }
+
+    bool ShouldSplitNow() noexcept
+    {
+        const val32_t split_threshold = ReadMetaCellValue32(MetaIndexOfAPCBranch::SPLIT_THRESHOLD_PERCENTAGE);
+        const val32_t current_occumancy = ReadMetaCellValue32(MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT);
+        const val32_t max_depth = ReadMetaCellValue32(MetaIndexOfAPCBranch::MAX_DEPTH);
+        const val32_t depth_of_current_branch = ReadMetaCellValue32(MetaIndexOfAPCBranch::BRANCH_DEPTH);
+        if (depth_of_current_branch >= max_depth)
+        {
+            return false;
+        }
+        const size_t payload_capacity = PayloadCapacity();
+        if (payload_capacity == 0)
+        {
+            return false;
+        }
+        
+        return ((static_cast<uint64_t>(current_occumancy) * 100u) / payload_capacity) >= split_threshold;
+        
+    }
+
 
 };
 

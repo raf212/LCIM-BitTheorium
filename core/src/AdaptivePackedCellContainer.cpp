@@ -23,9 +23,9 @@ namespace PredictedAdaptedEncoding
         }
 
         size_t base = ProducerCursor_.fetch_add(number_of_slots, std::memory_order_relaxed);
-        if (base < PayloadBegain())
+        if (base < PayloadBegin())
         {
-            const size_t delta = PayloadBegain() - base;
+            const size_t delta = PayloadBegin() - base;
             base = ProducerCursor_.fetch_add(delta, std::memory_order_relaxed) + delta;
         }
         return base;
@@ -276,7 +276,7 @@ namespace PredictedAdaptedEncoding
         {
             throw std::invalid_argument("Capacity == 0");
         }
-        if (capacity <= PayloadBegain() + 2)
+        if (capacity <= PayloadBegin() + 2)
         {
             throw std::invalid_argument("Capacity is too small for APC.");
         }
@@ -337,16 +337,16 @@ namespace PredictedAdaptedEncoding
             ZERO_PRIORITY,
             ZERO_PRIORITY
         );
-        ProducerCursor_.store(PayloadBegain(), MoStoreUnSeq_);
-        ConsumerCursor_.store(PayloadBegain(), MoStoreUnSeq_);
+        ProducerCursor_.store(PayloadBegin(), MoStoreUnSeq_);
+        ConsumerCursor_.store(PayloadBegin(), MoStoreUnSeq_);
         RefreshAPCMeta_();
     }
 
     void AdaptivePackedCellContainer::InitZeroState_() noexcept
     {
         Occupancy_.store(0, MoStoreUnSeq_);
-        ProducerCursor_.store(PayloadBegain(), MoStoreUnSeq_);
-        ConsumerCursor_.store(PayloadBegain(), MoStoreUnSeq_);
+        ProducerCursor_.store(PayloadBegin(), MoStoreUnSeq_);
+        ConsumerCursor_.store(PayloadBegin(), MoStoreUnSeq_);
         RetireHead_.store(nullptr, MoStoreSeq_);
         RetireCount_.store(0, MoStoreSeq_);
         GlobalEpoch_.store(1, MoStoreSeq_);
@@ -695,7 +695,7 @@ namespace PredictedAdaptedEncoding
         try
         {
             const size_t child_capacity = SuggestedChildCapacity_();
-            if (child_capacity <= PayloadBegain() + 2)
+            if (child_capacity <= PayloadBegin() + 2)
             {
                 clear_flag();
                 return;
@@ -738,7 +738,7 @@ namespace PredictedAdaptedEncoding
                 child_container,
                 child_brunch_id,
                 parent_id_current_brunch_id,
-                PayloadBegain()
+                PayloadBegin()
             );
             rel_entry->RetireEpoch.store(GlobalEpoch_.load(MoLoad_), MoStoreSeq_);
             RetirePushLocked_(rel_entry);

@@ -22,6 +22,19 @@ public:
         TREE_OVERFLOW = 3
     };
 
+    enum class APCFlags : uint32_t
+    {
+        NONE = 0u,
+        ENABLE_BRANCHING = 1u << 0,
+        HAS_REGION_INDEX =  1u << 1,
+        SATURATED = 1u << 2,
+        SPLIT_INFLIGHT = 1u << 3,
+        HAS_LEFT_CHILD = 1u << 4,
+        HAS_RIGHT_CHILD = 1u << 5,
+        IS_GRAPH_NODE = 1u << 6,
+        IS_LINKED_NODE = 1u << 7
+    };
+
     enum class MetaIndexOfAPCBranch : size_t 
     {
         //identity
@@ -67,24 +80,7 @@ private:
         return PackedCellContainerPtr_ && static_cast<size_t>(idx) < BranchCapacity_ && static_cast<size_t>(idx) < METACELL_COUNT;
     }
 
-    void WriteBrenchMeta32_(
-        MetaIndexOfAPCBranch idx,
-        uint32_t value32,
-        tag8_t priority = ZERO_PRIORITY,
-        tag8_t rel_mask4 = REL_MASK4_NONE
-    ) noexcept
-    {
-        size_t index = static_cast<size_t>(idx);
-        if (!ValidMeteIdx_(idx))
-        {
-            return;
-        }
-        PackedCellContainerPtr_[index].store(PackValue32InPackedCellwithClock16(value32, priority, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask4), MoStoreSeq_);
-        PackedCellContainerPtr_[index].notify_all();
-    }
-public:
-    //checked top
-    inline packed64_t PackValue32InPackedCellwithClock16(
+    inline packed64_t PackValue32InPackedCellwithClock16_(
         val32_t value32,
         tag8_t priority,
         PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
@@ -100,6 +96,50 @@ public:
         strl16_t strl_moded32 = MakeSTRLMode32_t(priority, locality, rel_mask, reloffset_mode32, dtype);
         return PackedCell64_t::ComposeValue32u_64(value32, NO_VAL, strl_moded32);
     }
+
+    void WriteBrenchMeta32_(
+        MetaIndexOfAPCBranch idx,
+        uint32_t value32,
+        tag8_t priority = ZERO_PRIORITY,
+        tag8_t rel_mask4 = REL_MASK4_NONE
+    ) noexcept
+    {
+        size_t index = static_cast<size_t>(idx);
+        if (!ValidMeteIdx_(idx))
+        {
+            return;
+        }
+        PackedCellContainerPtr_[index].store(PackValue32InPackedCellwithClock16_(value32, priority, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask4), MoStoreSeq_);
+        PackedCellContainerPtr_[index].notify_all();
+    }
+
+    inline uint32_t ReadAPCFlags_() noexcept
+    {
+        return (ReadMetaCellValue32(MetaIndexOfAPCBranch::FLAGS));
+    }
+
+    inline bool UpdateFlagsOfBranch_(uint32_t flags_to_turn_on = NO_VAL, uint32_t flags_to_turn_off = NO_VAL) noexcept
+    {
+        while (true)
+        {
+            const uint32_t current_flags = ReadAPCFlags_();
+            uint32_t next_flags = current_flags;
+            next_flags |= flags_to_turn_on;
+            next_flags &= ~flags_to_turn_off;
+            if (next_flags == current_flags)
+            {
+                return true;
+            }
+            if (UpdateBranchMeta32CAS(MetaIndexOfAPCBranch::FLAGS, current_flags, next_flags))
+            {
+                return true;
+            }
+        }
+    }
+
+public:
+    //checked top
+
 
     inline packed64_t PackPureClock48AsPackedCell(
         std::optional<uint64_t> clock48 = std::nullopt,
@@ -162,7 +202,7 @@ public:
             return false;
         }
 
-        packed64_t desired_packed = PackValue32InPackedCellwithClock16(desired_value, priority, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, PackedCellDataType::UnsignedPCellDataType);
+        packed64_t desired_packed = PackValue32InPackedCellwithClock16_(desired_value, priority, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, PackedCellDataType::UnsignedPCellDataType);
         
         return PackedCellContainerPtr_[index].compare_exchange_strong(expected_packed, desired_packed, EXsuccess_, EXfailure_);
     }
@@ -179,11 +219,6 @@ public:
     bool IsBound() const noexcept
     {
         return PackedCellContainerPtr_ != nullptr && BranchCapacity_ >= METACELL_COUNT;
-    }
-
-    size_t PayloadBegain() const noexcept
-    {
-        return METACELL_COUNT;
     }
 
     size_t PayloadCapacity() const noexcept
@@ -344,7 +379,118 @@ public:
         
     }
 
+    inline uint32_t ReadCapacity() noexcept
+    {
+        return ReadMetaCellValue32(MetaIndexOfAPCBranch::CAPACITY);
+    }
 
+    inline uint32_t PayloadBegainRead() noexcept
+    {
+        return ReadMetaCellValue32(MetaIndexOfAPCBranch::PAYLOAD_BEGIN);
+    }
+
+    inline uint32_t PayloadEndRead() noexcept
+    {
+        return ReadMetaCellValue32(MetaIndexOfAPCBranch::PAYLOAD_END);
+    }
+
+    inline uint32_t RegionCountRead() noexcept
+    {
+        return ReadMetaCellValue32(MetaIndexOfAPCBranch::REGION_SIZE);
+    }
+
+    inline uint32_t SplitThresholdRead() noexcept
+    {
+        return ReadMetaCellValue32(MetaIndexOfAPCBranch::SPLIT_THRESHOLD_PERCENTAGE);
+    }
+
+    inline uint32_t MaxDepthRead() noexcept
+    {
+        return ReadMetaCellValue32(MetaIndexOfAPCBranch::MAX_DEPTH);
+    }
+
+    inline uint32_t CurrentBranchDepthRead() noexcept
+    {
+        return ReadMetaCellValue32(MetaIndexOfAPCBranch::BRANCH_DEPTH);
+    }
+
+    inline bool HasThisFlag(APCFlags flag) noexcept
+    {
+        return (ReadAPCFlags_() & static_cast<uint32_t>(flag)) != 0u;
+    }
+
+
+    inline bool TurnOnFlags(uint32_t use_or_between_flags = NO_VAL) noexcept
+    {
+        return UpdateFlagsOfBranch_(use_or_between_flags);
+    }
+
+    inline bool TurnOffFlags(uint32_t use_or_between_flags = NO_VAL) noexcept
+    {
+        return UpdateFlagsOfBranch_(NO_VAL, use_or_between_flags);
+    }
+
+    inline size_t PayloadCapacityFromHeader() noexcept
+    {
+        const uint32_t payload_begain = PayloadBegainRead();
+        const uint32_t payload_end  = PayloadEndRead();
+        if (payload_end > payload_begain)
+        {
+            return static_cast<size_t>(payload_end - payload_begain);
+        }
+        return NO_VAL;
+    }
+
+    inline size_t ClampPayloadIndex(size_t idx) noexcept
+    {
+        const size_t payload_begain = static_cast<size_t>(PayloadBegainRead());
+        const size_t payload_end = static_cast<size_t>(PayloadEndRead());
+        if (payload_end <= payload_begain)
+        {
+            return SIZE_MAX;
+        }
+        if (idx < payload_begain)
+        {
+            idx = payload_begain;
+        }
+        if (idx > payload_end)
+        {
+            idx = payload_begain + ((idx - payload_begain) % (payload_end - payload_begain));
+        }
+        return idx;
+    }
+
+    bool TrySetLeftChild (uint32_t child_id) noexcept
+    {
+        bool ok = TryAttachChildAPC(TreePosition::LEFT, child_id);
+        if (ok)
+        {
+            TurnOnFlags(static_cast<uint32_t>(APCFlags::HAS_LEFT_CHILD));
+        }
+        return ok;
+    }
+
+    bool TrySetRightChild(uint32_t child_id) noexcept
+    {
+        bool ok = TryAttachChildAPC(TreePosition::RIGHT, child_id);
+        if (ok)
+        {
+            TurnOnFlags(static_cast<uint32_t>(APCFlags::HAS_RIGHT_CHILD));
+        }
+    }
+
+    bool TryMarkSplitInFlight() noexcept
+    {
+        while (true)
+        {
+            bool is_already_in_flight = HasThisFlag(APCFlags::SPLIT_INFLIGHT);
+            if (is_already_in_flight)
+            {
+                return false;
+            }
+            return TurnOnFlags(static_cast<uint32_t>(APCFlags::SPLIT_INFLIGHT));
+        }
+    }
 };
 
 }

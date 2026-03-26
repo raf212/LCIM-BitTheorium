@@ -351,10 +351,10 @@ namespace PredictedAdaptedEncoding
             return {PublishStatus::INVALID, SIZE_MAX};
         }
         
-        size_t start = (next_sequence - PayloadBegain()) % ContainerCapacity_;
+        size_t start = (next_sequence - PayloadBegin()) % ContainerCapacity_;
         size_t step = GetHashedRendomizedStep_(next_sequence);
         int probes = 0;
-        size_t idx = start + PayloadBegain();
+        size_t idx = start + PayloadBegin();
         while (true)
         {
             size_t head = idx;
@@ -422,7 +422,7 @@ namespace PredictedAdaptedEncoding
             packed64_t observed = 0;
             if (BackingPtr && GetPayloadCapacity() > 0)
             {
-                size_t idx = ( PayloadBegain() +
+                size_t idx = ( PayloadBegin() +
                     (std::hash<std::thread::id>{}(std::this_thread::get_id()) % ContainerCapacity_)
                 );
                 observed = BackingPtr[idx].load(MoLoad_);

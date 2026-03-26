@@ -199,7 +199,7 @@ private:
 
     inline bool IfValidPayloadIndex_(size_t idx) const noexcept
     {
-        return (BackingPtr && idx < ContainerCapacity_ && idx >= PayloadBegain());
+        return (BackingPtr && idx < ContainerCapacity_ && idx >= PayloadBegin());
     }
 
     inline void QSBRCurThreadRegisterIfNeed_() noexcept
@@ -325,10 +325,10 @@ public:
 
     inline size_t GetPayloadCapacity() const noexcept
     {
-        return ContainerCapacity_ > PayloadBegain() ? (ContainerCapacity_ - PayloadBegain()) : NO_VAL;
+        return ContainerCapacity_ > PayloadBegin() ? (ContainerCapacity_ - PayloadBegin()) : NO_VAL;
     }
 
-    const uint32_t PayloadBegain() const noexcept
+    const uint32_t PayloadBegin() const noexcept
     {
         return PackedCellBranchPlugin::METACELL_COUNT;
     }

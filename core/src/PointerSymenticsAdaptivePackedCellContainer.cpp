@@ -432,7 +432,10 @@ namespace PredictedAdaptedEncoding
                 auto& backoff = APCManagerPtr_->GetManagersAdaptiveBackoff();
                 backoff.AdaptiveBackOffPacked(observed);
             }
-            if (APCContainerCfg_.EnableBranching && BranchPluginOfAPC_ && BranchPluginOfAPC_->ShouldSplitNow() && APCManagerPtr_)
+            if (BranchPluginOfAPC_ && 
+                BranchPluginOfAPC_->HasThisFlag(PackedCellBranchPlugin::APCFlags::ENABLE_BRANCHING) && 
+                BranchPluginOfAPC_->ShouldSplitNow() && APCManagerPtr_
+            )
             {
                 APCManagerPtr_->RequestBranchCreationForTheAdaptivePackedCellContainer(this);
             }

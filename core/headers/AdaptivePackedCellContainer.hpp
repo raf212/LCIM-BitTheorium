@@ -13,18 +13,6 @@
 namespace PredictedAdaptedEncoding
 {
 static_assert(__cpp_lib_atomic_wait, "C++ must suppoet atomic wait/notify");
-struct ContainerConf
-{
-    PackedMode InitialMode = PackedMode::MODE_VALUE32;
-    size_t ProducerBlockSize = 64;
-    size_t RegionSize = 0;
-    unsigned RetireBatchThreshold = 16;
-    unsigned BackgroundEpochAdvanceMS = 50;
-    bool EnableBranching = true;
-    uint32_t BranchSplitThresholdPercentage = 70;
-    uint32_t BranchMaxDepth = 8;
-    size_t BranchMinChildCapacity = 256;
-};
 
 struct AcquirePairedPointerStruct
 {

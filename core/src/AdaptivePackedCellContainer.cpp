@@ -247,32 +247,32 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    void AdaptivePackedCellContainer::InitOwned(size_t capacity, int node, ContainerConf container_cfg, size_t alignment)
+    void AdaptivePackedCellContainer::InitOwned(size_t container_capacity, int node, ContainerConf container_cfg, size_t alignment)
     {
         (void)node, (void)alignment;
         FreeAll();
-        if (capacity == 0)
+        if (container_capacity == 0)
         {
             throw std::invalid_argument("Capacity == 0");
         }
-        if (capacity <= PayloadBegin() + 2)
+        if (container_capacity <= PayloadBegin() + 2)
         {
             throw std::invalid_argument("Capacity is too small for APC.");
         }
         
-        BackingPtr = new std::atomic<packed64_t>[capacity];
+        BackingPtr = new std::atomic<packed64_t>[container_capacity];
         packed64_t idle_cell = PackedCell64_t::MakeInitialPacked(container_cfg.InitialMode);
-        for (size_t i = 0; i < capacity; i++)
+        for (size_t i = 0; i < container_capacity; i++)
         {
             BackingPtr[i].store(idle_cell, MoStoreUnSeq_);
         }
-        ContainerCapacity_ = capacity;
+        ContainerCapacity_ = container_capacity;
         IsContainerOwned_ = true;
         APCContainerCfg_ = container_cfg;
-        RetireBatchThreshold_ = std::max<unsigned>(1, APCContainerCfg_.RetireBatchThreshold);
+        RetireBatchThreshold_ = std::max<unsigned>(1, container_cfg.RetireBatchThreshold);
         InitZeroState_();
 
-        if (APCContainerCfg_.RegionSize)
+        if (container_cfg.RegionSize)
         {
             InitRegionIdx(container_cfg.RegionSize);
         }
@@ -299,19 +299,21 @@ namespace PredictedAdaptedEncoding
             if (APCLogger_) APCLogger_("InitOwned", "Attach masterclock/backoff failed (non-fatal)");
         }
         BranchPluginOfAPC_ = std::make_unique<PackedCellBranchPlugin>();
-        BranchPluginOfAPC_->Bind(BackingPtr, ContainerCapacity_, MasterClockConfPtr_);
+        BranchPluginOfAPC_->Bind(BackingPtr, container_capacity, MasterClockConfPtr_);
         const uint32_t new_branch_id = GlobalBranchIdAlloc_.fetch_add(1, std::memory_order_acq_rel);
-        const uint32_t region_count_u32 = APCContainerCfg_.RegionSize == NO_VAL ? NO_VAL : static_cast<uint32_t>((ContainerCapacity_ + APCContainerCfg_.RegionSize -1) / APCContainerCfg_.RegionSize);
+        const uint32_t region_count_u32 = container_cfg.RegionSize == NO_VAL ? NO_VAL : static_cast<uint32_t>(((container_capacity - PayloadBegin()) + container_cfg.RegionSize -1) / container_cfg.RegionSize);
 
         BranchPluginOfAPC_->InitRootOrChildBranch(
             new_branch_id,
             NO_VAL,
-            ContainerCapacity_,
+            container_capacity,
             PackedCellBranchPlugin::TreePosition::ROOT,
-            APCContainerCfg_.BranchSplitThresholdPercentage,
+            container_cfg.BranchSplitThresholdPercentage,
             0u,
-            APCContainerCfg_.BranchMaxDepth,
-            static_cast<uint32_t>(APCContainerCfg_.RegionSize),
+            container_cfg.BranchMaxDepth,
+            static_cast<uint32_t>(container_cfg.ProducerBlockSize),
+            container_cfg.BackgroundEpochAdvanceMS,
+            static_cast<uint32_t>(container_cfg.RegionSize),
             region_count_u32,
             ZERO_PRIORITY,
             ZERO_PRIORITY

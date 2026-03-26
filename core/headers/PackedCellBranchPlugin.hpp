@@ -4,6 +4,27 @@
 
 namespace PredictedAdaptedEncoding
 {
+#define MIN_PRODUCER_BLOCK_SIZE 64
+#define MIN_REGION_SIZE 0
+#define MIN_RETIRE_BATCH_THRESHOLD 16
+#define MIN_BACKGROUND_EPOCH_MS 50
+#define INITIAL_BRANCH_SPLIT_THRESHOLD_PERCENTAGE 70
+#define MINIMUM_BRANCH_CAPACITY 256
+#define MAX_BRANCH_DEPTH 10
+
+struct ContainerConf
+{
+
+    PackedMode InitialMode = PackedMode::MODE_VALUE32;
+    size_t ProducerBlockSize = MIN_PRODUCER_BLOCK_SIZE;
+    size_t RegionSize = MIN_REGION_SIZE;
+    unsigned RetireBatchThreshold = MIN_RETIRE_BATCH_THRESHOLD;
+    unsigned BackgroundEpochAdvanceMS = MIN_BACKGROUND_EPOCH_MS;
+    bool EnableBranching = true;
+    uint32_t BranchSplitThresholdPercentage = INITIAL_BRANCH_SPLIT_THRESHOLD_PERCENTAGE;
+    uint32_t BranchMaxDepth = MAX_BRANCH_DEPTH;
+    size_t BranchMinChildCapacity = MINIMUM_BRANCH_CAPACITY;
+};
 
 class PackedCellBranchPlugin final
 {
@@ -58,6 +79,8 @@ public:
         //payload bounds
         PAYLOAD_BEGIN = 16,
         PAYLOAD_END = 17,
+        PRODUCER_BLOCK_SIZE = 23,
+        BACKGROUND_EPOCH_ADVANCE_MS =  24,
         //timing
         LOCAL_CLOCK48 = 18,
         LAST_SPLIT_EPOCH = 19,
@@ -67,7 +90,7 @@ public:
         READY_REL_MASK = 22,
 
         //free exception 
-        RESERVED_23 = 23,
+        RESERVED_25 = 25,
         EOF_APC_HEADER = 63
     };
 private:
@@ -232,11 +255,13 @@ public:
         uint32_t parent_bramch_id,
         size_t total_capacity,
         TreePosition current_tree_position,
-        uint32_t split_threshold_percantage,
-        uint32_t current_depth,
-        uint32_t max_depth,
-        uint32_t region_size = 0,
-        uint32_t region_count = 0,
+        uint32_t split_threshold_percantage = INITIAL_BRANCH_SPLIT_THRESHOLD_PERCENTAGE,
+        uint32_t current_depth = NO_VAL,
+        uint32_t max_depth = MAX_BRANCH_DEPTH,
+        uint32_t producer_minimum_block_size = MIN_PRODUCER_BLOCK_SIZE,
+        uint32_t background_epoch_ms = MIN_BACKGROUND_EPOCH_MS,
+        uint32_t region_size = MIN_REGION_SIZE,
+        uint32_t region_count = NO_VAL,
         uint8_t branch_priority = ZERO_PRIORITY,
         uint8_t priority = ZERO_PRIORITY,
         uint32_t initial_flags = static_cast<uint32_t>(APCFlags::ENABLE_BRANCHING)
@@ -255,6 +280,8 @@ public:
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::LEFT_CHILD_ID, BRANCH_SENTINAL, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::RIGHT_CHILD_ID, BRANCH_SENTINAL, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::CURRENT_TREE_POSITION, static_cast<uint32_t>(current_tree_position), priority);
+
+
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::BRANCH_DEPTH, current_depth, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::BRANCH_PRIORITY, branch_priority, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::FLAGS, initial_flags, priority);
@@ -263,8 +290,13 @@ public:
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::SAFE_POINT, NO_VAL, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::SPLIT_THRESHOLD_PERCENTAGE, split_threshold_percantage, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::MAX_DEPTH, max_depth, priority);
+
+
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::PAYLOAD_BEGIN, static_cast<uint32_t>(METACELL_COUNT), priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::PAYLOAD_END, static_cast<uint32_t>(std::min<size_t>(total_capacity, UINT32_MAX)), priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::PRODUCER_BLOCK_SIZE, producer_minimum_block_size, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::BACKGROUND_EPOCH_ADVANCE_MS, background_epoch_ms, priority);
+
         WriteOrUpdateMetaClock48(priority, NO_VAL);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::LAST_SPLIT_EPOCH, NO_VAL, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::REGION_SIZE, region_size, priority);

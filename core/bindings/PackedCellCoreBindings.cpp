@@ -315,19 +315,5 @@ PYBIND11_MODULE(atomiccim_bind, m) {
             "Publish a pointer pair using raw address (unsafe). Returns (status, index)."
         )
 
-        .def("MenualAdvanceContainerEpoch",
-            &AdaptivePackedCellContainer::ManualAdvanceEpoch,
-            py::arg("increment"),
-            "Advance the global epoch by inc (>=1)."
-        )
-        .def("PullContainerDeviceFencesJustOnce",
-            &AdaptivePackedCellContainer::PollDeviceFencesOnce_,
-            "Poll device fences once (non-blocking)."
-        )
-        .def("TryReclaimingRetiredContainer",
-            &AdaptivePackedCellContainer::TryReclaimRetirePairedPtr_,
-            "Attempt reclaiming retired entries now."
-        )
-
         ;
 }

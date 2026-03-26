@@ -157,8 +157,6 @@ private:
 
     static bool DeviceFenceSatisfied_(const RelEntry_& rel_entry_address) noexcept;
     
-    void BackgroundReclaimerMainThread_() noexcept;
-
     size_t GetHashedRendomizedStep_(size_t sequense_number) noexcept;
 
     void UpdateRegionRelForIdx_(tag8_t rel_mask) noexcept;
@@ -243,7 +241,6 @@ public:
 
     void InitRegionIdx(size_t region_size) noexcept;
     
-    void TryReclaimRetirePairedPtr_() noexcept;
 
     bool PollDeviceFencesOnce_() noexcept;
 
@@ -261,16 +258,6 @@ public:
     template<typename TypePtr>
     std::optional<TypePtr> ViewPointerMemoryIfAssembeled(size_t probable_idx) noexcept;
     //
-    void ManualAdvanceEpoch(uint64_t increment) noexcept
-    {
-        if (increment == 0)
-        {
-            return;
-        }
-        GlobalEpoch_.fetch_add(increment, std::memory_order_acq_rel);
-        TryReclaimRetirePairedPtr_();
-        
-    }
 
     size_t GetOrSetTotalContainerCapacity(std::optional<size_t>container_capacity_of_apc = std::nullopt) noexcept
     {

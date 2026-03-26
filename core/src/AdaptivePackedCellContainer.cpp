@@ -190,29 +190,7 @@ namespace PredictedAdaptedEncoding
         return any_signaled;
     }
 
-    void AdaptivePackedCellContainer::BackgroundReclaimerMainThread_() noexcept
-    {
-        if (!BranchPluginOfAPC_)
-        {
-            return;
-        }
-        unsigned interval_ms = std::max<unsigned>(1u, (BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::BACKGROUND_EPOCH_ADVANCE_MS)));
-        std::unique_lock<std::mutex>lk(BackgroundMutex_);
-        while (!BackgroundThreadStop_)
-        {
-            BackgroundCondVar_.wait_for(lk, std::chrono::milliseconds(interval_ms), [this] {
-                return BackgroundThreadStop_;
-            });
 
-            if (BackgroundThreadStop_)
-            {
-                break;
-            }
-            GlobalEpoch_.fetch_add(1, std::memory_order_acq_rel);
-            PollDeviceFencesOnce_();
-            TryReclaimRetirePairedPtr_();
-        }
-    }
 
     void AdaptivePackedCellContainer::UpdateRegionRelForIdx_(tag8_t rel_mask) noexcept
     {
@@ -223,20 +201,6 @@ namespace PredictedAdaptedEncoding
         return BranchPluginOfAPC_->OrReadyRelMask(rel_mask);
     }
 
-    void AdaptivePackedCellContainer::StartBackgroundReclaimerIfNeed()
-    {
-        std::lock_guard<std::mutex>LK(BackgroundMutex_);
-        if (BackgroundThread_.joinable())
-        {
-            return;
-        }
-        BackgroundThreadStop_ = false;
-        BackgroundThread_ = std::thread([this]
-        {
-            BackgroundReclaimerMainThread_();
-        }
-        );                
-    }
     
     void AdaptivePackedCellContainer::StopBackgroundReclaimer() noexcept
     {

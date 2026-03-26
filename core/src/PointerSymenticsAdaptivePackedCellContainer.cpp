@@ -151,7 +151,7 @@ namespace PredictedAdaptedEncoding
         return true;
     }
 
-    void AdaptivePackedCellContainer::RetireAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_paired_pointer_struct, DeviceFence_ device_fence) noexcept
+    void AdaptivePackedCellContainer::RetireAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_paired_pointer_struct) noexcept
     {
         if (!acquired_paired_pointer_struct.Ownership)
         {
@@ -164,14 +164,12 @@ namespace PredictedAdaptedEncoding
         BackingPtr[acquired_paired_pointer_struct.TailIdx].notify_all();
         Occupancy_.fetch_sub(1, std::memory_order_acq_rel);
 
-        // this should be a filure cast that gives me option to go deep insid6e cast function how I can cast a pointer to packed64_t in APC insted of using PublishheapPtr??
-        packed64_t packed_for_rel = static_cast<packed64_t>(acquired_paired_pointer_struct.AssembeledPtr);
-        RelEntry_* rel_entry_ptr = new RelEntry_(packed_for_rel);
-
-        rel_entry_ptr->APCDeviceFence = std::move(device_fence);
-        rel_entry_ptr->RetireEpoch.store(GlobalEpoch_.load(MoLoad_), MoStoreSeq_);
-        RetirePushLocked_(rel_entry_ptr);
-
+        RefreshAPCMeta_();
+        if (APCManagerPtr_)
+        {
+            APCManagerPtr_->RequestForReclaimationOfTheAdaptivePackedCellContainer(this);
+        }
+        
     }
 
     template<typename PtrDtype>

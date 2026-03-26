@@ -142,7 +142,7 @@ namespace PredictedAdaptedEncoding
             }
 
             void ManagerManinLoop_() noexcept;
-            void ProcessRemainingWorkOfAPC_(NodeOfAdaptivePackedCellContainer_* batch_head_of_adaptive_packed_cell_container_ptr, uint64_t min_epoch) noexcept;
+            void ProcessRemainingWorkOfAPC_(NodeOfAdaptivePackedCellContainer_* batch_head_of_adaptive_packed_cell_container_ptr, uint64_t min_epoch = 64) noexcept;
             void ProcessCleanUpBatchOfAdaptivePackedCellContainer_(NodeOfAdaptivePackedCellContainer_* batch_head_of_adaptive_packed_cell_container) noexcept;
             void TryCompactRegistryOnce_() noexcept;
             static constexpr uint64_t THREAD_SENTINEL_ = std::numeric_limits<uint64_t>::max();

@@ -154,8 +154,6 @@ private:
 
 
     void RetirePushLocked_(RelEntry_* rel_entry_ptr) noexcept;
-
-    static bool DeviceFenceSatisfied_(const RelEntry_& rel_entry_address) noexcept;
     
     size_t GetHashedRendomizedStep_(size_t sequense_number) noexcept;
 
@@ -231,10 +229,6 @@ public:
 
     size_t NextProducerSequence() noexcept;
 
-    void StartBackgroundReclaimerIfNeed();
-
-    void StopBackgroundReclaimer() noexcept;
-
     void InitOwned(size_t cpacity, int node = REL_NODE0, ContainerConf container_cfg = {}, size_t allignment = MAX_VAL);
 
     void FreeAll() noexcept;
@@ -246,15 +240,13 @@ public:
 
     void TryCreateBranchIfNeeded() noexcept;
     
-    void TryReclaimRetiredWithMinEpoch(uint64_t min_epoch) noexcept;
-
     void SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager) noexcept;
     //Paired Pointer functions
     PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;
     bool PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries = 100);
     std::optional<AcquirePairedPointerStruct> AcquirePairedAtomicPtr(size_t probable_idx, bool claim_ownership = true, int max_claim_attempts = 256) noexcept;
     bool ReleaseAcquiredPairedPtr(const AcquirePairedPointerStruct& acquired_pair_struct, PackedCellLocalityTypes desired_locality = PackedCellLocalityTypes::ST_IDLE) noexcept;
-    void RetireAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_pair_struct, DeviceFence_ fence = {}) noexcept;
+    void RetireAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_pair_struct) noexcept;
     template<typename TypePtr>
     std::optional<TypePtr> ViewPointerMemoryIfAssembeled(size_t probable_idx) noexcept;
     //

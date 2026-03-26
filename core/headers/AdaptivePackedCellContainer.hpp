@@ -278,6 +278,11 @@ public:
         {
             ContainerCapacity_ = *container_capacity_of_apc;
         }
+        if (ContainerCapacity_ < MINIMUM_BRANCH_CAPACITY)
+        {
+            ContainerCapacity_ = MINIMUM_BRANCH_CAPACITY;
+        }
+        
         return ContainerCapacity_;
     }
 

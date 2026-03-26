@@ -36,11 +36,11 @@ namespace PredictedAdaptedEncoding
             if (curent_ptr_position == RelOffsetMode32::REL_OFFSET_HEAD_PTR)
             {
                 head_idx = probable_idx;
-                tail_idx = (probable_idx + 1) % ContainerCapacity_;
+                tail_idx = (probable_idx + 1) % GetPayloadCapacity();
             }
             else if (curent_ptr_position == RelOffsetMode32::RELOFFSET_TAIL_PTR)
             {
-                head_idx = (probable_idx + ContainerCapacity_ - 1) % ContainerCapacity_;
+                head_idx = (probable_idx + GetPayloadCapacity() - 1) % GetPayloadCapacity();
                 tail_idx = probable_idx;
             }
             else
@@ -351,14 +351,14 @@ namespace PredictedAdaptedEncoding
             return {PublishStatus::INVALID, SIZE_MAX};
         }
         
-        size_t start = (next_sequence - PayloadBegin()) % ContainerCapacity_;
+        size_t start = (next_sequence - PayloadBegin()) % GetPayloadCapacity();
         size_t step = GetHashedRendomizedStep_(next_sequence);
         int probes = 0;
         size_t idx = start + PayloadBegin();
         while (true)
         {
             size_t head = idx;
-            size_t tail = (head + 1) % ContainerCapacity_;
+            size_t tail = (head + 1) % GetPayloadCapacity();
             packed64_t cur_head = BackingPtr[head].load(MoLoad_);
             packed64_t cur_tail = BackingPtr[tail].load(MoLoad_);
             PackedCellLocalityTypes head_locality = PackedCell64_t::ExtractLocalityFromPacked(cur_head);
@@ -400,11 +400,11 @@ namespace PredictedAdaptedEncoding
                 }
             }
             ++probes;
-            if ((max_probs >=0 && probes >= max_probs) || probes >= static_cast<int>(ContainerCapacity_))
+            if ((max_probs >=0 && probes >= max_probs) || probes >= static_cast<int>(GetPayloadCapacity()))
             {
                 return {PublishStatus::FULL, SIZE_MAX};
             }
-            idx = (idx + step) % ContainerCapacity_;
+            idx = (idx + step) % GetPayloadCapacity();
         }
     }
 
@@ -423,7 +423,7 @@ namespace PredictedAdaptedEncoding
             if (BackingPtr && GetPayloadCapacity() > 0)
             {
                 size_t idx = ( PayloadBegin() +
-                    (std::hash<std::thread::id>{}(std::this_thread::get_id()) % ContainerCapacity_)
+                    (std::hash<std::thread::id>{}(std::this_thread::get_id()) % GetPayloadCapacity())
                 );
                 observed = BackingPtr[idx].load(MoLoad_);
             }

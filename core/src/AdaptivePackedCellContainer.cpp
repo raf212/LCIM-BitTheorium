@@ -418,7 +418,7 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        size_t number_of_region = ((ContainerCapacity_ + region_size - 1) / region_size);
+        size_t number_of_region = ((GetPayloadCapacity() + region_size - 1) / region_size);
         uint32_t current_number_of_region = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_COUNT);
         ok = BranchPluginOfAPC_->UpdateBranchMeta32CAS(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_COUNT, current_number_of_region, static_cast<uint32_t>(number_of_region));
         if (!ok)
@@ -441,7 +441,7 @@ namespace PredictedAdaptedEncoding
         for (size_t region = 0; region < number_of_region; region++)
         {
             size_t base = region * region_size;
-            size_t end = std::min(ContainerCapacity_, base + region_size);
+            size_t end = std::min(GetPayloadCapacity(), base + region_size);
             tag8_t accum = 0;
             for (size_t i = base; i < end; i++)
             {

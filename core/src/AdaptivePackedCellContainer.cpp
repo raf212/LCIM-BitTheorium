@@ -210,38 +210,17 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    void AdaptivePackedCellContainer::UpdateRegionRelForIdx_(size_t idx, tag8_t rel_mask) noexcept
+    void AdaptivePackedCellContainer::UpdateRegionRelForIdx_(tag8_t rel_mask) noexcept
     {
-        if (BranchPluginOfAPC_)
-        {
-            BranchPluginOfAPC_->OrReadyRelMask(rel_mask);
-        }
-        
-        if (RegionSize_ == 0)
+        if (!BranchPluginOfAPC_)
         {
             return;
         }
-        size_t region = idx / RegionSize_;
-        RegionRelArray_[region].fetch_or(rel_mask, std::memory_order_acq_rel);
-        size_t w = region / MAX_VAL;
-        size_t b =  region % MAX_VAL;
-        uint64_t region_mask = (1ull << b);
-        for (unsigned i = 0; i < LN_OF_BYTE_IN_BITS; i++)
-        {
-            if (rel_mask & (1u << i))
-            {
-                std::atomic_ref<uint64_t>aref(RelBitmaps_[i][w]);
-                aref.fetch_or(region_mask, std::memory_order_acq_rel);
-            }
-        }
+        return BranchPluginOfAPC_->OrReadyRelMask(rel_mask);
     }
 
     void AdaptivePackedCellContainer::StartBackgroundReclaimerIfNeed()
     {
-        if (APCContainerCfg_.BackgroundEpochAdvanceMS == 0)
-        {
-            return;
-        }
         std::lock_guard<std::mutex>LK(BackgroundMutex_);
         if (BackgroundThread_.joinable())
         {
@@ -295,7 +274,7 @@ namespace PredictedAdaptedEncoding
 
         if (APCContainerCfg_.RegionSize)
         {
-            InitRegionIdx(APCContainerCfg_.RegionSize);
+            InitRegionIdx(container_cfg.RegionSize);
         }
         try
         {
@@ -350,7 +329,6 @@ namespace PredictedAdaptedEncoding
         RetireHead_.store(nullptr, MoStoreSeq_);
         RetireCount_.store(0, MoStoreSeq_);
         GlobalEpoch_.store(1, MoStoreSeq_);
-        BranchCreateInFlight_.store(false, MoStoreUnSeq_);
     }
 
     void AdaptivePackedCellContainer::FreeAll() noexcept
@@ -409,39 +387,52 @@ namespace PredictedAdaptedEncoding
 
         ContainerCapacity_ = 0;
         IsContainerOwned_ = false;
-        RegionSize_ = 0;
-        NumRegion_ = 0;
     }
 
-    void AdaptivePackedCellContainer::InitRegionIdx(size_t region_size)
+    void AdaptivePackedCellContainer::InitRegionIdx(size_t region_size) noexcept
     {
         if (!IfAnyValid_())
         {
-            throw std::runtime_error("Container not initialized");
+            return;
         }
         if (region_size == 0)
         {
-            throw std::invalid_argument("region size == 0");
+            return;
         }
-        RegionSize_ = region_size;
-        NumRegion_ = ((ContainerCapacity_ + RegionSize_ - 1) / RegionSize_);
+        if (!BranchPluginOfAPC_)
+        {
+            return;
+        }
+        uint32_t current_region_size = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_SIZE);
+        bool ok = BranchPluginOfAPC_->UpdateBranchMeta32CAS(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_SIZE, current_region_size, static_cast<uint32_t>(region_size));
+        if (!ok)
+        {
+            return;
+        }
+        size_t number_of_region = ((ContainerCapacity_ + region_size - 1) / region_size);
+        uint32_t current_number_of_region = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_COUNT);
+        ok = BranchPluginOfAPC_->UpdateBranchMeta32CAS(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_COUNT, current_number_of_region, static_cast<uint32_t>(number_of_region));
+        if (!ok)
+        {
+            return;
+        }
         RegionRelArray_.reset(
-            new std::atomic<uint8_t>[NumRegion_]
+            new std::atomic<uint8_t>[number_of_region]
         );
         RegionEpochArray_.reset(
-            new std::atomic<uint64_t>[NumRegion_]
+            new std::atomic<uint64_t>[number_of_region]
         );
-        for (size_t region = 0; region < NumRegion_; region++)
+        for (size_t region = 0; region < number_of_region; region++)
         {
             RegionRelArray_[region].store(0, MoStoreSeq_);
             RegionEpochArray_[region].store(0, MoStoreSeq_);
         }
-        size_t words = (NumRegion_ + MAX_VAL - 1) / MAX_VAL;
+        size_t words = (number_of_region + MAX_VAL - 1) / MAX_VAL;
         RelBitmaps_.assign(LN_OF_BYTE_IN_BITS, std::vector<uint64_t>(words, 0ull));
-        for (size_t region = 0; region < NumRegion_; region++)
+        for (size_t region = 0; region < number_of_region; region++)
         {
-            size_t base = region * RegionSize_;
-            size_t end = std::min(ContainerCapacity_, base + RegionSize_);
+            size_t base = region * region_size;
+            size_t end = std::min(ContainerCapacity_, base + region_size);
             tag8_t accum = 0;
             for (size_t i = base; i < end; i++)
             {

@@ -236,7 +236,6 @@ int main()
     AdaptivePackedCellContainer TASK_APC;
     ContainerConf task_cfg;
     task_cfg.ProducerBlockSize = 64;
-    task_cfg.MaxTlsCandidates = 1024;
     task_cfg.InitialMode = PackedMode::MODE_VALUE32;
 
     TASK_APC.InitOwned(apc_capacity, REL_NODE0, task_cfg);

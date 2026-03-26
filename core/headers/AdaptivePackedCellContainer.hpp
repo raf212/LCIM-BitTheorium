@@ -15,20 +15,11 @@ namespace PredictedAdaptedEncoding
 static_assert(__cpp_lib_atomic_wait, "C++ must suppoet atomic wait/notify");
 struct ContainerConf
 {
-    size_t ScanLimit = 256;
-    size_t MaxGather = 1024;
-    unsigned TimerDownShift = 10u;
-    bool UseTimeStamp = true;
-    bool AllowPublishedClickFixUp = true;
-    size_t MaxTlsCandidates = 4096;
+    PackedMode InitialMode = PackedMode::MODE_VALUE32;
     size_t ProducerBlockSize = 64;
     size_t RegionSize = 0;
-    size_t ReloffsetCapacity = 0;
-    PackedMode InitialMode = PackedMode::MODE_VALUE32;
     unsigned RetireBatchThreshold = 16;
     unsigned BackgroundEpochAdvanceMS = 50;
-    static constexpr size_t MAXTLS = 8192;
-
     bool EnableBranching = true;
     uint32_t BranchSplitThresholdPercentage = 70;
     uint32_t BranchMaxDepth = 8;
@@ -85,7 +76,6 @@ private:
     //branch
     std::unique_ptr<PackedCellBranchPlugin> BranchPluginOfAPC_;
     static inline std::atomic<uint32_t> GlobalBranchIdAlloc_{1};
-    std::atomic<bool>BranchCreateInFlight_{false};
     enum class FinalizerKind_ : uint8_t 
     {
         NONE = 0,
@@ -169,8 +159,6 @@ private:
     //logging hook
     std::function<void(const char*, const char*)> APCLogger_;
     //region/index
-    size_t RegionSize_{0};
-    size_t NumRegion_{0};
     std::unique_ptr<std::atomic<uint8_t>[]> RegionRelArray_{nullptr};
     std::vector<std::vector<uint64_t>> RelBitmaps_;
     std::unique_ptr<std::atomic<uint64_t>[]> RegionEpochArray_{nullptr};
@@ -186,12 +174,12 @@ private:
 
     size_t GetHashedRendomizedStep_(size_t sequense_number) noexcept;
 
-    void UpdateRegionRelForIdx_(size_t idx, tag8_t rel_mask) noexcept;
+    void UpdateRegionRelForIdx_(tag8_t rel_mask) noexcept;
 
     void InitZeroState_() noexcept;
 
     void RefreshAPCMeta_() noexcept;
-    
+
     size_t SuggestedChildCapacity_() const noexcept;
 
     inline bool IfAnyValid_() const noexcept
@@ -266,7 +254,7 @@ public:
 
     void FreeAll() noexcept;
 
-    void InitRegionIdx(size_t region_size);
+    void InitRegionIdx(size_t region_size) noexcept;
     
     void TryReclaimRetirePairedPtr_() noexcept;
 

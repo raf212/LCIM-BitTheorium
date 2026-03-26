@@ -63,18 +63,7 @@ private:
     //branch
     std::unique_ptr<PackedCellBranchPlugin> BranchPluginOfAPC_;
     static inline std::atomic<uint32_t> GlobalBranchIdAlloc_{1};
-    enum class FinalizerKind_ : uint8_t 
-    {
-        NONE = 0,
-        HOST = 1,
-        PINNED = 2,
-        GPU = 3
-    };
-    struct DeviceFence_
-    {
-        void* HandleDeviceFencePtr = nullptr;
-        std::function<bool(void*)> IsSignaled;
-    };
+
     struct RelEntry_
     {
         enum class APCKind : uint8_t
@@ -94,9 +83,7 @@ private:
 
         PackedCellDataType RECellDType = PackedCellDataType::UnsignedPCellDataType;
 
-        FinalizerKind_ KindFinalizer = FinalizerKind_::NONE;
         std::function<void(void*)> FinalizerPtr = nullptr;
-        DeviceFence_ APCDeviceFence{};
         std::atomic<uint64_t> RetireEpoch{NO_VAL};
         std::atomic<RelEntry_*> NextPtr{nullptr};
 
@@ -120,8 +107,7 @@ private:
         //heap constructor
         RelEntry_(void* heap_ptr, size_t heap_size, PackedCellDataType pc_dtype) noexcept :
             Kind(APCKind::HEAP_NODE),HeapPtr(heap_ptr), 
-            HeapSize(heap_size), RECellDType(pc_dtype),
-            KindFinalizer(FinalizerKind_::HOST)
+            HeapSize(heap_size), RECellDType(pc_dtype)
         {}
     };    //reloffset
     //epoch-table
@@ -151,9 +137,6 @@ private:
     std::unique_ptr<std::atomic<uint64_t>[]> RegionEpochArray_{nullptr};
     static inline thread_local std::vector<std::pair<size_t, packed64_t>> TLSCandidates_;
     //--??
-
-
-    void RetirePushLocked_(RelEntry_* rel_entry_ptr) noexcept;
     
     size_t GetHashedRendomizedStep_(size_t sequense_number) noexcept;
 
@@ -235,8 +218,6 @@ public:
 
     void InitRegionIdx(size_t region_size) noexcept;
     
-
-    bool PollDeviceFencesOnce_() noexcept;
 
     void TryCreateBranchIfNeeded() noexcept;
     

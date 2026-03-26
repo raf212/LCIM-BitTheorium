@@ -113,60 +113,7 @@ namespace PredictedAdaptedEncoding
             oprtr.RelEntryPtr = nullptr;
         }
     };
-    
 
-
-    void AdaptivePackedCellContainer::RetirePushLocked_(RelEntry_* rel_entry_ptr) noexcept
-    {
-        RelEntry_* head = RetireHead_.load(MoLoad_);
-        while (true)
-        {
-            rel_entry_ptr->NextPtr.store(head, MoStoreUnSeq_);
-            if (RetireHead_.compare_exchange_strong(head, rel_entry_ptr, EXsuccess_, std::memory_order_acquire))
-            {
-                size_t cur = RetireCount_.fetch_add(1, std::memory_order_acq_rel) + 1;
-                size_t prev_max = RetireQueDepthMax_.load(std::memory_order_relaxed);
-                while (cur > prev_max && RetireQueDepthMax_.compare_exchange_weak(prev_max, cur, std::memory_order_relaxed))
-                {
-                    /* code */
-                }
-                TotalRetired_.fetch_add(1, std::memory_order_relaxed);
-                return;
-            }
-            else
-            {
-                TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
-            }
-        }
-    }
-
-
-    bool AdaptivePackedCellContainer::PollDeviceFencesOnce_() noexcept
-    {
-        bool any_signaled = false;
-        RelEntry_* cur_relentry_ptr = RetireHead_.load(MoLoad_);
-        while (cur_relentry_ptr)
-        {
-            if (cur_relentry_ptr->APCDeviceFence.HandleDeviceFencePtr && cur_relentry_ptr->APCDeviceFence.IsSignaled)
-            {
-                bool signaled_now = false;
-                try
-                {
-                    signaled_now = cur_relentry_ptr->APCDeviceFence.IsSignaled(cur_relentry_ptr->APCDeviceFence.HandleDeviceFencePtr);
-                }
-                catch (...)
-                {
-                    signaled_now = false;
-                }
-                if (signaled_now)
-                {
-                    any_signaled = true;
-                }
-            }
-            cur_relentry_ptr = cur_relentry_ptr->NextPtr.load(MoLoad_);
-        }
-        return any_signaled;
-    }
 
 
 
@@ -495,11 +442,6 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-                
-        if (!BranchPluginOfAPC_->TurnOnFlags(static_cast<uint32_t>(PackedCellBranchPlugin::APCFlags::SPLIT_INFLIGHT)))
-        {
-            return;
-        }
 
         auto clear_flag = [&]() noexcept
         {
@@ -548,7 +490,7 @@ namespace PredictedAdaptedEncoding
 
         try
         {
-            if (child_capacity <= PayloadBegin() + 2)
+            if (child_capacity <= MINIMUM_BRANCH_CAPACITY)
             {
                 clear_flag();
                 return;
@@ -582,21 +524,22 @@ namespace PredictedAdaptedEncoding
                 static_cast<uint8_t>(BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::BRANCH_PRIORITY)),
                 ZERO_PRIORITY
             );
-            if (!BranchPluginOfAPC_->TryAttachChildAPC(branch_tree_position, child_brunch_id))
+            bool attached = false;
+            if (branch_tree_position == PackedCellBranchPlugin::TreePosition::LEFT)
+            {
+                attached = BranchPluginOfAPC_->TrySetLeftChild(child_brunch_id);
+            }
+            else if (branch_tree_position == PackedCellBranchPlugin::TreePosition::RIGHT)
+            {
+                attached = BranchPluginOfAPC_->TrySetRightChild(child_brunch_id);
+            }
+            if (!attached)
             {
                 child_container->FreeAll();
                 delete child_container;
                 clear_flag();
                 return;
             }
-            RelEntry_* rel_entry = new RelEntry_(
-                child_container,
-                child_brunch_id,
-                parent_id_current_brunch_id,
-                PayloadBegin()
-            );
-            rel_entry->RetireEpoch.store(GlobalEpoch_.load(MoLoad_), MoStoreSeq_);
-            RetirePushLocked_(rel_entry);
             APCManagerPtr_->RegisterAdaptivePackedCellContainer(child_container);
             APCManagerPtr_->RequestForReclaimationOfTheAdaptivePackedCellContainer(child_container);
 

@@ -192,7 +192,11 @@ namespace PredictedAdaptedEncoding
 
     void AdaptivePackedCellContainer::BackgroundReclaimerMainThread_() noexcept
     {
-        unsigned interval_ms = std::max<unsigned>(1u, APCContainerCfg_.BackgroundEpochAdvanceMS);
+        if (!BranchPluginOfAPC_)
+        {
+            return;
+        }
+        unsigned interval_ms = std::max<unsigned>(1u, (BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::BACKGROUND_EPOCH_ADVANCE_MS)));
         std::unique_lock<std::mutex>lk(BackgroundMutex_);
         while (!BackgroundThreadStop_)
         {
@@ -247,8 +251,12 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    void AdaptivePackedCellContainer::InitOwned(size_t container_capacity, int node, ContainerConf container_cfg, size_t alignment)
+    void AdaptivePackedCellContainer::InitOwned(size_t container_capacity, int node,
+        ContainerConf container_cfg,
+        size_t alignment
+    )
     {
+        
         (void)node, (void)alignment;
         FreeAll();
         if (container_capacity == 0)
@@ -268,7 +276,6 @@ namespace PredictedAdaptedEncoding
         }
         ContainerCapacity_ = container_capacity;
         IsContainerOwned_ = true;
-        APCContainerCfg_ = container_cfg;
         RetireBatchThreshold_ = std::max<unsigned>(1, container_cfg.RetireBatchThreshold);
         InitZeroState_();
 
@@ -460,11 +467,16 @@ namespace PredictedAdaptedEncoding
 
     size_t AdaptivePackedCellContainer::NextProducerSequence() noexcept
     {
+        if (!BranchPluginOfAPC_)
+        {
+            return NO_VAL;
+        }
+        size_t current_block_size = static_cast<size_t>(BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::PRODUCER_BLOCK_SIZE));
         thread_local size_t block_base = 0;
         thread_local size_t block_left = 0;
         if (block_left == 0)
         {
-            size_t block = std::min<size_t>(APCContainerCfg_.ProducerBlockSize, GetPayloadCapacity());
+            size_t block = std::min<size_t>(current_block_size, GetPayloadCapacity());
             size_t base = ReserveProducerSlots(block);
             if (base == SIZE_MAX)
             {
@@ -686,8 +698,29 @@ namespace PredictedAdaptedEncoding
         };
         
         PackedCellBranchPlugin::TreePosition branch_tree_position = PackedCellBranchPlugin::TreePosition::TREE_OVERFLOW;
+        //const reads
+        const size_t child_capacity = SuggestedChildCapacity_();
         const uint32_t left_child_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::LEFT_CHILD_ID);
         const uint32_t right_child_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::RIGHT_CHILD_ID);
+        const uint32_t region_size_of_current_branch = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_SIZE);
+        const uint32_t branch_split_threshold = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::SPLIT_THRESHOLD_PERCENTAGE);
+        const uint32_t max_depth_of_container = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::MAX_DEPTH);
+        const uint32_t producer_block_size = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::PRODUCER_BLOCK_SIZE);
+        const uint32_t background_epoch_ms = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::BACKGROUND_EPOCH_ADVANCE_MS);
+        const uint32_t retire_branch_thrashold = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::RETIRE_BRANCH_THRASHOLD);
+        const PackedMode probable_initial_branch_mode = static_cast<PackedMode>(BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::DEFINED_MODE_OF_CURRENT_APC));
+        ContainerConf child_container_conf = {};
+        child_container_conf.InitialMode = probable_initial_branch_mode;
+        child_container_conf.ProducerBlockSize = producer_block_size;
+        child_container_conf.RegionSize = static_cast<size_t>(region_size_of_current_branch);
+        child_container_conf.RetireBatchThreshold = retire_branch_thrashold;
+        child_container_conf.BackgroundEpochAdvanceMS = background_epoch_ms;
+        child_container_conf.EnableBranching = true;
+        child_container_conf.BranchSplitThresholdPercentage = branch_split_threshold;
+        child_container_conf.BranchMaxDepth = max_depth_of_container;
+        child_container_conf.BranchMinChildCapacity = child_capacity;
+        //end
+
         if (left_child_id == BranchPluginOfAPC_->BRANCH_SENTINAL)
         {
             branch_tree_position = PackedCellBranchPlugin::TreePosition::LEFT;
@@ -706,7 +739,6 @@ namespace PredictedAdaptedEncoding
 
         try
         {
-            const size_t child_capacity = SuggestedChildCapacity_();
             if (child_capacity <= PayloadBegin() + 2)
             {
                 clear_flag();
@@ -714,7 +746,7 @@ namespace PredictedAdaptedEncoding
             }
 
             child_container = new AdaptivePackedCellContainer();
-            ContainerConf child_container_conf = APCContainerCfg_;
+
             child_container->SetManagerForGlobalAPC(APCManagerPtr_);
             child_container->InitOwned(child_capacity, UsedNode_, child_container_conf);
 
@@ -724,17 +756,19 @@ namespace PredictedAdaptedEncoding
                 PackedCellBranchPlugin::MetaIndexOfAPCBranch::BRANCH_DEPTH
             );
             uint32_t region_count = static_cast<uint32_t>(
-                APCContainerCfg_.RegionSize == NO_VAL ? NO_VAL : ((child_capacity + APCContainerCfg_.RegionSize -1) / APCContainerCfg_.RegionSize)
+                region_size_of_current_branch == NO_VAL ? NO_VAL : ((child_capacity + region_size_of_current_branch -1) / region_size_of_current_branch)
             );
             child_container->GetBranchPlugin()->InitRootOrChildBranch(
                 child_brunch_id,
                 parent_id_current_brunch_id,
                 child_capacity,
                 branch_tree_position,
-                APCContainerCfg_.BranchSplitThresholdPercentage,
+                branch_split_threshold,
                 parent_depth_current_depth + 1u,
-                APCContainerCfg_.BranchMaxDepth,
-                static_cast<uint32_t>(APCContainerCfg_.RegionSize),
+                max_depth_of_container,
+                producer_block_size,
+                background_epoch_ms,
+                region_size_of_current_branch,
                 region_count,
                 static_cast<uint8_t>(BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::BRANCH_PRIORITY)),
                 ZERO_PRIORITY

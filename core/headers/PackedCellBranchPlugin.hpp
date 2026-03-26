@@ -67,6 +67,7 @@ public:
         LEFT_CHILD_ID = 5,
         RIGHT_CHILD_ID = 6,
         CURRENT_TREE_POSITION = 7,
+        DEFINED_MODE_OF_CURRENT_APC = 25,
         // runtime control
         BRANCH_DEPTH = 8,
         BRANCH_PRIORITY = 9,
@@ -76,6 +77,7 @@ public:
         SAFE_POINT = 13,
         SPLIT_THRESHOLD_PERCENTAGE = 14,
         MAX_DEPTH = 15,
+        RETIRE_BRANCH_THRASHOLD = 26,
         //payload bounds
         PAYLOAD_BEGIN = 16,
         PAYLOAD_END = 17,
@@ -90,7 +92,7 @@ public:
         READY_REL_MASK = 22,
 
         //free exception 
-        RESERVED_25 = 25,
+        RESERVED_27 = 27,
         EOF_APC_HEADER = 63
     };
 private:
@@ -264,7 +266,10 @@ public:
         uint32_t region_count = NO_VAL,
         uint8_t branch_priority = ZERO_PRIORITY,
         uint8_t priority = ZERO_PRIORITY,
-        uint32_t initial_flags = static_cast<uint32_t>(APCFlags::ENABLE_BRANCHING)
+        uint32_t initial_flags = static_cast<uint32_t>(APCFlags::ENABLE_BRANCHING),
+        uint32_t probable_initial_defined_branch_mode = static_cast<uint32_t>(PackedMode::MODE_VALUE32),
+        uint32_t initial_retire_brunch_thrashold = MIN_RETIRE_BATCH_THRESHOLD
+
     ) noexcept
     {
         if (!IsBound())
@@ -280,7 +285,7 @@ public:
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::LEFT_CHILD_ID, BRANCH_SENTINAL, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::RIGHT_CHILD_ID, BRANCH_SENTINAL, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::CURRENT_TREE_POSITION, static_cast<uint32_t>(current_tree_position), priority);
-
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::DEFINED_MODE_OF_CURRENT_APC, probable_initial_defined_branch_mode, priority);
 
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::BRANCH_DEPTH, current_depth, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::BRANCH_PRIORITY, branch_priority, priority);
@@ -290,6 +295,7 @@ public:
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::SAFE_POINT, NO_VAL, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::SPLIT_THRESHOLD_PERCENTAGE, split_threshold_percantage, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::MAX_DEPTH, max_depth, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::RETIRE_BRANCH_THRASHOLD, initial_retire_brunch_thrashold, priority);
 
 
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::PAYLOAD_BEGIN, static_cast<uint32_t>(METACELL_COUNT), priority);

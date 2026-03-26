@@ -53,7 +53,6 @@ private:
     size_t ContainerCapacity_{0};
     int UsedNode_ = 0;
     bool IsContainerOwned_{false};
-    ContainerConf APCContainerCfg_;
     std::atomic<size_t> Occupancy_{0};
     std::atomic<size_t> ProducerCursor_{0};
     std::atomic<size_t> ConsumerCursor_{0};

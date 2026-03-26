@@ -649,6 +649,14 @@ namespace PredictedAdaptedEncoding
         BranchPluginOfAPC_->UpdateOccupancySnapshot(
             static_cast<uint32_t>(std::min<size_t>(Occupancy_.load(MoLoad_), UINT32_MAX))
         );
+        if (BranchPluginOfAPC_->ShouldSplitNow())
+        {
+            BranchPluginOfAPC_->TurnOnFlags(static_cast<uint32_t>(PackedCellBranchPlugin::APCFlags::SATURATED));
+        }
+        else
+        {
+            BranchPluginOfAPC_->ClearFlags(static_cast<uint32_t>(PackedCellBranchPlugin::APCFlags::SATURATED));
+        }
         if (MasterClockConfPtr_)
         {
             BranchPluginOfAPC_->TouchLocalMetaClock48();
@@ -657,7 +665,11 @@ namespace PredictedAdaptedEncoding
 
     void AdaptivePackedCellContainer::TryCreateBranchIfNeeded() noexcept
     {
-        if (!APCContainerCfg_.EnableBranching || !BranchPluginOfAPC_ || !APCManagerPtr_)
+        if (!BranchPluginOfAPC_ || !APCManagerPtr_)
+        {
+            return;
+        }
+        if (!BranchPluginOfAPC_->HasThisFlag(PackedCellBranchPlugin::APCFlags::ENABLE_BRANCHING))
         {
             return;
         }
@@ -665,22 +677,29 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        
-        bool expected = false;
-        if (!BranchCreateInFlight_.compare_exchange_strong(expected, true, EXsuccess_, EXfailure_))
+        if (!BranchPluginOfAPC_->TryMarkSplitInFlight())
+        {
+            return;
+        }
+                
+        if (!BranchPluginOfAPC_->TurnOnFlags(static_cast<uint32_t>(PackedCellBranchPlugin::APCFlags::SPLIT_INFLIGHT)))
         {
             return;
         }
 
         auto clear_flag = [&]() noexcept
         {
-            BranchCreateInFlight_.store(false, MoStoreSeq_);
+            BranchPluginOfAPC_->ClearFlags(static_cast<uint32_t>(PackedCellBranchPlugin::APCFlags::SPLIT_INFLIGHT));
         };
         
         PackedCellBranchPlugin::TreePosition branch_tree_position = PackedCellBranchPlugin::TreePosition::TREE_OVERFLOW;
-        if (BranchPluginOfAPC_->ReadMetaCellValue32(
-            PackedCellBranchPlugin::MetaIndexOfAPCBranch::RIGHT_CHILD_ID ) == PackedCellBranchPlugin::BRANCH_SENTINAL
-        )
+        const uint32_t left_child_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::LEFT_CHILD_ID);
+        const uint32_t right_child_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::RIGHT_CHILD_ID);
+        if (left_child_id == BranchPluginOfAPC_->BRANCH_SENTINAL)
+        {
+            branch_tree_position = PackedCellBranchPlugin::TreePosition::LEFT;
+        }
+        else if (right_child_id == BranchPluginOfAPC_->BRANCH_SENTINAL)
         {
             branch_tree_position = PackedCellBranchPlugin::TreePosition::RIGHT;
         }
@@ -766,6 +785,13 @@ namespace PredictedAdaptedEncoding
 
     }
 
+    size_t AdaptivePackedCellContainer::SuggestedChildCapacity_() const noexcept
+    {
+        const size_t payload_capacity = GetPayloadCapacity();
+        const size_t min_child_capacity = 256u;
+        const size_t child_payload_size = std::max<size_t>(min_child_capacity, payload_capacity / 2);
+        return child_payload_size + PayloadBegin();
+    }
 
     
 

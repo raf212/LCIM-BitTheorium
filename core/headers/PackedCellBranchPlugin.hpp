@@ -238,7 +238,8 @@ public:
         uint32_t region_size = 0,
         uint32_t region_count = 0,
         uint8_t branch_priority = ZERO_PRIORITY,
-        uint8_t priority = ZERO_PRIORITY
+        uint8_t priority = ZERO_PRIORITY,
+        uint32_t initial_flags = static_cast<uint32_t>(APCFlags::ENABLE_BRANCHING)
     ) noexcept
     {
         if (!IsBound())
@@ -256,7 +257,7 @@ public:
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::CURRENT_TREE_POSITION, static_cast<uint32_t>(current_tree_position), priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::BRANCH_DEPTH, current_depth, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::BRANCH_PRIORITY, branch_priority, priority);
-        WriteBrenchMeta32_(MetaIndexOfAPCBranch::FLAGS, NO_VAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::FLAGS, initial_flags, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::CURRENT_ACTIVE_THREADS, NO_VAL, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT, NO_VAL, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::SAFE_POINT, NO_VAL, priority);
@@ -425,7 +426,7 @@ public:
         return UpdateFlagsOfBranch_(use_or_between_flags);
     }
 
-    inline bool TurnOffFlags(uint32_t use_or_between_flags = NO_VAL) noexcept
+    inline bool ClearFlags(uint32_t use_or_between_flags = NO_VAL) noexcept
     {
         return UpdateFlagsOfBranch_(NO_VAL, use_or_between_flags);
     }

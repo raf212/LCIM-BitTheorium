@@ -191,6 +191,8 @@ private:
     void InitZeroState_() noexcept;
 
     void RefreshAPCMeta_() noexcept;
+    
+    size_t SuggestedChildCapacity_() const noexcept;
 
     inline bool IfAnyValid_() const noexcept
     {
@@ -230,11 +232,6 @@ private:
         PackedCellContainerManager::Instance().ExtitCriticalContainer(ThreadHandleAPCTL_);
     }
 
-    inline size_t SuggestedChildCapacity_() const noexcept
-    {
-        const size_t child_payload = std::max<size_t>(APCContainerCfg_.BranchMinChildCapacity, ContainerCapacity_);
-        return child_payload;
-    }
 
 public:
     AdaptivePackedCellContainer(/* args */) noexcept  = default;
@@ -325,7 +322,12 @@ public:
 
     inline size_t GetPayloadCapacity() const noexcept
     {
-        return ContainerCapacity_ > PayloadBegin() ? (ContainerCapacity_ - PayloadBegin()) : NO_VAL;
+        return BranchPluginOfAPC_ ? BranchPluginOfAPC_->PayloadCapacityFromHeader() : NO_VAL;
+    }
+
+    inline size_t GetPayloadEnd() const noexcept
+    {
+        return BranchPluginOfAPC_ ? BranchPluginOfAPC_->PayloadEndRead() : SIZE_MAX;
     }
 
     const uint32_t PayloadBegin() const noexcept

@@ -504,7 +504,7 @@ public:
         bool ok = TryAttachChildAPC(TreePosition::LEFT, child_id);
         if (ok)
         {
-            TurnOnFlags(static_cast<uint32_t>(APCFlags::HAS_LEFT_CHILD));
+            return TurnOnFlags(static_cast<uint32_t>(APCFlags::HAS_LEFT_CHILD));
         }
         return ok;
     }
@@ -514,8 +514,9 @@ public:
         bool ok = TryAttachChildAPC(TreePosition::RIGHT, child_id);
         if (ok)
         {
-            TurnOnFlags(static_cast<uint32_t>(APCFlags::HAS_RIGHT_CHILD));
+            return TurnOnFlags(static_cast<uint32_t>(APCFlags::HAS_RIGHT_CHILD));
         }
+        return ok;
     }
 
     bool TryMarkSplitInFlight() noexcept

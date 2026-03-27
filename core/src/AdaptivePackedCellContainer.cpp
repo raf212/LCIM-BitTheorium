@@ -523,6 +523,28 @@ namespace PredictedAdaptedEncoding
         return child_payload_size + PayloadBegin();
     }
 
+    AdaptivePackedCellContainer* PackedCellContainerManager::GetAPCPtrFromBranchId(uint32_t branch_id) noexcept
+    {
+        if (branch_id == NO_VAL || branch_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
+        {
+            return nullptr;
+        }
+        NodeOfAdaptivePackedCellContainer_* cur_node_of_apc_ptr = RegistryHeadOfAPCNodesPtr_.load(MoLoad_);
+        while (cur_node_of_apc_ptr)
+        {
+            AdaptivePackedCellContainer* apc_ptr = cur_node_of_apc_ptr->APCContainerPtr;
+            if (apc_ptr && !cur_node_of_apc_ptr->DeadAPC.load(MoLoad_))
+            {
+                if (apc_ptr->GetBranchId() == branch_id)
+                {
+                    return apc_ptr;
+                }
+            }
+            cur_node_of_apc_ptr = cur_node_of_apc_ptr->RegistryNextPtr;
+        }
+        return nullptr;
+    }
+
     
 
 }

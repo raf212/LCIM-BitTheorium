@@ -45,6 +45,7 @@ namespace PredictedAdaptedEncoding
             void UnRegisterAdaptivePackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
             void RequestBranchCreationForTheAdaptivePackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
             void RequestForReclaimationOfTheAdaptivePackedCellContainer(AdaptivePackedCellContainer* adaptive_p_c_ptr) noexcept;
+            AdaptivePackedCellContainer* GetAPCPtrFromBranchId(uint32_t) noexcept;
 
             uint64_t ComputeMinThreadEpoch() const noexcept;
 

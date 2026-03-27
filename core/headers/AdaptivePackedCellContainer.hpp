@@ -58,23 +58,9 @@ private:
     AtomicAdaptiveBackoff* AdaptiveBackoffOfAPCPtr_{nullptr};
     MasterClockConf* MasterClockConfPtr_{nullptr};
     PackedCellContainerManager* APCManagerPtr_{nullptr};
-    //branch
     std::unique_ptr<PackedCellBranchPlugin> BranchPluginOfAPC_;
     static inline std::atomic<uint32_t> GlobalBranchIdAlloc_{1};
-
-    //epoch-table
-    std::atomic<uint64_t>GlobalEpoch_{1};
-    std::atomic<size_t> RetireCount_{0};
     static inline thread_local PackedCellContainerManager::ThreadHandlePCCM  ThreadHandleAPCTL_ = {};
-
-    //retire
-    unsigned RetireBatchThreshold_{16}; //why 16??
-    //reclaimation
-    std::thread BackgroundThread_;
-    std::mutex BackgroundMutex_;
-    std::condition_variable BackgroundCondVar_;
-    bool BackgroundThreadStop_{false};
-    //Tools -- these should be encoded in header ??
     std::atomic<uint64_t> TotalCasFailure_{0};
     //logging hook
     std::function<void(const char*, const char*)> APCLogger_;

@@ -133,7 +133,6 @@ namespace PredictedAdaptedEncoding
         }
         ContainerCapacity_ = container_capacity;
         IsContainerOwned_ = true;
-        RetireBatchThreshold_ = std::max<unsigned>(1, container_cfg.RetireBatchThreshold);
         InitZeroState_();
 
         if (container_cfg.RegionSize)

@@ -94,25 +94,6 @@ namespace PredictedAdaptedEncoding
         }
     };
     
-    struct AdaptivePackedCellContainer::RelEntryGuard
-    {
-        QSBRGuard QSBRGuardRE;
-        RelEntry_* RelEntryPtr{nullptr};
-        RelEntryGuard() noexcept :
-            QSBRGuardRE(nullptr), RelEntryPtr(nullptr)
-        {}
-        RelEntryGuard(RelEntry_* relentry_ptr, QSBRGuard&& address_of_qsbrguard_address) noexcept :
-            QSBRGuardRE(std::move(address_of_qsbrguard_address)), RelEntryPtr(relentry_ptr)
-        {}
-        ~RelEntryGuard() = default;
-        RelEntryGuard(const RelEntryGuard&) = delete;
-        RelEntryGuard& operator = (const RelEntryGuard&) = delete;
-        RelEntryGuard(RelEntryGuard&& oprtr) noexcept :
-            QSBRGuardRE(std::move(oprtr.QSBRGuardRE)), RelEntryPtr(oprtr.RelEntryPtr)
-        {
-            oprtr.RelEntryPtr = nullptr;
-        }
-    };
 
 
 
@@ -211,9 +192,6 @@ namespace PredictedAdaptedEncoding
         Occupancy_.store(0, MoStoreUnSeq_);
         ProducerCursor_.store(PayloadBegin(), MoStoreUnSeq_);
         ConsumerCursor_.store(PayloadBegin(), MoStoreUnSeq_);
-        RetireHead_.store(nullptr, MoStoreSeq_);
-        RetireCount_.store(0, MoStoreSeq_);
-        GlobalEpoch_.store(1, MoStoreSeq_);
     }
 
     void AdaptivePackedCellContainer::FreeAll() noexcept
@@ -238,35 +216,9 @@ namespace PredictedAdaptedEncoding
             }
             BackingPtr = nullptr;
         }
-        RelEntry_* stolen = RetireHead_.exchange(nullptr, std::memory_order_acq_rel);
-        while (stolen)
-        {
-            RelEntry_* next_ptr = stolen->NextPtr.load(std::memory_order_relaxed);
-            if (stolen->Kind == RelEntry_::APCKind::HEAP_NODE && stolen->HeapPtr)
-            {
-                ::operator delete(stolen->HeapPtr, std::align_val_t{
-                    alignof(std::max_align_t)
-                });
-            }
-            if (stolen->FinalizerPtr)
-            {
-                try
-                {
-                    stolen->FinalizerPtr(stolen->HeapPtr);
-                }
-                catch (...)
-                {
-                    if (APCLogger_)
-                    {
-                        APCLogger_("FreeAll()", "Finalizer threw exception");
-                    }
-                }
-            }
-            delete stolen;
-            stolen = next_ptr;
-        }
-        RetireCount_.store(0, MoStoreUnSeq_);
+
         RegionRelArray_.reset();
+        RegionEpochArray_.reset();
         RelBitmaps_.clear();
 
         ContainerCapacity_ = 0;

@@ -47,8 +47,6 @@ public:
 
     struct QSBRGuard;
     
-    struct RelEntryGuard;
-
 private:
     size_t ContainerCapacity_{0};
     int UsedNode_ = 0;
@@ -64,59 +62,12 @@ private:
     std::unique_ptr<PackedCellBranchPlugin> BranchPluginOfAPC_;
     static inline std::atomic<uint32_t> GlobalBranchIdAlloc_{1};
 
-    struct RelEntry_
-    {
-        enum class APCKind : uint8_t
-        {
-            CHILD_CONTAINER = 0,
-            PACKED_NODE = 1,
-            HEAP_NODE = 2
-        };
-
-        APCKind Kind = APCKind::PACKED_NODE;
-        AdaptivePackedCellContainer* ChildContainerPtr = nullptr;
-        size_t ChildBaseIdx = NO_VAL;
-        packed64_t RelEntryPacked = NO_VAL;
-
-        void* HeapPtr = nullptr;
-        size_t HeapSize = 0;
-
-        PackedCellDataType RECellDType = PackedCellDataType::UnsignedPCellDataType;
-
-        std::function<void(void*)> FinalizerPtr = nullptr;
-        std::atomic<uint64_t> RetireEpoch{NO_VAL};
-        std::atomic<RelEntry_*> NextPtr{nullptr};
-
-        uint32_t ChildBranchId = NO_VAL;
-        uint32_t ParentBranchId = NO_VAL;
-
-        //child container constructor
-        RelEntry_(
-            AdaptivePackedCellContainer* apc_container = nullptr, 
-            uint32_t child_branch_id = 0,
-            uint32_t parent_branch_id = 0,
-            size_t base = 0
-        ) noexcept :
-            Kind(APCKind::CHILD_CONTAINER), ChildContainerPtr(apc_container), ChildBaseIdx(base), 
-            ChildBranchId(child_branch_id), ParentBranchId(parent_branch_id)
-        {}
-        //packed cell constructor
-        RelEntry_(packed64_t p) noexcept :
-            Kind(APCKind::PACKED_NODE), RelEntryPacked(p)
-        {}
-        //heap constructor
-        RelEntry_(void* heap_ptr, size_t heap_size, PackedCellDataType pc_dtype) noexcept :
-            Kind(APCKind::HEAP_NODE),HeapPtr(heap_ptr), 
-            HeapSize(heap_size), RECellDType(pc_dtype)
-        {}
-    };    //reloffset
     //epoch-table
     std::atomic<uint64_t>GlobalEpoch_{1};
     std::atomic<size_t> RetireCount_{0};
     static inline thread_local PackedCellContainerManager::ThreadHandlePCCM  ThreadHandleAPCTL_ = {};
 
     //retire
-    std::atomic<RelEntry_*> RetireHead_{nullptr};
     unsigned RetireBatchThreshold_{16}; //why 16??
     //reclaimation
     std::thread BackgroundThread_;
@@ -124,10 +75,6 @@ private:
     std::condition_variable BackgroundCondVar_;
     bool BackgroundThreadStop_{false};
     //Tools -- these should be encoded in header ??
-    std::atomic<uint64_t> TotalRetired_{0};
-    std::atomic<uint64_t> TotalReclaimed_{0};
-    std::atomic<uint64_t> RetireQueDepthMax_{0};
-    std::atomic<uint64_t> TotalReclaimedBytes_{0};
     std::atomic<uint64_t> TotalCasFailure_{0};
     //logging hook
     std::function<void(const char*, const char*)> APCLogger_;
@@ -192,17 +139,9 @@ public:
 
     ~AdaptivePackedCellContainer()
     {
-        {
-            std::lock_guard<std::mutex>lk(BackgroundMutex_);
-            BackgroundThreadStop_ = true;
-            BackgroundCondVar_.notify_all();
-        }
-        if (BackgroundThread_.joinable())
-        {
-            BackgroundThread_.join();
-        }
         FreeAll();
     }
+
     AdaptivePackedCellContainer(const AdaptivePackedCellContainer&) = delete;
     AdaptivePackedCellContainer& operator = (const AdaptivePackedCellContainer&) = delete;
 

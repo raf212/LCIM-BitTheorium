@@ -80,11 +80,6 @@ private:
 
     size_t SuggestedChildCapacity_() const noexcept;
 
-    inline bool IfAnyValid_() const noexcept
-    {
-        return (BackingPtr && ContainerCapacity_ > 0);
-    }
-
     inline bool IfValidPayloadIndex_(size_t idx) const noexcept
     {
         return (BackingPtr && idx < ContainerCapacity_ && idx >= PayloadBegin());
@@ -170,7 +165,7 @@ public:
         return ContainerCapacity_;
     }
 
-    size_t OccupancyAddSubOrGetAfterChange(int delta = 0)
+    size_t OccupancyAddOrSubAndGetAfterChange(int delta = 0)
     {
         if (!BranchPluginOfAPC_)
         {
@@ -202,6 +197,11 @@ public:
     const uint32_t PayloadBegin() const noexcept
     {
         return PackedCellBranchPlugin::METACELL_COUNT;
+    }
+    
+    inline bool IfAPCBranchValid() const noexcept
+    {
+        return (BackingPtr && GetPayloadCapacity() >= MINIMUM_BRANCH_CAPACITY);
     }
 };
 

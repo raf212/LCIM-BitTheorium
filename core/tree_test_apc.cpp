@@ -28,7 +28,6 @@ constexpr uint64_t NTH_ELEMENT = 50000000ull;
 constexpr uint64_t BLOCK_SIZE  = 2000000ull;
 constexpr unsigned PRODUCER_COUNT = 2u;
 constexpr unsigned CONSUMER_COUNT = 10u;
-constexpr size_t MIN_APC_CAPACITY = 512u;
 
 constexpr unsigned MAX_TREE_LEAFS = 20u;
 
@@ -232,7 +231,7 @@ static bool PublishTaskIdCell(
     uint16_t max_tries = 128
 ) noexcept
 {
-    if (!apc_address.BackingPtr || apc_address.GetPayloadCapacity() == 0)
+    if (!apc_address.IfAPCBranchValid())
     {
         return false;
     }
@@ -262,16 +261,32 @@ static bool PublishTaskIdCell(
                     packed64_t published_cell = MakePublishedTaskCellWithStamp16(task_id, apc_mannager_address);
                     apc_address.BackingPtr[idx].store(published_cell, MoStoreSeq_);
                     apc_address.BackingPtr[idx].notify_all();
-                    uint32_t current_occupancy = apc_address.OccupancyAddSubOrGetAfterChange()
+                    uint32_t occupancy_after_1_increase = apc_address.OccupancyAddOrSubAndGetAfterChange(+1);
+                    if (apc_address.GetBranchPlugin()->ShouldSplitNow())
+                    {
+                        apc_mannager_address.RequestBranchCreationForTheAdaptivePackedCellContainer(&apc_address);
+                    }
+                    return true;
                 }
-                
             }
-            
+            idx = payload_begin + ((idx - payload_begin + step) % payload_capacity);
         }
-        
-        
+        size_t observed_idx = payload_begin + (task_id % payload_capacity);
+        apc_mannager_address.GetCellsAdaptiveBackoffFromManager(
+            apc_address.BackingPtr[observed_idx].load(MoLoad_)
+        );
     }
-    
+    return false;
+}
+
+static bool TryClaimOneTaskIdCell(
+    AdaptivePackedCellContainer& apc_address,
+    PackedCellContainerManager& manager_address,
+    size_t& scan_cursor,
+    uint32_t& out_task_id
+) noexcept
+{
+
 }
 
 int main()
@@ -306,7 +321,7 @@ int main()
     // Because pointer publication is pair-based in APC, keep extra slack.
     // Fairer and safer than a razor-thin num_tasks*2+16.
     const size_t apc_capacity =
-        std::max<size_t>(MIN_APC_CAPACITY, num_of_tasks * 4 + 64);
+        std::max<size_t>(MINIMUM_BRANCH_CAPACITY, num_of_tasks * 4 + 64);
 
     AdaptivePackedCellContainer TASK_APC;
     ContainerConf task_cfg;
@@ -451,7 +466,7 @@ int main()
             bool all_producer_done =
                 producer_done.load(MoLoad_) >= PRODUCER_COUNT;
             size_t final_task_apc_occupancy =
-                TASK_APC.OccupancyAddSubOrGetAfterChange();
+                TASK_APC.OccupancyAddOrSubAndGetAfterChange();
 
             if (all_producer_done && final_task_apc_occupancy == 0)
             {

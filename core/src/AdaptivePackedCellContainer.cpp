@@ -17,7 +17,7 @@ namespace PredictedAdaptedEncoding
 
     size_t AdaptivePackedCellContainer::ReserveProducerSlots(size_t number_of_slots) noexcept
     {
-        if (!IfAnyValid_() || number_of_slots == 0)
+        if (!IfAPCBranchValid() || number_of_slots == 0)
         {
             return SIZE_MAX;
         }
@@ -230,7 +230,7 @@ namespace PredictedAdaptedEncoding
 
     void AdaptivePackedCellContainer::InitRegionIdx(size_t region_size) noexcept
     {
-        if (!IfAnyValid_())
+        if (!IfAPCBranchValid())
         {
             return;
         }

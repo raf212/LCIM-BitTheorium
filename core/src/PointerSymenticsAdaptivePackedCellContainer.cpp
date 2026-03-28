@@ -162,7 +162,7 @@ namespace PredictedAdaptedEncoding
         BackingPtr[acquired_paired_pointer_struct.TailIdx].store(idle32, MoStoreSeq_);
         BackingPtr[acquired_paired_pointer_struct.HeadIdx].notify_all();
         BackingPtr[acquired_paired_pointer_struct.TailIdx].notify_all();
-        OccupancyAddSubOrGetAfterChange(-1);
+        OccupancyAddOrSubAndGetAfterChange(-1);
 
         RefreshAPCMeta_();
         if (APCManagerPtr_)
@@ -203,7 +203,7 @@ namespace PredictedAdaptedEncoding
 
     PublishResult AdaptivePackedCellContainer::PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask_with_ptrflag, int max_probs) noexcept
     {
-        if (!IfAnyValid_())
+        if (!IfAPCBranchValid())
         {
             return { PublishStatus::INVALID, SIZE_MAX};
         }
@@ -264,7 +264,7 @@ namespace PredictedAdaptedEncoding
                         BackingPtr[head].store(head_packed, MoStoreSeq_);
                         BackingPtr[tail].notify_all();
                         BackingPtr[head].notify_all();
-                        OccupancyAddSubOrGetAfterChange(+1);
+                        OccupancyAddOrSubAndGetAfterChange(+1);
                         return {PublishStatus::OK, head};
                     }
                 }

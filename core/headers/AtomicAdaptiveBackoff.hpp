@@ -81,7 +81,7 @@ public :
             {
                 newv = sample;
             }
-            if (EMATicks_.compare_exchange_weak(oldv, newv, EXsuccess_, EXfailure_))
+            if (EMATicks_.compare_exchange_weak(oldv, newv, OnExchangeSuccess, OnExchangeFailure))
             {
                 break;
             }

@@ -524,7 +524,7 @@ struct Timer48
             while (true)
             {
                 packed64_t current_cell_updated = RefreshPackedCellClockOnly_(current_cell, master_slot_id, force_rel_mask4, should_owned);
-                if (atomic_cell.compare_exchange_weak(current_cell, current_cell_updated, EXsuccess_, EXfailure_))
+                if (atomic_cell.compare_exchange_weak(current_cell, current_cell_updated, OnExchangeSuccess, OnExchangeFailure))
                 {
                     if (updated_full_clock_cell_easy_return_ptr)
                     {

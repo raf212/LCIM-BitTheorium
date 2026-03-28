@@ -88,7 +88,7 @@ namespace PredictedAdaptedEncoding
         while (head_of_thread_freeList != SIZE_MAX)
         {
             size_t next_thread_idx = ThreadNextIdxPtr_[head_of_thread_freeList].load(std::memory_order_relaxed);
-            if (ThreadFreelistHead_.compare_exchange_strong(head_of_thread_freeList, next_thread_idx, EXsuccess_, EXfailure_))
+            if (ThreadFreelistHead_.compare_exchange_strong(head_of_thread_freeList, next_thread_idx, OnExchangeSuccess, OnExchangeFailure))
             {
                 return head_of_thread_freeList;
             }            
@@ -236,7 +236,7 @@ namespace PredictedAdaptedEncoding
             while (head_of_node_pool)
             {
                 NodeOfAdaptivePackedCellContainer_* next_of_node_pool = head_of_node_pool->StackNextPtr.load(std::memory_order_relaxed);
-                if (NodePoolHeadOfAPC_.compare_exchange_strong(head_of_node_pool, next_of_node_pool, EXsuccess_, EXfailure_))
+                if (NodePoolHeadOfAPC_.compare_exchange_strong(head_of_node_pool, next_of_node_pool, OnExchangeSuccess, OnExchangeFailure))
                 {
                     head_of_node_pool->APCContainerPtr = apc_ptr;
                     head_of_node_pool->ReclaimationNeededAPC.store(NO_VAL, MoStoreUnSeq_);
@@ -340,7 +340,7 @@ namespace PredictedAdaptedEncoding
             if (head_registry_ptr->APCContainerPtr == apc_ptr)
             {
                 uint32_t expected = 0;
-                if (head_registry_ptr->ReclaimationNeededAPC.compare_exchange_strong(expected, 1u, EXsuccess_, EXfailure_))
+                if (head_registry_ptr->ReclaimationNeededAPC.compare_exchange_strong(expected, 1u, OnExchangeSuccess, OnExchangeFailure))
                 {
                     PushANodeAtHeadInStackOfAdaptivePackedCellContainer_(WorkStackHeadPtr_, head_registry_ptr);
                     ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
@@ -363,7 +363,7 @@ namespace PredictedAdaptedEncoding
             if (head_registry_ptr->APCContainerPtr == apc_ptr)
             {
                 uint32_t expected = 0;
-                if (head_registry_ptr->RequestedBranchedAPC.compare_exchange_strong(expected, 1, EXsuccess_, EXfailure_))
+                if (head_registry_ptr->RequestedBranchedAPC.compare_exchange_strong(expected, 1, OnExchangeSuccess, OnExchangeFailure))
                 {
                     PushANodeAtHeadInStackOfAdaptivePackedCellContainer_(WorkStackHeadPtr_, head_registry_ptr);
                     ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
@@ -473,7 +473,7 @@ namespace PredictedAdaptedEncoding
             current_node_ptr = new_node_ptr;
         }
         NodeOfAdaptivePackedCellContainer_* expected = original_head_node_ptr;
-        if (RegistryHeadOfAPCNodesPtr_.compare_exchange_strong(expected, reverse_node_ptr, EXsuccess_, EXfailure_))
+        if (RegistryHeadOfAPCNodesPtr_.compare_exchange_strong(expected, reverse_node_ptr, OnExchangeSuccess, OnExchangeFailure))
         {
             UnregistersSinceCompact_.store(NO_VAL, MoStoreSeq_);
         }

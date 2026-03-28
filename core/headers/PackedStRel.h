@@ -48,8 +48,8 @@ namespace PredictedAdaptedEncoding {
     static constexpr ::std::memory_order MoLoad_      = ::std::memory_order_acquire;
     static constexpr ::std::memory_order MoStoreSeq_  = ::std::memory_order_release;
     static constexpr ::std::memory_order MoStoreUnSeq_= ::std::memory_order_relaxed;
-    static constexpr ::std::memory_order EXsuccess_   = ::std::memory_order_acq_rel;
-    static constexpr ::std::memory_order EXfailure_   = ::std::memory_order_relaxed;
+    static constexpr ::std::memory_order OnExchangeSuccess   = ::std::memory_order_acq_rel;
+    static constexpr ::std::memory_order OnExchangeFailure   = ::std::memory_order_relaxed;
 
     static constexpr unsigned CLK_B48 = 48u;
     static constexpr unsigned VALBITS  = 32u;

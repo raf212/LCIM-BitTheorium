@@ -82,7 +82,7 @@ namespace PredictedAdaptedEncoding
             packed64_t want_head = PackedCell64_t::SetLocalityInPacked(head_screenshot, PackedCellLocalityTypes::ST_CLAIMED);
             packed64_t want_tail = PackedCell64_t::SetLocalityInPacked(tail_screenshot, PackedCellLocalityTypes::ST_CLAIMED);
             packed64_t expected_head = head_screenshot;
-            if (!BackingPtr[head_idx].compare_exchange_strong(expected_head, want_head, EXsuccess_, EXfailure_))
+            if (!BackingPtr[head_idx].compare_exchange_strong(expected_head, want_head, OnExchangeSuccess, OnExchangeFailure))
             {
                 if (APCManagerPtr_)
                 {
@@ -91,9 +91,9 @@ namespace PredictedAdaptedEncoding
                 continue;
             }
             packed64_t expected_tail = tail_screenshot;
-            if (!BackingPtr[tail_idx].compare_exchange_strong(expected_tail, want_tail, EXsuccess_, EXfailure_))
+            if (!BackingPtr[tail_idx].compare_exchange_strong(expected_tail, want_tail, OnExchangeSuccess, OnExchangeFailure))
             {
-                BackingPtr[head_idx].compare_exchange_strong(want_head, head_screenshot, EXsuccess_, EXfailure_);
+                BackingPtr[head_idx].compare_exchange_strong(want_head, head_screenshot, OnExchangeSuccess, OnExchangeFailure);
                 BackingPtr[head_idx].notify_all();
                 if (APCManagerPtr_)
                 {
@@ -128,19 +128,19 @@ namespace PredictedAdaptedEncoding
         packed64_t want_head =  PackedCell64_t::SetLocalityInPacked(acquired_paired_pointer_struct.HeadScreenshot, desired_locality);
         packed64_t want_tail = PackedCell64_t::SetLocalityInPacked(acquired_paired_pointer_struct.TailScreenshot, desired_locality);
         packed64_t expected_head = acquired_paired_pointer_struct.HeadScreenshot;
-        bool head_ok = BackingPtr[acquired_paired_pointer_struct.HeadIdx].compare_exchange_strong(expected_head, want_head, EXsuccess_, EXfailure_);
+        bool head_ok = BackingPtr[acquired_paired_pointer_struct.HeadIdx].compare_exchange_strong(expected_head, want_head, OnExchangeSuccess, OnExchangeFailure);
         packed64_t expected_tail = acquired_paired_pointer_struct.TailScreenshot;
-        bool tail_ok = BackingPtr[acquired_paired_pointer_struct.TailIdx].compare_exchange_strong(expected_tail, want_tail, EXsuccess_, EXfailure_);
+        bool tail_ok = BackingPtr[acquired_paired_pointer_struct.TailIdx].compare_exchange_strong(expected_tail, want_tail, OnExchangeSuccess, OnExchangeFailure);
 
         if (!head_ok || !tail_ok)
         {
             if (head_ok)
             {
-                BackingPtr[acquired_paired_pointer_struct.HeadIdx].compare_exchange_strong(want_head, acquired_paired_pointer_struct.HeadScreenshot, EXsuccess_, EXfailure_);
+                BackingPtr[acquired_paired_pointer_struct.HeadIdx].compare_exchange_strong(want_head, acquired_paired_pointer_struct.HeadScreenshot, OnExchangeSuccess, OnExchangeFailure);
             }
             else if (tail_ok)
             {
-                BackingPtr[acquired_paired_pointer_struct.TailIdx].compare_exchange_strong(want_tail, acquired_paired_pointer_struct.TailScreenshot, EXsuccess_, EXfailure_);
+                BackingPtr[acquired_paired_pointer_struct.TailIdx].compare_exchange_strong(want_tail, acquired_paired_pointer_struct.TailScreenshot, OnExchangeSuccess, OnExchangeFailure);
             }
             BackingPtr[acquired_paired_pointer_struct.HeadIdx].notify_all();
             BackingPtr[acquired_paired_pointer_struct.TailIdx].notify_all();
@@ -238,14 +238,14 @@ namespace PredictedAdaptedEncoding
                 packed64_t claimed_cur_head = PackedCell64_t::SetLocalityInPacked(cur_head, PackedCellLocalityTypes::ST_CLAIMED);
                 packed64_t claimed_cur_tail = PackedCell64_t::SetLocalityInPacked(cur_tail, PackedCellLocalityTypes::ST_CLAIMED);
                 packed64_t expected_head = cur_head;
-                if (!BackingPtr[head].compare_exchange_strong(expected_head, claimed_cur_head, EXsuccess_, EXfailure_))
+                if (!BackingPtr[head].compare_exchange_strong(expected_head, claimed_cur_head, OnExchangeSuccess, OnExchangeFailure))
                 {
                     TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
                 }
                 else
                 {
                     packed64_t expected_tail = cur_tail;
-                    if (!BackingPtr[tail].compare_exchange_strong(expected_tail, claimed_cur_tail, EXsuccess_, EXfailure_))
+                    if (!BackingPtr[tail].compare_exchange_strong(expected_tail, claimed_cur_tail, OnExchangeSuccess, OnExchangeFailure))
                     {
                         BackingPtr[head].store(cur_head, MoStoreSeq_);
                         BackingPtr[head].notify_all();

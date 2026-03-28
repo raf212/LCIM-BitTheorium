@@ -203,6 +203,12 @@ public:
     {
         return (BackingPtr && GetPayloadCapacity() >= MINIMUM_BRANCH_CAPACITY);
     }
+
+    inline void DirectStoreCellToAPCIdx(size_t idx, packed64_t cell) noexcept
+    {
+        if (idx < PayloadBegin())   return;
+        BackingPtr[idx].store(cell, MoStoreSeq_);
+    }
 };
 
 

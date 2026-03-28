@@ -89,7 +89,7 @@ int main()
                     clk16_t clk16 = static_cast<clk16_t>(down & MaskBits(CLK_B16));
                     packed64_t publish = PackedCell64_t::ComposeValue32u_64(static_cast<val32_t>(i), clk16, MakeSTRL4_t(DEFAULT_INTERNAL_PRIORITY, ST_PUBLISHED, REL_PAGE, 0u));
                     packed64_t expected = cur;
-                    if (slot.compare_exchange_strong(expected, publish, EXsuccess_, EXfailure_))
+                    if (slot.compare_exchange_strong(expected, publish, OnExchangeSuccess, OnExchangeFailure))
                     {
                         slot.notify_all(); // thundaring thread problem ?? prefered -> slot.notify_one()
                         published_count.fetch_add(1, std::memory_order_acq_rel);
@@ -143,7 +143,7 @@ int main()
             {
                 packed64_t desired = PackedCell64_t::SetLocalityInPacked(cur, ST_PUBLISHED);
                 packed64_t expected  = cur;
-                if (slot.compare_exchange_weak(expected, desired, EXsuccess_, EXfailure_))
+                if (slot.compare_exchange_weak(expected, desired, OnExchangeSuccess, OnExchangeFailure))
                 {
                     claimed_count.fetch_add(1, MoStoreUnSeq_);
                     AtomicAdaptiveBackoff::PCBDecision decision = abac_v32.DecideForSlot(desired);
@@ -293,7 +293,7 @@ int main()
             packed64_t expected = slot.load(MoLoad_);
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
             packed64_t desired = PackedCell64_t::SetLocalityInPacked(expected, ST_CLAIMED);
-            bool ok = slot.compare_exchange_strong(expected, desired, EXsuccess_, EXfailure_);
+            bool ok = slot.compare_exchange_strong(expected, desired, OnExchangeSuccess, OnExchangeFailure);
             std::ostringstream oss;
             oss << "[ABA-NATIVE] Consumer CAS Result : " << (ok ? "SUCCESS (ABA EXPLOITED)" : "FAILED ->To Exploit") << "\n";
             LogPrint(oss.str());

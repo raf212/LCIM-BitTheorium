@@ -229,7 +229,7 @@ public:
 
         packed64_t desired_packed = PackValue32InPackedCellwithClock16_(desired_value, priority, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, PackedCellDataType::UnsignedPCellDataType);
         
-        return PackedCellContainerPtr_[index].compare_exchange_strong(expected_packed, desired_packed, EXsuccess_, EXfailure_);
+        return PackedCellContainerPtr_[index].compare_exchange_strong(expected_packed, desired_packed, OnExchangeSuccess, OnExchangeFailure);
     }
 
     PackedCellBranchPlugin() noexcept = default;

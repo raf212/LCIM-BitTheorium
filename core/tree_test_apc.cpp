@@ -256,7 +256,7 @@ static bool PublishTaskIdCell(
             {
                 packed64_t claimed_cell = PackedCell64_t::SetLocalityInPacked(current_cell, PackedCellLocalityTypes::ST_PUBLISHED);
                 packed64_t expected_cell = current_cell;
-                if (apc_address.BackingPtr[idx].compare_exchange_strong(expected_cell, current_cell, EXsuccess_, EXfailure_))
+                if (apc_address.BackingPtr[idx].compare_exchange_strong(expected_cell, current_cell, OnExchangeSuccess, OnExchangeFailure))
                 {
                     packed64_t published_cell = MakePublishedTaskCellWithStamp16(task_id, apc_mannager_address);
                     apc_address.BackingPtr[idx].store(published_cell, MoStoreSeq_);
@@ -286,7 +286,54 @@ static bool TryClaimOneTaskIdCell(
     uint32_t& out_task_id
 ) noexcept
 {
+    if (!apc_address.IfAPCBranchValid())
+    {
+        return false;
+    }
 
+    const size_t payload_begain = apc_address.PayloadBegin();
+    const size_t payload_capacity = apc_address.GetPayloadCapacity();
+
+    uint32_t current_occupancy = apc_address.OccupancyAddOrSubAndGetAfterChange();
+    if (current_occupancy == 0)
+    {
+        return false;
+    }
+    
+    for (size_t prob = 0; prob < payload_capacity; prob++)
+    {
+        size_t idx = payload_begain + ((scan_cursor - payload_begain + prob) % payload_capacity);
+        packed64_t current_cell = apc_address.BackingPtr[idx].load(MoLoad_);
+        if (PackedCell64_t::ExtractLocalityFromPacked(current_cell) != PackedCellLocalityTypes::ST_PUBLISHED)
+        {
+            continue;
+        }
+
+        if (static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(current_cell)) != RelOffsetMode32::RELOFFSET_GENERIC_VALUE)
+        {
+            continue;
+        }
+        packed64_t claimed_cell = PackedCell64_t::SetLocalityInPacked(current_cell, PackedCellLocalityTypes::ST_CLAIMED);
+
+        packed64_t expected_cell = current_cell;
+        if (!apc_address.BackingPtr[idx].compare_exchange_strong(expected_cell, claimed_cell, OnExchangeSuccess, OnExchangeFailure))
+        {
+            manager_address.GetCellsAdaptiveBackoffFromManager(expected_cell);
+            continue;
+        }
+        out_task_id = static_cast<uint32_t>(PackedCell64_t::ExtractValue32(current_cell));
+        packed64_t idle_cell = PackedCell64_t::MakeInitialPacked(PackedMode::MODE_VALUE32);
+        apc_address.BackingPtr[idx].store(idle_cell, MoStoreSeq_);
+        apc_address.BackingPtr[idx].notify_all();
+        apc_address.OccupancyAddOrSubAndGetAfterChange(-1);
+        scan_cursor = idx + 1;
+        if (scan_cursor >= payload_begain + payload_capacity)
+        {
+            scan_cursor = payload_begain;
+        }
+        return true;
+    }
+    return false;
 }
 
 int main()

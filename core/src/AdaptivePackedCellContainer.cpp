@@ -188,7 +188,11 @@ namespace PredictedAdaptedEncoding
 
     void AdaptivePackedCellContainer::InitZeroState_() noexcept
     {
-        Occupancy_.store(0, MoStoreUnSeq_);
+        if (!BranchPluginOfAPC_)
+        {
+            return;
+        }
+        BranchPluginOfAPC_->UpdateOccupancySnapshotAndReturn(0);
         ProducerCursor_.store(PayloadBegin(), MoStoreUnSeq_);
         ConsumerCursor_.store(PayloadBegin(), MoStoreUnSeq_);
     }
@@ -358,9 +362,6 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        BranchPluginOfAPC_->UpdateOccupancySnapshot(
-            static_cast<uint32_t>(std::min<size_t>(Occupancy_.load(MoLoad_), UINT32_MAX))
-        );
         if (BranchPluginOfAPC_->ShouldSplitNow())
         {
             BranchPluginOfAPC_->TurnOnFlags(static_cast<uint32_t>(PackedCellBranchPlugin::APCFlags::SATURATED));

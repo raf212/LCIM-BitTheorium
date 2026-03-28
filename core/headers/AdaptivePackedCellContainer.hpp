@@ -51,7 +51,6 @@ private:
     size_t ContainerCapacity_{0};
     int UsedNode_ = 0;
     bool IsContainerOwned_{false};
-    std::atomic<size_t> Occupancy_{0};
     std::atomic<size_t> ProducerCursor_{0};
     std::atomic<size_t> ConsumerCursor_{0};
 
@@ -173,7 +172,12 @@ public:
 
     size_t OccupancyAddSubOrGetAfterChange(int delta = 0)
     {
-        return Occupancy_.fetch_add(delta) + delta;
+        if (!BranchPluginOfAPC_)
+        {
+            return SIZE_MAX;
+        }
+        uint32_t current_occupancy = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT);
+        return static_cast<size_t>(BranchPluginOfAPC_->UpdateOccupancySnapshotAndReturn(current_occupancy + delta));
     }
 
     PackedCellBranchPlugin* GetBranchPlugin() noexcept

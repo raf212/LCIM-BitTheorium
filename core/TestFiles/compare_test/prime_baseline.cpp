@@ -10,8 +10,8 @@
 
 using u64 = std::uint64_t;
 
-constexpr u64 NTH_ELEMENT = 500000000ull;
-constexpr u64 BLOCK_SIZE =  2000000ull;
+constexpr uint64_t NTH_ELEMENT = 5000000000ull;
+constexpr uint64_t BLOCK_SIZE  = 200000000ull;
 constexpr unsigned THREAD_COUNT = 10u;
 constexpr u64 FIRST_PRIME = 2ull;
 

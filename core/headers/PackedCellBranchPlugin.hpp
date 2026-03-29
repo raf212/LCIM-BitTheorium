@@ -78,6 +78,8 @@ public:
         SPLIT_THRESHOLD_PERCENTAGE = 14,
         MAX_DEPTH = 15,
         RETIRE_BRANCH_THRASHOLD = 26,
+        PRODUCER_CURSOR_PLACEMENT = 27,
+        CONSUMER_CURSORE_PLACEMENT = 28,
         //payload bounds
         PAYLOAD_BEGIN = 16,
         PAYLOAD_END = 17,
@@ -92,7 +94,7 @@ public:
         READY_REL_MASK = 22,
 
         //free exception 
-        RESERVED_27 = 27,
+        RESERVED_29 = 29,
         EOF_APC_HEADER = 63
     };
 private:
@@ -228,7 +230,10 @@ public:
         }
 
         packed64_t desired_packed = PackValue32InPackedCellwithClock16_(desired_value, priority, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, PackedCellDataType::UnsignedPCellDataType);
-        
+        if (PackedCell64_t::ExtractLocalityFromPacked(expected_packed) == PackedCellLocalityTypes::ST_CLAIMED)
+        {
+            return false;
+        }
         return PackedCellContainerPtr_[index].compare_exchange_strong(expected_packed, desired_packed, OnExchangeSuccess, OnExchangeFailure);
     }
 
@@ -279,9 +284,9 @@ public:
         
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::MAGIC_ID, BRANCH_MAGIC, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::VERSION, BRANCH_VERSION, priority);
-        WriteBrenchMeta32_(MetaIndexOfAPCBranch::CAPACITY, static_cast<uint32_t>(std::min<size_t>(total_capacity, UINT32_MAX)), priority);
-        WriteBrenchMeta32_(MetaIndexOfAPCBranch::BRANCH_ID, static_cast<uint32_t>(std::min<uint32_t>(branch_id, UINT32_MAX)), priority);
-        WriteBrenchMeta32_(MetaIndexOfAPCBranch::PARENT_BRANCH_ID, static_cast<uint32_t>(std::min<uint32_t>(parent_bramch_id, UINT32_MAX)), priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::CAPACITY, static_cast<uint32_t>(std::min<size_t>(total_capacity, BRANCH_SENTINAL)), priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::BRANCH_ID, static_cast<uint32_t>(std::min<uint32_t>(branch_id, BRANCH_SENTINAL)), priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::PARENT_BRANCH_ID, static_cast<uint32_t>(std::min<uint32_t>(parent_bramch_id, BRANCH_SENTINAL)), priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::LEFT_CHILD_ID, BRANCH_SENTINAL, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::RIGHT_CHILD_ID, BRANCH_SENTINAL, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::CURRENT_TREE_POSITION, static_cast<uint32_t>(current_tree_position), priority);
@@ -296,10 +301,12 @@ public:
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::SPLIT_THRESHOLD_PERCENTAGE, split_threshold_percantage, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::MAX_DEPTH, max_depth, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::RETIRE_BRANCH_THRASHOLD, initial_retire_brunch_thrashold, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::PRODUCER_CURSOR_PLACEMENT, BRANCH_SENTINAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::CONSUMER_CURSORE_PLACEMENT, BRANCH_SENTINAL, priority);
 
 
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::PAYLOAD_BEGIN, static_cast<uint32_t>(METACELL_COUNT), priority);
-        WriteBrenchMeta32_(MetaIndexOfAPCBranch::PAYLOAD_END, static_cast<uint32_t>(std::min<size_t>(total_capacity, UINT32_MAX)), priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::PAYLOAD_END, static_cast<uint32_t>(std::min<size_t>(total_capacity, BRANCH_SENTINAL)), priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::PRODUCER_BLOCK_SIZE, producer_minimum_block_size, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::BACKGROUND_EPOCH_ADVANCE_MS, background_epoch_ms, priority);
 

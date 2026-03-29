@@ -82,7 +82,7 @@ private:
 
     inline bool IfValidPayloadIndex_(size_t idx) const noexcept
     {
-        return (BackingPtr && idx < ContainerCapacity_ && idx >= PayloadBegin());
+        return (BackingPtr && idx >= PayloadBegin() && idx < GetPayloadCapacity());
     }
 
     inline void QSBRCurThreadRegisterIfNeed_() noexcept
@@ -201,7 +201,7 @@ public:
     
     inline bool IfAPCBranchValid() const noexcept
     {
-        return (BackingPtr && GetPayloadCapacity() >= MINIMUM_BRANCH_CAPACITY);
+        return (BackingPtr && GetPayloadCapacity() >= MINIMUM_BRANCH_CAPACITY - PayloadBegin());
     }
 
     inline void DirectStoreCellToAPCIdx(size_t idx, packed64_t cell) noexcept
@@ -209,6 +209,117 @@ public:
         if (idx < PayloadBegin())   return;
         BackingPtr[idx].store(cell, MoStoreSeq_);
     }
+
+    uint32_t ProducerORConsumerCursorSetAndGet_(std::optional<uint32_t> cursor_placement = std::nullopt, int32_t increment_or_decrement_of_cursor = 0, 
+        bool* did_changed_easy_return = nullptr, const PackedCellBranchPlugin::MetaIndexOfAPCBranch cursors_meta_idx = PackedCellBranchPlugin::MetaIndexOfAPCBranch::PRODUCER_CURSOR_PLACEMENT
+    ) noexcept
+    {
+        if (!BranchPluginOfAPC_)
+        {
+            if (did_changed_easy_return)
+            {
+                *did_changed_easy_return = false;
+            }
+            return PackedCellBranchPlugin::BRANCH_SENTINAL;
+        }
+        while (true)
+        {
+            const uint32_t current_cursor_placement = BranchPluginOfAPC_->ReadMetaCellValue32(cursors_meta_idx);
+            uint32_t desired_cursor_place = current_cursor_placement;
+            if (cursor_placement.has_value())
+            {
+                desired_cursor_place = cursor_placement.value();
+            }
+            else if (increment_or_decrement_of_cursor != 0)
+            {
+                if (current_cursor_placement == PackedCellBranchPlugin::BRANCH_SENTINAL)
+                {
+                    if (did_changed_easy_return)
+                    {
+                        *did_changed_easy_return = false;
+                    }
+                    return current_cursor_placement;
+                }
+                const int64_t winded_cursor = static_cast<int64_t>(current_cursor_placement) + static_cast<int64_t>(increment_or_decrement_of_cursor);
+                if (winded_cursor < 0)
+                {
+                    desired_cursor_place = NO_VAL;//NO_VAL is unsigned
+                }
+                else if (winded_cursor > static_cast<int64_t>(UINT32_MAX))
+                {
+                    desired_cursor_place = PackedCellBranchPlugin::BRANCH_SENTINAL;
+                }
+                else
+                {
+                    desired_cursor_place = static_cast<uint32_t>(winded_cursor);
+                }
+            }
+            else
+            {
+                if (did_changed_easy_return)
+                {
+                    *did_changed_easy_return = false;
+                }
+                return current_cursor_placement;
+            }
+
+            if (desired_cursor_place == current_cursor_placement)
+            {
+                if (did_changed_easy_return)
+                {
+                    *did_changed_easy_return = false;
+                }
+                return current_cursor_placement;
+            }
+            if (BranchPluginOfAPC_->UpdateBranchMeta32CAS(cursors_meta_idx, current_cursor_placement, desired_cursor_place))
+            {
+                if (did_changed_easy_return)
+                {
+                    *did_changed_easy_return = true;
+                }
+                return desired_cursor_place;
+            }
+        }
+    }
+    
+    uint32_t GetProducerCursorPlacement() noexcept
+    {
+        return ProducerORConsumerCursorSetAndGet_(std::nullopt, 0, nullptr, PackedCellBranchPlugin::MetaIndexOfAPCBranch::PRODUCER_CURSOR_PLACEMENT);
+    }
+
+    bool UpdateProducerCursorPlacement(uint32_t new_cursor_placement_idx) noexcept
+    {
+        bool will_return = false;
+        ProducerORConsumerCursorSetAndGet_(new_cursor_placement_idx, 0, &will_return, PackedCellBranchPlugin::MetaIndexOfAPCBranch::PRODUCER_CURSOR_PLACEMENT);
+        return will_return;
+    }
+
+    bool ProducerCursorIncrementOrdecrement(int32_t increment_decrement_value)  noexcept
+    {
+        bool will_retuen = false;
+        ProducerORConsumerCursorSetAndGet_(std::nullopt, increment_decrement_value, &will_retuen, PackedCellBranchPlugin::MetaIndexOfAPCBranch::PRODUCER_CURSOR_PLACEMENT);
+        return will_retuen;
+    }
+
+    uint32_t GetConsumerCursorPlacement() noexcept
+    {
+        return ProducerORConsumerCursorSetAndGet_(std::nullopt, 0, nullptr, PackedCellBranchPlugin::MetaIndexOfAPCBranch::CONSUMER_CURSORE_PLACEMENT);
+    }
+
+    bool UpdateConsumerCursorPlacement(uint32_t new_cursor_value) noexcept
+    {
+        bool will_return = false;
+        ProducerORConsumerCursorSetAndGet_(new_cursor_value, 0, &will_return, PackedCellBranchPlugin::MetaIndexOfAPCBranch::CONSUMER_CURSORE_PLACEMENT);
+        return will_return;
+    }
+
+    bool ConsumerCursorIncrementOrDecrement(int32_t increment_decrement_value) noexcept
+    {
+        bool will_return = false;
+        ProducerORConsumerCursorSetAndGet_(std::nullopt, increment_decrement_value, &will_return, PackedCellBranchPlugin::MetaIndexOfAPCBranch::CONSUMER_CURSORE_PLACEMENT);
+        return will_return;
+    }
+
 };
 
 

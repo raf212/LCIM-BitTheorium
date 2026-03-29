@@ -297,10 +297,10 @@ PYBIND11_MODULE(atomiccim_bind, m) {
              "Initialize region index data structures (region_size > 0 required)."
         )
 
-        .def("ReserveSlotsForProducer", &AdaptivePackedCellContainer::ReserveProducerSlots, 
-            py::arg("number_of_slots"),
-            "Reserve (number_of_slots) return sequense base / (SIZE_MAX/ Error)"
-        )
+        // .def("ReserveSlotsForProducer", &AdaptivePackedCellContainer::ReserveProducerSlots, 
+        //     py::arg("number_of_slots"),
+        //     "Reserve (number_of_slots) return sequense base / (SIZE_MAX/ Error)"
+        // )
         .def("GetNextProducerSequence", &AdaptivePackedCellContainer::NextProducerSequence,
             "Get next producer sequence by -> Internal Block allocation"
         )

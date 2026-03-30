@@ -280,22 +280,22 @@ PYBIND11_MODULE(atomiccim_bind, m) {
     //     ;
 
     py::class_<AdaptivePackedCellContainer>(m, "AdaptivePackedCellContainer")
-        .def(py::init<>(), "Construct an empty container call->InitOwned before use")
-        .def("InitOwnedContainer", 
-            [](AdaptivePackedCellContainer &self, size_t capacity, int node, ContainerConf cfg, size_t alignment)
-            {
-                self.InitOwned(capacity, node, cfg, alignment);
-                return py::none();
-            },
-            py::arg("capacity"), py::arg("node") = REL_NODE0, py::arg("container_cfg") = ContainerConf(), py::arg("alignment") = MAX_VAL,
-            "Initialize container with owned backing memory"
-        )
-        .def("FreeContainer", &AdaptivePackedCellContainer::FreeAll,
-            "Free all resources of APC"
-        )
-        .def("InitContainerRegionOnIndex", &AdaptivePackedCellContainer::InitRegionIdx, py::arg("region_size"),
-             "Initialize region index data structures (region_size > 0 required)."
-        )
+        // .def(py::init<>(), "Construct an empty container call->InitOwned before use")
+        // .def("InitOwnedContainer", 
+        //     [](AdaptivePackedCellContainer &self, size_t capacity, int node, ContainerConf cfg, size_t alignment)
+        //     {
+        //         self.InitOwned(capacity, node, cfg, alignment);
+        //         return py::none();
+        //     },
+        //     py::arg("capacity"), py::arg("node") = REL_NODE0, py::arg("container_cfg") = ContainerConf(), py::arg("alignment") = MAX_VAL,
+        //     "Initialize container with owned backing memory"
+        // )
+        // .def("FreeContainer", &AdaptivePackedCellContainer::FreeAll,
+        //     "Free all resources of APC"
+        // )
+        // .def("InitContainerRegionOnIndex", &AdaptivePackedCellContainer::InitRegionIdx, py::arg("region_size"),
+        //      "Initialize region index data structures (region_size > 0 required)."
+        // )
 
         // .def("ReserveSlotsForProducer", &AdaptivePackedCellContainer::ReserveProducerSlots, 
         //     py::arg("number_of_slots"),

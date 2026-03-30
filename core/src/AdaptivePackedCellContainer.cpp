@@ -133,13 +133,11 @@ namespace PredictedAdaptedEncoding
     }
 
     
-    void AdaptivePackedCellContainer::InitOwned(size_t container_capacity, int node,
-        ContainerConf container_cfg,
-        size_t alignment
+    void AdaptivePackedCellContainer::InitOwned(size_t container_capacity,
+        ContainerConf container_cfg
     )
     {
         
-        (void)node, (void)alignment;
         FreeAll();
         if (container_capacity == 0)
         {
@@ -478,7 +476,7 @@ namespace PredictedAdaptedEncoding
             child_container = new AdaptivePackedCellContainer();
 
             child_container->SetManagerForGlobalAPC(APCManagerPtr_);
-            child_container->InitOwned(child_capacity, UsedNode_, child_container_conf);
+            child_container->InitOwned(child_capacity, child_container_conf);
 
             const uint32_t child_brunch_id = child_container->GetBranchId();
             const uint32_t parent_id_current_brunch_id = GetBranchId();

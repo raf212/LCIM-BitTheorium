@@ -48,7 +48,6 @@ public:
     struct QSBRGuard;
     
 private:
-    int UsedNode_ = 0;
     AtomicAdaptiveBackoff* AdaptiveBackoffOfAPCPtr_{nullptr};
     MasterClockConf* MasterClockConfPtr_{nullptr};
     PackedCellContainerManager* APCManagerPtr_{nullptr};
@@ -57,7 +56,7 @@ private:
     static inline thread_local PackedCellContainerManager::ThreadHandlePCCM  ThreadHandleAPCTL_ = {};
     //logging hook
     std::function<void(const char*, const char*)> APCLogger_;
-    //region/index
+    //region/index--demo
     std::unique_ptr<std::atomic<uint8_t>[]> RegionRelArray_{nullptr};
     std::vector<std::vector<uint64_t>> RelBitmaps_;
     std::unique_ptr<std::atomic<uint64_t>[]> RegionEpochArray_{nullptr};
@@ -125,7 +124,7 @@ public:
 
     size_t NextProducerSequence() noexcept;
 
-    void InitOwned(size_t cpacity, int node = REL_NODE0, ContainerConf container_cfg = {}, size_t allignment = MAX_VAL);
+    void InitOwned(size_t cpacity, ContainerConf container_cfg = {});
 
     void FreeAll() noexcept;
 

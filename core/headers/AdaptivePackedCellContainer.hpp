@@ -49,15 +49,12 @@ public:
     
 private:
     int UsedNode_ = 0;
-    bool IsContainerOwned_{false};
-
     AtomicAdaptiveBackoff* AdaptiveBackoffOfAPCPtr_{nullptr};
     MasterClockConf* MasterClockConfPtr_{nullptr};
     PackedCellContainerManager* APCManagerPtr_{nullptr};
     std::unique_ptr<PackedCellBranchPlugin> BranchPluginOfAPC_;
     static inline std::atomic<uint32_t> GlobalBranchIdAlloc_{1};
     static inline thread_local PackedCellContainerManager::ThreadHandlePCCM  ThreadHandleAPCTL_ = {};
-    std::atomic<uint64_t> TotalCasFailure_{0};
     //logging hook
     std::function<void(const char*, const char*)> APCLogger_;
     //region/index

@@ -240,7 +240,7 @@ namespace PredictedAdaptedEncoding
                 packed64_t expected_head = cur_head;
                 if (!BackingPtr[head].compare_exchange_strong(expected_head, claimed_cur_head, OnExchangeSuccess, OnExchangeFailure))
                 {
-                    TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
+                    BranchPluginOfAPC_->TotalCASFailForThisBranchIncreaseAndGet(1);
                 }
                 else
                 {
@@ -249,7 +249,7 @@ namespace PredictedAdaptedEncoding
                     {
                         BackingPtr[head].store(cur_head, MoStoreSeq_);
                         BackingPtr[head].notify_all();
-                        TotalCasFailure_.fetch_add(1, std::memory_order_relaxed);
+                        BranchPluginOfAPC_->TotalCASFailForThisBranchIncreaseAndGet(1);
                     }
                     else
                     {

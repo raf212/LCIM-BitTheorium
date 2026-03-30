@@ -156,7 +156,6 @@ namespace PredictedAdaptedEncoding
         {
             BackingPtr[i].store(idle_cell, MoStoreUnSeq_);
         }
-        IsContainerOwned_ = true;
         if (container_cfg.RegionSize)
         {
             InitRegionIdx(container_cfg.RegionSize);
@@ -214,12 +213,19 @@ namespace PredictedAdaptedEncoding
             return;
         }
         BranchPluginOfAPC_->UpdateOccupancySnapshotAndReturn(0);
+        BranchPluginOfAPC_->MakeAPCBranchOwned();
+        BranchPluginOfAPC_->ResetTotalCASFailureForThisBranch();
         UpdateProducerCursorPlacement(static_cast<uint32_t>(PayloadBegin()));
         UpdateConsumerCursorPlacement(static_cast<uint32_t>(PayloadBegin()));
     }
 
     void AdaptivePackedCellContainer::FreeAll() noexcept
     {
+        if (!IfAPCBranchValid())
+        {
+            return;
+        }
+        
         try 
         {
             PackedCellContainerManager::Instance().UnRegisterAdaptivePackedCellContainer(this);
@@ -234,7 +240,7 @@ namespace PredictedAdaptedEncoding
         
         if (BackingPtr)
         {
-            if (IsContainerOwned_)
+            if (BranchPluginOfAPC_->IsBranchOwnedByFlag())
             {
                 delete[] BackingPtr;
             }
@@ -244,7 +250,7 @@ namespace PredictedAdaptedEncoding
         RegionRelArray_.reset();
         RegionEpochArray_.reset();
         RelBitmaps_.clear();
-        IsContainerOwned_ = false;
+        BranchPluginOfAPC_->ReleseOwneshipFlag();
     }
 
     void AdaptivePackedCellContainer::InitRegionIdx(size_t region_size) noexcept

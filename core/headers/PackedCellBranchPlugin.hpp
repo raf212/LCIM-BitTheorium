@@ -66,6 +66,7 @@ public:
         PARENT_BRANCH_ID = 4,
         LEFT_CHILD_ID = 5,
         RIGHT_CHILD_ID = 6,
+        NUMBER_OF_CHILD = 30,
         CURRENT_TREE_POSITION = 7,
         DEFINED_MODE_OF_CURRENT_APC = 25,
         // runtime control
@@ -80,6 +81,7 @@ public:
         RETIRE_BRANCH_THRASHOLD = 26,
         PRODUCER_CURSOR_PLACEMENT = 27,
         CONSUMER_CURSORE_PLACEMENT = 28,
+        TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH = 32,
         //payload bounds
         PAYLOAD_BEGIN = 16,
         PAYLOAD_END = 17,
@@ -92,9 +94,12 @@ public:
         REGION_SIZE = 20,
         REGION_COUNT = 21,
         READY_REL_MASK = 22,
+        //ownership status(leter can be converted into ownership bit flags enum class)
+        CURRENTLY_OWNED = 29,
 
         //free exception 
-        RESERVED_29 = 29,
+        HALFWAY_MAGIC = 31,
+        RESERVED_33 = 33,
         EOF_APC_HEADER = 63
     };
 private:
@@ -303,7 +308,7 @@ public:
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::RETIRE_BRANCH_THRASHOLD, initial_retire_brunch_thrashold, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::PRODUCER_CURSOR_PLACEMENT, BRANCH_SENTINAL, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::CONSUMER_CURSORE_PLACEMENT, BRANCH_SENTINAL, priority);
-
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH, NO_VAL, priority);
 
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::PAYLOAD_BEGIN, static_cast<uint32_t>(METACELL_COUNT), priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::PAYLOAD_END, static_cast<uint32_t>(std::min<size_t>(total_capacity, BRANCH_SENTINAL)), priority);
@@ -316,6 +321,8 @@ public:
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::REGION_COUNT, region_count, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::READY_REL_MASK, NO_VAL, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::EOF_APC_HEADER, EOF_HEADER, priority);
+
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::CURRENTLY_OWNED, NO_VAL, priority);
 
     }
 
@@ -540,6 +547,48 @@ public:
             }
             return TurnOnFlags(static_cast<uint32_t>(APCFlags::SPLIT_INFLIGHT));
         }
+    }
+
+    void MakeAPCBranchOwned() noexcept
+    {
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::CURRENTLY_OWNED, 1u, DEFAULT_INTERNAL_PRIORITY);
+    }
+
+    void ReleseOwneshipFlag() noexcept
+    {
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::CURRENTLY_OWNED, NO_VAL, MAX_PRIORITY);
+    }
+
+    bool IsBranchOwnedByFlag() noexcept
+    {
+        uint32_t owned_cell_value = ReadMetaCellValue32(MetaIndexOfAPCBranch::CURRENTLY_OWNED);
+        if (owned_cell_value > NO_VAL)
+        {
+            return true;
+        }
+        return false;
+    }
+
+    uint32_t TotalCASFailForThisBranchIncreaseAndGet(uint32_t increment) noexcept
+    {
+        while (true)
+        {
+            val32_t current_total_cas_failure = ReadMetaCellValue32(MetaIndexOfAPCBranch::TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH);
+            if (current_total_cas_failure == BRANCH_SENTINAL)
+            {
+                return BRANCH_SENTINAL;
+            }
+            
+            if (UpdateBranchMeta32CAS(MetaIndexOfAPCBranch::TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH, current_total_cas_failure, current_total_cas_failure + increment))
+            {
+                return current_total_cas_failure + increment;
+            }   
+        }
+    }
+
+    void ResetTotalCASFailureForThisBranch(tag8_t priority = DEFAULT_INTERNAL_PRIORITY) noexcept
+    {
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH, NO_VAL, priority);
     }
 };
 

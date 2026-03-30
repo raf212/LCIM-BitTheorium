@@ -48,11 +48,8 @@ public:
     struct QSBRGuard;
     
 private:
-    size_t ContainerCapacity_{0};
     int UsedNode_ = 0;
     bool IsContainerOwned_{false};
-    std::atomic<size_t> ProducerCursor_{0};
-    std::atomic<size_t> ConsumerCursor_{0};
 
     AtomicAdaptiveBackoff* AdaptiveBackoffOfAPCPtr_{nullptr};
     MasterClockConf* MasterClockConfPtr_{nullptr};
@@ -82,7 +79,7 @@ private:
 
     inline bool IfValidPayloadIndex_(size_t idx) const noexcept
     {
-        return (BackingPtr && idx >= PayloadBegin() && idx < GetPayloadCapacity());
+        return (BackingPtr && idx >= PayloadBegin() && idx < GetPayloadEnd());
     }
 
     inline void QSBRCurThreadRegisterIfNeed_() noexcept
@@ -151,19 +148,6 @@ public:
     std::optional<TypePtr> ViewPointerMemoryIfAssembeled(size_t probable_idx) noexcept;
     //
 
-    size_t GetOrSetTotalContainerCapacity(std::optional<size_t>container_capacity_of_apc = std::nullopt) noexcept
-    {
-        if (container_capacity_of_apc)
-        {
-            ContainerCapacity_ = *container_capacity_of_apc;
-        }
-        if (ContainerCapacity_ < MINIMUM_BRANCH_CAPACITY)
-        {
-            ContainerCapacity_ = MINIMUM_BRANCH_CAPACITY;
-        }
-        
-        return ContainerCapacity_;
-    }
 
     size_t OccupancyAddOrSubAndGetAfterChange(int delta = 0)
     {
@@ -206,8 +190,10 @@ public:
 
     inline void DirectStoreCellToAPCIdx(size_t idx, packed64_t cell) noexcept
     {
-        if (idx < PayloadBegin())   return;
-        BackingPtr[idx].store(cell, MoStoreSeq_);
+        if (IfValidPayloadIndex_(idx))
+        {
+            BackingPtr[idx].store(cell, MoStoreSeq_);
+        }
     }
 
     uint32_t ProducerORConsumerCursorSetAndGet_(std::optional<uint32_t> cursor_placement = std::nullopt, int32_t increment_or_decrement_of_cursor = 0, 
@@ -222,6 +208,15 @@ public:
             }
             return PackedCellBranchPlugin::BRANCH_SENTINAL;
         }
+        if (GetPayloadEnd() <= PayloadBegin())
+        {
+            if (did_changed_easy_return)
+            {
+                *did_changed_easy_return = false;
+            }
+            return PackedCellBranchPlugin::BRANCH_SENTINAL;
+        }
+        
         while (true)
         {
             const uint32_t current_cursor_placement = BranchPluginOfAPC_->ReadMetaCellValue32(cursors_meta_idx);
@@ -241,13 +236,13 @@ public:
                     return current_cursor_placement;
                 }
                 const int64_t winded_cursor = static_cast<int64_t>(current_cursor_placement) + static_cast<int64_t>(increment_or_decrement_of_cursor);
-                if (winded_cursor < 0)
+                if (winded_cursor < static_cast<int64_t>(PayloadBegin()))
                 {
-                    desired_cursor_place = NO_VAL;//NO_VAL is unsigned
+                    desired_cursor_place = PayloadBegin();
                 }
-                else if (winded_cursor > static_cast<int64_t>(UINT32_MAX))
+                else if (winded_cursor >= static_cast<int64_t>(GetPayloadEnd()))
                 {
-                    desired_cursor_place = PackedCellBranchPlugin::BRANCH_SENTINAL;
+                    desired_cursor_place = static_cast<uint32_t>(GetPayloadEnd() - 1u);
                 }
                 else
                 {
@@ -261,6 +256,15 @@ public:
                     *did_changed_easy_return = false;
                 }
                 return current_cursor_placement;
+            }
+            
+            if (desired_cursor_place < PayloadBegin())
+            {
+                desired_cursor_place = PayloadBegin();
+            }
+            else if (desired_cursor_place >= GetPayloadEnd())
+            {
+                desired_cursor_place = static_cast<uint32_t>(GetPayloadEnd() - 1u);
             }
 
             if (desired_cursor_place == current_cursor_placement)

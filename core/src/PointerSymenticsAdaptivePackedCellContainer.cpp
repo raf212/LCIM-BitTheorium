@@ -207,7 +207,7 @@ namespace PredictedAdaptedEncoding
         {
             return { PublishStatus::INVALID, SIZE_MAX};
         }
-        if (GetPayloadCapacity() < 2)
+        if (GetPayloadCapacity() < MINIMUM_BRANCH_CAPACITY)
         {
             return {PublishStatus::FULL, SIZE_MAX};
         }
@@ -221,14 +221,14 @@ namespace PredictedAdaptedEncoding
             return {PublishStatus::INVALID, SIZE_MAX};
         }
         
-        size_t start = (next_sequence - PayloadBegin()) % GetPayloadCapacity();
+        size_t start = PayloadBegin() + ((next_sequence - PayloadBegin()) % GetPayloadCapacity());
         size_t step = GetHashedRendomizedStep_(next_sequence);
         int probes = 0;
-        size_t idx = start + PayloadBegin();
+        size_t idx = start;
         while (true)
         {
             size_t head = idx;
-            size_t tail = (head + 1) % GetPayloadCapacity();
+            size_t tail = (head + 1);
             packed64_t cur_head = BackingPtr[head].load(MoLoad_);
             packed64_t cur_tail = BackingPtr[tail].load(MoLoad_);
             PackedCellLocalityTypes head_locality = PackedCell64_t::ExtractLocalityFromPacked(cur_head);
@@ -274,7 +274,7 @@ namespace PredictedAdaptedEncoding
             {
                 return {PublishStatus::FULL, SIZE_MAX};
             }
-            idx = (idx + step) % GetPayloadCapacity();
+            idx = (((idx - PayloadBegin()) + step) % GetPayloadCapacity()) + PayloadBegin();
         }
     }
 

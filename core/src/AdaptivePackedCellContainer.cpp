@@ -22,13 +22,38 @@ namespace PredictedAdaptedEncoding
             return SIZE_MAX;
         }
 
-        size_t base = ProducerCursor_.fetch_add(number_of_slots, std::memory_order_relaxed);
-        if (base < PayloadBegin())
+        if (GetPayloadEnd() <= PayloadBegin())
         {
-            const size_t delta = PayloadBegin() - base;
-            base = ProducerCursor_.fetch_add(delta, std::memory_order_relaxed) + delta;
+            return SIZE_MAX;
         }
-        return base;
+        while (true)
+        {
+            const uint32_t current_producer_sequence = GetProducerCursorPlacement();
+            if (current_producer_sequence == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            {
+                return SIZE_MAX;
+            }
+            uint32_t base_producer_sequense = current_producer_sequence;
+            if (base_producer_sequense < PayloadBegin())
+            {
+                base_producer_sequense = PayloadBegin();
+            }
+            const uint64_t desired64 = static_cast<uint64_t>(base_producer_sequense) + static_cast<uint64_t>(number_of_slots);
+            uint32_t desiered_producer_sequence = 0;
+            if (desired64 >= static_cast<uint64_t>(GetPayloadEnd()))
+            {
+                desiered_producer_sequence = static_cast<uint32_t>(GetPayloadEnd());
+            }
+            else
+            {
+                desiered_producer_sequence = static_cast<uint32_t>(desired64);
+            }
+            bool ok = UpdateProducerCursorPlacement(desiered_producer_sequence);
+            if (ok)
+            {
+                return static_cast<size_t>(base_producer_sequense);
+            }
+        }
     }
 
     size_t AdaptivePackedCellContainer::GetHashedRendomizedStep_(size_t sequense_number) noexcept
@@ -131,10 +156,7 @@ namespace PredictedAdaptedEncoding
         {
             BackingPtr[i].store(idle_cell, MoStoreUnSeq_);
         }
-        ContainerCapacity_ = container_capacity;
         IsContainerOwned_ = true;
-        InitZeroState_();
-
         if (container_cfg.RegionSize)
         {
             InitRegionIdx(container_cfg.RegionSize);
@@ -181,8 +203,7 @@ namespace PredictedAdaptedEncoding
             ZERO_PRIORITY,
             ZERO_PRIORITY
         );
-        ProducerCursor_.store(PayloadBegin(), MoStoreUnSeq_);
-        ConsumerCursor_.store(PayloadBegin(), MoStoreUnSeq_);
+        InitZeroState_();
         RefreshAPCMeta_();
     }
 
@@ -193,8 +214,8 @@ namespace PredictedAdaptedEncoding
             return;
         }
         BranchPluginOfAPC_->UpdateOccupancySnapshotAndReturn(0);
-        ProducerCursor_.store(PayloadBegin(), MoStoreUnSeq_);
-        ConsumerCursor_.store(PayloadBegin(), MoStoreUnSeq_);
+        UpdateProducerCursorPlacement(static_cast<uint32_t>(PayloadBegin()));
+        UpdateConsumerCursorPlacement(static_cast<uint32_t>(PayloadBegin()));
     }
 
     void AdaptivePackedCellContainer::FreeAll() noexcept
@@ -223,8 +244,6 @@ namespace PredictedAdaptedEncoding
         RegionRelArray_.reset();
         RegionEpochArray_.reset();
         RelBitmaps_.clear();
-
-        ContainerCapacity_ = 0;
         IsContainerOwned_ = false;
     }
 
@@ -275,7 +294,8 @@ namespace PredictedAdaptedEncoding
             tag8_t accum = 0;
             for (size_t i = base; i < end; i++)
             {
-                accum |= PackedCell64_t::ExtractFullRelFromPacked(BackingPtr[i].load(MoLoad_));
+                const size_t absolute_idx = PayloadBegin() + i;
+                accum |= PackedCell64_t::ExtractFullRelFromPacked(BackingPtr[absolute_idx].load(MoLoad_));
             }
             RegionRelArray_[region].store(accum, MoStoreSeq_);
             if (accum)
@@ -299,7 +319,7 @@ namespace PredictedAdaptedEncoding
     {
         if (!BranchPluginOfAPC_)
         {
-            return NO_VAL;
+            return SIZE_MAX;
         }
         size_t current_block_size = static_cast<size_t>(BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::PRODUCER_BLOCK_SIZE));
         thread_local size_t block_base = 0;
@@ -358,10 +378,11 @@ namespace PredictedAdaptedEncoding
 
     void AdaptivePackedCellContainer::RefreshAPCMeta_() noexcept
     {
-        if (!BranchPluginOfAPC_)
+        if (!IfAPCBranchValid())
         {
             return;
         }
+        BranchPluginOfAPC_->UpdateOccupancySnapshotAndReturn(NO_VAL);
         if (BranchPluginOfAPC_->ShouldSplitNow())
         {
             BranchPluginOfAPC_->TurnOnFlags(static_cast<uint32_t>(PackedCellBranchPlugin::APCFlags::SATURATED));

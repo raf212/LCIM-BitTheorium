@@ -296,7 +296,7 @@ int main()
         PackedCellContainerManager::ThreadHandlePCCM thread_handle_consumer =
             apc_manager.RegisterAPCThread();
 
-        const size_t task_apc_capacity = TASK_APC.GetOrSetTotalContainerCapacity();
+        const size_t task_apc_capacity = TASK_APC.GetPayloadCapacity();
         if (task_apc_capacity == 0)
         {
             apc_manager.UnRegisterAPCThread(thread_handle_consumer);

@@ -56,7 +56,7 @@ private:
     static inline thread_local PackedCellContainerManager::ThreadHandlePCCM  ThreadHandleAPCTL_ = {};
     //logging hook
     std::function<void(const char*, const char*)> APCLogger_;
-    //region/index--demo
+    //region/index
     std::unique_ptr<std::atomic<uint8_t>[]> RegionRelArray_{nullptr};
     std::vector<std::vector<uint64_t>> RelBitmaps_;
     std::unique_ptr<std::atomic<uint64_t>[]> RegionEpochArray_{nullptr};
@@ -174,7 +174,7 @@ public:
         return BranchPluginOfAPC_ ? BranchPluginOfAPC_->PayloadEndRead() : SIZE_MAX;
     }
 
-    const uint32_t PayloadBegin() const noexcept
+    static constexpr uint32_t PayloadBegin() noexcept
     {
         return PackedCellBranchPlugin::METACELL_COUNT;
     }
@@ -284,7 +284,7 @@ public:
     
     uint32_t GetProducerCursorPlacement() noexcept
     {
-        return ProducerORConsumerCursorSetAndGet_(std::nullopt, 0, nullptr, PackedCellBranchPlugin::MetaIndexOfAPCBranch::PRODUCER_CURSOR_PLACEMENT);
+        return BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::PRODUCER_CURSOR_PLACEMENT);
     }
 
     bool UpdateProducerCursorPlacement(uint32_t new_cursor_placement_idx) noexcept
@@ -303,7 +303,7 @@ public:
 
     uint32_t GetConsumerCursorPlacement() noexcept
     {
-        return ProducerORConsumerCursorSetAndGet_(std::nullopt, 0, nullptr, PackedCellBranchPlugin::MetaIndexOfAPCBranch::CONSUMER_CURSORE_PLACEMENT);
+        return BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::CONSUMER_CURSORE_PLACEMENT);
     }
 
     bool UpdateConsumerCursorPlacement(uint32_t new_cursor_value) noexcept

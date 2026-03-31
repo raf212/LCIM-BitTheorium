@@ -1,11 +1,3 @@
-// main.cpp (fairer APC-vs-baseline comparison)
-// Key fairness changes:
-// 1) Build base primes ONCE and share them read-only across consumers.
-// 2) Use APC only for TASK transport.
-// 3) Remove RESULT_APC / collector thread / sort queue from the benchmark.
-// 4) Each consumer accumulates local primes exactly like the baseline.
-// 5) Final merge happens once in main, like the baseline.
-
 #include <iostream>
 #include <vector>
 #include <thread>
@@ -349,7 +341,6 @@ int main()
 
     StopWatch runtime_stop_watch;
 
-    // Precompute base primes once: fairness fix.
     const uint64_t sqrt_limit =
         static_cast<uint64_t>(std::sqrt(static_cast<long double>(NTH_ELEMENT))) + 1;
     std::vector<uint64_t> base_primes = BuildBasePrimes(sqrt_limit);
@@ -365,23 +356,33 @@ int main()
     }
 
     const size_t num_of_tasks = task_ranges.size();
+    if (num_of_tasks >= PackedCellBranchPlugin::BRANCH_SENTINAL)
+    {
+        std::cerr << "numver of tasks should be less than UINT32_MAX";
+        return 1;
+    }
 
-    // Because pointer publication is pair-based in APC, keep extra slack.
-    // Fairer and safer than a razor-thin num_tasks*2+16.
-    const size_t apc_capacity =
-        std::max<size_t>(MINIMUM_BRANCH_CAPACITY, num_of_tasks * 4 + 64);
+    const unsigned leaf_branch_count = std::min<unsigned>(MAX_TREE_LEAFS, NextPowerOf2(std::max(1u, std::min(CONSUMER_COUNT, MAX_TREE_LEAFS))));
+    std::vector<APCLeafBrunch> leaf_branches_struct;
+    leaf_branches_struct.resize(leaf_branch_count);
+    ContainerConf branch_cfg_default;
 
-    AdaptivePackedCellContainer TASK_APC;
-    ContainerConf task_cfg;
-    task_cfg.ProducerBlockSize = 64;
-    task_cfg.InitialMode = PackedMode::MODE_VALUE32;
+    const size_t task_per_leaf_set = (num_of_tasks + leaf_branch_count -1) / leaf_branch_count;
+    const size_t branch_capacity = std::max<size_t>(MINIMUM_BRANCH_CAPACITY, AdaptivePackedCellContainer::PayloadBegin() + task_per_leaf_set * 4 + 128);
 
-    TASK_APC.InitOwned(apc_capacity, task_cfg);
-    TASK_APC.SetManagerForGlobalAPC(&apc_manager);
-    apc_manager.RequestForReclaimationOfTheAdaptivePackedCellContainer(&TASK_APC);
+    for (unsigned i = 0; i < leaf_branch_count; i++)
+    {
+        leaf_branches_struct[i].APC_UniqPtr = std::make_unique<AdaptivePackedCellContainer>();
+        leaf_branches_struct[i].LogicalLeafIdx = i;
+        leaf_branches_struct[i].APC_UniqPtr->InitOwned(branch_capacity, branch_cfg_default);
+        leaf_branches_struct[i].APC_UniqPtr->SetManagerForGlobalAPC(&apc_manager);
+        leaf_branches_struct[i].APC_UniqPtr->InitRegionIdx(branch_cfg_default.RegionSize);
+        apc_manager.RequestBranchCreationForTheAdaptivePackedCellContainer(leaf_branches_struct[i].APC_UniqPtr.get());
+    }
 
     std::atomic<size_t> producer_done{0};
     std::atomic<uint64_t> task_processed{0};
+    std::atomic<uint64_t> failed_task_publications{0};
     std::atomic<uint64_t> retired_from_task{0};
 
     AtomicTimerStatus producer_publish_timer;
@@ -400,26 +401,21 @@ int main()
 
         for (size_t i = start_idx; i < end_idx; ++i)
         {
-            uint64_t low  = task_ranges[i].first;
-            uint64_t high = task_ranges[i].second;
-
-            RangedTaskConf* range_task_conf_ptr = new RangedTaskConf(low, high);
-
+            uint32_t task_id = static_cast<uint32_t>(i);
+            const unsigned leaf = static_cast<unsigned>(task_id & (leaf_branch_count - 1u));
+            AdaptivePackedCellContainer& target_producer_container = *leaf_branches_struct[leaf].APC_UniqPtr;
             StopWatch operation_stop_watch;
-            bool ok = TASK_APC.PublishHeapPtrWithAdaptiveBackoff(
-                reinterpret_cast<void*>(range_task_conf_ptr));
+            bool ok = PublishTaskIdCell(target_producer_container, apc_manager, task_id, 256);
             uint64_t elapsed_us = operation_stop_watch.ElapsedMicroSecond();
             producer_publish_timer.AddSamplMicroSecond(elapsed_us);
 
             if (!ok)
             {
                 std::cerr << "Producer ID : " << producer_id
-                          << " failed to publish the pointer of range from->"
-                          << low << " to->" << high << "\n";
-                delete range_task_conf_ptr;
+                          << " failed to publish task id = "
+                          << task_id << "-> into leaf = " << leaf << "\n";
             }
         }
-
         uint64_t total_loop_us = local_stop_watch_producer.ElapsedMicroSecond();
         producer_done.fetch_add(1, std::memory_order_release);
 
@@ -434,99 +430,80 @@ int main()
         PackedCellContainerManager::ThreadHandlePCCM thread_handle_consumer =
             apc_manager.RegisterAPCThread();
 
-        const size_t task_apc_capacity = TASK_APC.GetPayloadCapacity();
-        if (task_apc_capacity == 0)
-        {
-            apc_manager.UnRegisterAPCThread(thread_handle_consumer);
-            std::cout << "Consumer ID : " << worker_id << " No Work -> Early EXIT\n";
-            return;
-        }
-
         std::vector<uint64_t>& local_output = thread_results[worker_id];
         local_output.reserve(256000);
 
-        size_t scan_offset = worker_id % task_apc_capacity;
-        size_t local_loop_counter = 0;
-
+        std::vector<size_t>scan_offsets(leaf_branch_count, 0);
+        for (unsigned branch = 0; branch < leaf_branch_count; branch++)
+        {
+            scan_offsets[branch] = AdaptivePackedCellContainer::PayloadBegin();
+        }
+        const unsigned preffered_leaf = worker_id & (leaf_branch_count - 1u);
+        size_t idle_loops = 0;
         while (true)
         {
             bool did_work = false;
 
-            for (size_t probe = 0; probe < task_apc_capacity; ++probe)
+            for (unsigned hop = 0; hop < leaf_branch_count; hop++)
             {
-                const size_t idx = (scan_offset + probe) % task_apc_capacity;
-
-                auto acquired_paired_ptr_struct =
-                    TASK_APC.AcquirePairedAtomicPtr(idx, true, 64);
-
-                if (!acquired_paired_ptr_struct)
-                {
-                    packed64_t observed =
-                        TASK_APC.BackingPtr ? TASK_APC.BackingPtr[idx].load(MoLoad_) : 0;
-                    apc_manager.GetCellsAdaptiveBackoffFromManager(observed);
-                    continue;
-                }
-
-                if (!acquired_paired_ptr_struct->Ownership)
+                const unsigned current_leaf = (preffered_leaf + hop) & (leaf_branch_count - 1u);
+                AdaptivePackedCellContainer& current_branch_address = *leaf_branches_struct[current_leaf].APC_UniqPtr;
+                uint32_t current_task_id = 0;
+                if (!TryClaimOneTaskIdCell(current_branch_address, apc_manager, scan_offsets[current_leaf], current_task_id))
                 {
                     continue;
                 }
 
-                RangedTaskConf* range_task_ptr =
-                    reinterpret_cast<RangedTaskConf*>(
-                        reinterpret_cast<void*>(acquired_paired_ptr_struct->AssembeledPtr));
-
-                if (range_task_ptr == nullptr)
-                {
-                    TASK_APC.RetireAcquiredPointerPair(*acquired_paired_ptr_struct);
-                    retired_from_task.fetch_add(1, std::memory_order_relaxed);
-                    did_work = true;
-                    continue;
-                }
-
-                StopWatch compute_stop_watch;
-                SegmentedSiveUsingBasePrimes(
-                    range_task_ptr->StartingPoint,
-                    range_task_ptr->EndPoint,
-                    base_primes,
-                    local_output);
-                uint64_t compute_us = compute_stop_watch.ElapsedMicroSecond();
+                const uint64_t low = task_ranges[current_task_id].first;
+                const uint64_t high = task_ranges[current_task_id].second;
+                StopWatch compute_watch;
+                SegmentedSiveUsingBasePrimes(low, high, base_primes, local_output);
+                uint64_t compute_us = compute_watch.ElapsedMicroSecond();
 
                 consumer_compute_timer.AddSamplMicroSecond(compute_us);
                 ++stats[worker_id].tasks;
-                stats[worker_id].compute_us += compute_us;
+                stats[worker_id].compute_us +=compute_us;
                 task_processed.fetch_add(1, std::memory_order_relaxed);
-
-                delete range_task_ptr;
-                TASK_APC.RetireAcquiredPointerPair(*acquired_paired_ptr_struct);
-
                 did_work = true;
+                idle_loops = 0;
+                break;
             }
+            if (!did_work)
+            {
+                ++idle_loops;
+                bool all_done = producer_done.load(MoLoad_) >= PRODUCER_COUNT;
+                bool any_work_left = false;
+                for (unsigned branch = 0; branch < leaf_branch_count; branch++)
+                {
+                    if (leaf_branches_struct[branch].APC_UniqPtr->OccupancyAddOrSubAndGetAfterChange() > 0)
+                    {
+                        any_work_left = true;
+                        break;
+                    }
+                }
+                if (all_done && !any_work_left)
+                {
+                    break;
+                }
+                if ((idle_loops & 0x3f) == 0)
+                {
+                    std::this_thread::yield();
+                }
+                else
+                {
+                    std::this_thread::sleep_for(std::chrono::microseconds(20));
+                }
 
-            if ((++local_loop_counter & 0x3f) == 0)
+            }
+            
+
+            if ((++idle_loops & 0x3f) == 0)
             {
                 std::cout << "consumer " << worker_id
-                          << " heartbeat loops=" << local_loop_counter
+                          << " heartbeat loops=" << idle_loops
                           << " retired_tasks=" << retired_from_task.load()
                           << " producers_done=" << producer_done.load() << "\n";
             }
-
-            bool all_producer_done =
-                producer_done.load(MoLoad_) >= PRODUCER_COUNT;
-            size_t final_task_apc_occupancy =
-                TASK_APC.OccupancyAddOrSubAndGetAfterChange();
-
-            if (all_producer_done && final_task_apc_occupancy == 0)
-            {
-                break;
-            }
-
-            if (!did_work)
-            {
-                std::this_thread::yield();
-            }
-
-            scan_offset = (scan_offset + 17) % task_apc_capacity;
         }
 
         apc_manager.UnRegisterAPCThread(thread_handle_consumer);
@@ -618,10 +595,30 @@ int main()
 
     std::cout << "\nAPC counts:\n";
     std::cout << "  retired_from_task: " << retired_from_task.load() << "\n";
-    std::cout << "  task_apc_capacity: " << apc_capacity << "\n";
+    std::cout << "  task_apc_capacity: " << branch_capacity << "\n";
     std::cout << "  num_of_tasks: " << num_of_tasks << "\n";
 
-    TASK_APC.FreeAll();
+    std::cout << "Branch Status \n";
+    for (unsigned branch = 0; branch < leaf_branch_count; branch++)
+    {
+        PackedCellBranchPlugin* current_branch_plugin = leaf_branches_struct[branch].APC_UniqPtr->GetBranchPlugin();
+        uint32_t branch_id = leaf_branches_struct[branch].APC_UniqPtr->GetBranchId();
+        uint32_t left_id = current_branch_plugin->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::LEFT_CHILD_ID);
+        uint32_t right_id = current_branch_plugin->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::RIGHT_CHILD_ID);
+        std::cout << "Brunch number :: " << branch << "\n"
+            << "Branch ID :: " << branch_id << "\n"
+            << "Left cgild container ID :: " << left_id << "\n"
+            << "Rifgt child container ID :: " << right_id << "\n";
+    }
+    
+
+    for (auto& branch : leaf_branches_struct)
+    {
+        if (branch.APC_UniqPtr)
+        {
+            branch.APC_UniqPtr->FreeAll();
+        }
+    }
     apc_manager.StopPCCManager();
 
     std::cout << "Adaptive Packed Cell Container :: Fair Prime Test :: DONE\n";

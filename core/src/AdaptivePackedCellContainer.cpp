@@ -233,9 +233,7 @@ namespace PredictedAdaptedEncoding
 
         }
         AdaptiveBackoffOfAPCPtr_ = nullptr;
-        MasterClockConfPtr_ = nullptr;
-        BranchPluginOfAPC_.reset();
-        
+        MasterClockConfPtr_ = nullptr;        
         if (BackingPtr)
         {
             if (BranchPluginOfAPC_->IsBranchOwnedByFlag())
@@ -249,6 +247,7 @@ namespace PredictedAdaptedEncoding
         RegionEpochArray_.reset();
         RelBitmaps_.clear();
         BranchPluginOfAPC_->ReleseOwneshipFlag();
+        BranchPluginOfAPC_.reset();
     }
 
     void AdaptivePackedCellContainer::InitRegionIdx(size_t region_size) noexcept
@@ -517,7 +516,6 @@ namespace PredictedAdaptedEncoding
                 clear_flag();
                 return;
             }
-            APCManagerPtr_->RegisterAdaptivePackedCellContainer(child_container);
             APCManagerPtr_->RequestForReclaimationOfTheAdaptivePackedCellContainer(child_container);
 
             BranchPluginOfAPC_->WriteOrUpdateMetaClock48();

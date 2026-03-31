@@ -210,7 +210,7 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        BranchPluginOfAPC_->UpdateOccupancySnapshotAndReturn(0);
+        BranchPluginOfAPC_->ForceOccupancyUpdateAndReturn(0);
         BranchPluginOfAPC_->MakeAPCBranchOwned();
         BranchPluginOfAPC_->ResetTotalCASFailureForThisBranch();
         UpdateProducerCursorPlacement(static_cast<uint32_t>(PayloadBegin()));
@@ -385,7 +385,7 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        BranchPluginOfAPC_->UpdateOccupancySnapshotAndReturn(NO_VAL);
+        BranchPluginOfAPC_->ForceOccupancyUpdateAndReturn(NO_VAL);
         if (BranchPluginOfAPC_->ShouldSplitNow())
         {
             BranchPluginOfAPC_->TurnOnFlags(static_cast<uint32_t>(PackedCellBranchPlugin::APCFlags::SATURATED));
@@ -569,6 +569,133 @@ namespace PredictedAdaptedEncoding
         return nullptr;
     }
 
+    uint32_t AdaptivePackedCellContainer::ProducerORConsumerCursorSetAndGet_(std::optional<uint32_t> cursor_placement, int32_t increment_or_decrement_of_cursor, 
+        bool* did_changed_easy_return, const PackedCellBranchPlugin::MetaIndexOfAPCBranch cursors_meta_idx
+    ) noexcept
+    {
+        if (!BranchPluginOfAPC_)
+        {
+            if (did_changed_easy_return)
+            {
+                *did_changed_easy_return = false;
+            }
+            return PackedCellBranchPlugin::BRANCH_SENTINAL;
+        }
+        if (GetPayloadEnd() <= PayloadBegin())
+        {
+            if (did_changed_easy_return)
+            {
+                *did_changed_easy_return = false;
+            }
+            return PackedCellBranchPlugin::BRANCH_SENTINAL;
+        }
+        
+        while (true)
+        {
+            const uint32_t current_cursor_placement = BranchPluginOfAPC_->ReadMetaCellValue32(cursors_meta_idx);
+            uint32_t desired_cursor_place = current_cursor_placement;
+            if (cursor_placement.has_value())
+            {
+                desired_cursor_place = cursor_placement.value();
+            }
+            else if (increment_or_decrement_of_cursor != 0)
+            {
+                if (current_cursor_placement == PackedCellBranchPlugin::BRANCH_SENTINAL)
+                {
+                    if (did_changed_easy_return)
+                    {
+                        *did_changed_easy_return = false;
+                    }
+                    return current_cursor_placement;
+                }
+                const int64_t winded_cursor = static_cast<int64_t>(current_cursor_placement) + static_cast<int64_t>(increment_or_decrement_of_cursor);
+                if (winded_cursor < static_cast<int64_t>(PayloadBegin()))
+                {
+                    desired_cursor_place = PayloadBegin();
+                }
+                else if (winded_cursor >= static_cast<int64_t>(GetPayloadEnd()))
+                {
+                    desired_cursor_place = static_cast<uint32_t>(GetPayloadEnd() - 1u);
+                }
+                else
+                {
+                    desired_cursor_place = static_cast<uint32_t>(winded_cursor);
+                }
+            }
+            else
+            {
+                if (did_changed_easy_return)
+                {
+                    *did_changed_easy_return = false;
+                }
+                return current_cursor_placement;
+            }
+            
+            if (desired_cursor_place < PayloadBegin())
+            {
+                desired_cursor_place = PayloadBegin();
+            }
+            else if (desired_cursor_place >= GetPayloadEnd())
+            {
+                desired_cursor_place = static_cast<uint32_t>(GetPayloadEnd() - 1u);
+            }
+
+            if (desired_cursor_place == current_cursor_placement)
+            {
+                if (did_changed_easy_return)
+                {
+                    *did_changed_easy_return = false;
+                }
+                return current_cursor_placement;
+            }
+            if (BranchPluginOfAPC_->UpdateBranchMeta32CAS(cursors_meta_idx, current_cursor_placement, desired_cursor_place))
+            {
+                if (did_changed_easy_return)
+                {
+                    *did_changed_easy_return = true;
+                }
+                return desired_cursor_place;
+            }
+        }
+    }
     
+    size_t AdaptivePackedCellContainer::OccupancyAddOrSubAndGetAfterChange(int delta) noexcept
+    {
+        if (!BranchPluginOfAPC_)
+        {
+            return SIZE_MAX;
+        }
+
+        if (delta == 0)
+        {
+            return static_cast<size_t>(BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT));
+        }
+        while (true)
+        {
+            uint32_t current_occupancy = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT);
+            if (current_occupancy == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            {
+                return PackedCellBranchPlugin::BRANCH_SENTINAL;
+            }
+            
+            int64_t next_occupancy_winded = static_cast<int64_t>(current_occupancy) + static_cast<int64_t>(delta);
+            if (next_occupancy_winded < 0)
+            {
+                next_occupancy_winded = 0;
+            }
+            constexpr int64_t high_val = static_cast<int64_t>(PackedCellBranchPlugin::BRANCH_SENTINAL - 1u);
+            if (next_occupancy_winded > high_val)
+            {
+                next_occupancy_winded = high_val;
+            }
+            
+            uint32_t next_occupancy = static_cast<uint32_t>(next_occupancy_winded);
+            if (BranchPluginOfAPC_->UpdateBranchMeta32CAS(PackedCellBranchPlugin::MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT, current_occupancy, next_occupancy))
+            {
+                return static_cast<size_t>(next_occupancy);
+            }
+        }
+    }
+
 
 }

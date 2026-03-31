@@ -253,14 +253,9 @@ static bool PublishTaskIdCell(
                     packed64_t published_cell = MakePublishedTaskCellWithStamp16(task_id, apc_mannager_address);
                     apc_address.BackingPtr[idx].store(published_cell, MoStoreSeq_);
                     apc_address.BackingPtr[idx].notify_all();
-                    uint32_t occupancy_after_1_increase = static_cast<uint32_t>(apc_address.OccupancyAddOrSubAndGetAfterChange(+1));
+                    apc_address.OccupancyAddOrSubAndGetAfterChange(+1);
                     if (apc_address.GetBranchPlugin()->ShouldSplitNow())
                     {
-                        apc_mannager_address.RequestBranchCreationForTheAdaptivePackedCellContainer(&apc_address);
-                    }
-                    if (apc_address.GetBranchPlugin()->ShouldSplitNow())
-                    {
-                        apc_address.GetBranchPlugin()->UpdateOccupancySnapshotAndReturn(occupancy_after_1_increase);
                         apc_mannager_address.RequestBranchCreationForTheAdaptivePackedCellContainer(&apc_address);
                     }
                     return true;

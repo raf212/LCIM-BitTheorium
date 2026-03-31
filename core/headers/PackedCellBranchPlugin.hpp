@@ -394,7 +394,7 @@ public:
         }
     }
 
-    uint32_t UpdateOccupancySnapshotAndReturn(uint32_t new_occupancy) noexcept
+    uint32_t ForceOccupancyUpdateAndReturn(uint32_t new_occupancy) noexcept
     {
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT, new_occupancy);
         uint32_t updated_occupancy = ReadMetaCellValue32(MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT);

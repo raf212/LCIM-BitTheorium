@@ -242,6 +242,51 @@ public:
         return PackedCellContainerPtr_[index].compare_exchange_strong(expected_packed, desired_packed, OnExchangeSuccess, OnExchangeFailure);
     }
 
+    inline bool JustUpdateValueOfMeta32(
+        MetaIndexOfAPCBranch idx,
+        uint32_t expected_value,
+        uint32_t desired_value,
+        bool refresh_clock16 = true
+    ) noexcept
+    {
+        if (!ValidMeteIdx_(idx) || idx == MetaIndexOfAPCBranch::LOCAL_CLOCK48)
+        {
+            return false;
+        }
+        const size_t index = static_cast<size_t>(idx);
+        packed64_t expected_packed = PackedCellContainerPtr_[index].load(MoLoad_);
+        if (PackedCell64_t::ExtractValue32(expected_packed) != expected_value)
+        {
+            return false;
+        }
+        if (PackedCell64_t::ExtractLocalityFromPacked(expected_packed) == PackedCellLocalityTypes::ST_CLAIMED)
+        {
+            return false;
+        }
+        strl16_t current_strl = PackedCell64_t::ExtractSTRL(expected_packed);
+        clk16_t current_clock16 = PackedCell64_t::ExtractClk16(expected_packed);
+        packed64_t desired_packed = PackedCell64_t::ComposeValue32u_64(desired_value, current_clock16, current_strl);
+        if (refresh_clock16 && MasterClockConfPtr_)
+        {
+            desired_packed = MasterClockConfPtr_->ComposeValue32WithCurrentThreadStamp16(
+                desired_value,
+                PackedCell64_t::ExtractRelMaskFromPacked(expected_packed),
+                PackedCell64_t::ExtractPriorityFromPacked(expected_packed),
+                PackedCell64_t::ExtractLocalityFromPacked(expected_packed),
+                static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(expected_packed)),
+                PackedCell64_t::ExtractPCellDataTypeFromPacked(expected_packed)
+            );
+        }
+        
+        return PackedCellContainerPtr_[index].compare_exchange_strong(
+            expected_packed,
+            desired_packed,
+            OnExchangeSuccess,
+            OnExchangeFailure
+        );
+        
+    }
+
     PackedCellBranchPlugin() noexcept = default;
 
     void Bind(std::atomic<packed64_t>* packed_cells, size_t capacity, MasterClockConf* master_clock_ptr) noexcept
@@ -540,6 +585,12 @@ public:
     {
         while (true)
         {
+            const uint32_t current_flags = ReadMetaCellValue32(MetaIndexOfAPCBranch::FLAGS);
+            if (current_flags == BRANCH_SENTINAL)
+            {
+                return false;
+            }
+
             bool is_already_in_flight = HasThisFlag(APCFlags::SPLIT_INFLIGHT);
             if (is_already_in_flight)
             {

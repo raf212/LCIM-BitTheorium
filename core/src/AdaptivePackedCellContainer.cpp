@@ -265,14 +265,14 @@ namespace PredictedAdaptedEncoding
             return;
         }
         uint32_t current_region_size = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_SIZE);
-        bool ok = BranchPluginOfAPC_->UpdateBranchMeta32CAS(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_SIZE, current_region_size, static_cast<uint32_t>(region_size));
+        bool ok = BranchPluginOfAPC_->JustUpdateValueOfMeta32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_SIZE, current_region_size, static_cast<uint32_t>(region_size));
         if (!ok)
         {
             return;
         }
         size_t number_of_region = ((GetPayloadCapacity() + region_size - 1) / region_size);
         uint32_t current_number_of_region = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_COUNT);
-        ok = BranchPluginOfAPC_->UpdateBranchMeta32CAS(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_COUNT, current_number_of_region, static_cast<uint32_t>(number_of_region));
+        ok = BranchPluginOfAPC_->JustUpdateValueOfMeta32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_COUNT, current_number_of_region, static_cast<uint32_t>(number_of_region));
         if (!ok)
         {
             return;
@@ -648,7 +648,7 @@ namespace PredictedAdaptedEncoding
                 }
                 return current_cursor_placement;
             }
-            if (BranchPluginOfAPC_->UpdateBranchMeta32CAS(cursors_meta_idx, current_cursor_placement, desired_cursor_place))
+            if (BranchPluginOfAPC_->JustUpdateValueOfMeta32(cursors_meta_idx, current_cursor_placement, desired_cursor_place))
             {
                 if (did_changed_easy_return)
                 {
@@ -672,7 +672,8 @@ namespace PredictedAdaptedEncoding
         }
         while (true)
         {
-            uint32_t current_occupancy = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT);
+            packed64_t current_occupancy_cell = BranchPluginOfAPC_->ReadFullMetaCell(PackedCellBranchPlugin::MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT);
+            val32_t current_occupancy = PackedCell64_t::ExtractValue32(current_occupancy_cell);
             if (current_occupancy == PackedCellBranchPlugin::BRANCH_SENTINAL)
             {
                 return PackedCellBranchPlugin::BRANCH_SENTINAL;
@@ -690,10 +691,16 @@ namespace PredictedAdaptedEncoding
             }
             
             uint32_t next_occupancy = static_cast<uint32_t>(next_occupancy_winded);
-            if (BranchPluginOfAPC_->UpdateBranchMeta32CAS(PackedCellBranchPlugin::MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT, current_occupancy, next_occupancy))
+            if (BranchPluginOfAPC_->JustUpdateValueOfMeta32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT, current_occupancy, next_occupancy))
             {
                 return static_cast<size_t>(next_occupancy);
             }
+            if (APCManagerPtr_)
+            {
+                auto& backoff = APCManagerPtr_->GetManagersAdaptiveBackoff();
+                backoff.AdaptiveBackOffPacked(current_occupancy_cell);
+            }
+            
         }
     }
 

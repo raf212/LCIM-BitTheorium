@@ -34,6 +34,7 @@ public:
     static constexpr uint32_t EOF_HEADER = 0x72616600;//big-endian
     static constexpr uint32_t BRANCH_VERSION = 1u;
     static constexpr uint32_t BRANCH_SENTINAL = UINT32_MAX;
+    static constexpr packed64_t APC_SENTENAL = UINT64_MAX;
 
     enum class TreePosition : uint32_t
     {
@@ -102,15 +103,25 @@ public:
         RESERVED_33 = 33,
         EOF_APC_HEADER = 63
     };
+
+    inline bool ValidMeteIdx(MetaIndexOfAPCBranch idx) const noexcept
+    {
+        return PackedCellContainerPtr_ && static_cast<size_t>(idx) < BranchCapacity_ && static_cast<size_t>(idx) < METACELL_COUNT;
+    }
+
+    packed64_t ReadFullMetaCell(MetaIndexOfAPCBranch idx) noexcept
+    {
+        if (ValidMeteIdx(idx))
+        {
+            return PackedCellContainerPtr_[static_cast<size_t>(idx)].load(MoLoad_);
+        }
+        return APC_SENTENAL;
+    }
+    
 private:
     std::atomic<packed64_t>* PackedCellContainerPtr_{nullptr};
     size_t BranchCapacity_{0};
     MasterClockConf* MasterClockConfPtr_{nullptr};
-
-    inline bool ValidMeteIdx_(MetaIndexOfAPCBranch idx) const noexcept
-    {
-        return PackedCellContainerPtr_ && static_cast<size_t>(idx) < BranchCapacity_ && static_cast<size_t>(idx) < METACELL_COUNT;
-    }
 
     inline packed64_t PackValue32InPackedCellwithClock16_(
         val32_t value32,
@@ -137,7 +148,7 @@ private:
     ) noexcept
     {
         size_t index = static_cast<size_t>(idx);
-        if (!ValidMeteIdx_(idx))
+        if (!ValidMeteIdx(idx))
         {
             return;
         }
@@ -162,7 +173,7 @@ private:
             {
                 return true;
             }
-            if (UpdateBranchMeta32CAS(MetaIndexOfAPCBranch::FLAGS, current_flags, next_flags))
+            if (JustUpdateValueOfMeta32(MetaIndexOfAPCBranch::FLAGS, current_flags, next_flags))
             {
                 return true;
             }
@@ -215,33 +226,6 @@ public:
         PackedCellContainerPtr_[idx].notify_all();
     }
 
-    inline bool UpdateBranchMeta32CAS(
-        MetaIndexOfAPCBranch idx,
-        uint32_t expected_value,
-        uint32_t desired_value,
-        tag8_t priority = ZERO_PRIORITY,
-        tag8_t rel_mask = REL_MASK4_NONE
-    ) noexcept
-    {
-        if (!ValidMeteIdx_(idx))
-        {
-            return false;
-        }
-        const size_t index = static_cast<size_t>(idx);
-        packed64_t expected_packed = PackedCellContainerPtr_[index].load(MoLoad_);
-        if (PackedCell64_t::ExtractValue32(expected_packed) != expected_value)
-        {
-            return false;
-        }
-
-        packed64_t desired_packed = PackValue32InPackedCellwithClock16_(desired_value, priority, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, PackedCellDataType::UnsignedPCellDataType);
-        if (PackedCell64_t::ExtractLocalityFromPacked(expected_packed) == PackedCellLocalityTypes::ST_CLAIMED)
-        {
-            return false;
-        }
-        return PackedCellContainerPtr_[index].compare_exchange_strong(expected_packed, desired_packed, OnExchangeSuccess, OnExchangeFailure);
-    }
-
     inline bool JustUpdateValueOfMeta32(
         MetaIndexOfAPCBranch idx,
         uint32_t expected_value,
@@ -249,7 +233,7 @@ public:
         bool refresh_clock16 = true
     ) noexcept
     {
-        if (!ValidMeteIdx_(idx) || idx == MetaIndexOfAPCBranch::LOCAL_CLOCK48)
+        if (!ValidMeteIdx(idx) || idx == MetaIndexOfAPCBranch::LOCAL_CLOCK48)
         {
             return false;
         }
@@ -373,7 +357,7 @@ public:
 
     val32_t ReadMetaCellValue32(MetaIndexOfAPCBranch idx) noexcept
     {
-        if (!ValidMeteIdx_(idx) || idx == MetaIndexOfAPCBranch::LOCAL_CLOCK48)
+        if (!ValidMeteIdx(idx) || idx == MetaIndexOfAPCBranch::LOCAL_CLOCK48)
         {
             return NO_VAL;
         }
@@ -408,7 +392,7 @@ public:
             return false;
         }
         
-        return UpdateBranchMeta32CAS(current_tree_position, BRANCH_SENTINAL, child_id);
+        return JustUpdateValueOfMeta32(current_tree_position, BRANCH_SENTINAL, child_id);
     }
 
     bool TryIncrementOrDecrementActiveThreadCount(int8_t change_count) noexcept
@@ -432,7 +416,7 @@ public:
             {
                 return false;
             }
-            if (UpdateBranchMeta32CAS(MetaIndexOfAPCBranch::CURRENT_ACTIVE_THREADS, current_thread_count, current_thread_count + change_count))
+            if (JustUpdateValueOfMeta32(MetaIndexOfAPCBranch::CURRENT_ACTIVE_THREADS, current_thread_count, current_thread_count + change_count))
             {
                 return true;
             }
@@ -453,7 +437,7 @@ public:
         {
             val32_t current_branch_rel_mask = ReadMetaCellValue32(MetaIndexOfAPCBranch::READY_REL_MASK);
             uint32_t next = current_branch_rel_mask | static_cast<uint32_t>(rel_mask & RELMASK_MASK);
-            if (UpdateBranchMeta32CAS(MetaIndexOfAPCBranch::READY_REL_MASK, current_branch_rel_mask, next))
+            if (JustUpdateValueOfMeta32(MetaIndexOfAPCBranch::READY_REL_MASK, current_branch_rel_mask, next))
             {
                 return;
             }
@@ -630,7 +614,7 @@ public:
                 return BRANCH_SENTINAL;
             }
             
-            if (UpdateBranchMeta32CAS(MetaIndexOfAPCBranch::TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH, current_total_cas_failure, current_total_cas_failure + increment))
+            if (JustUpdateValueOfMeta32(MetaIndexOfAPCBranch::TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH, current_total_cas_failure, current_total_cas_failure + increment))
             {
                 return current_total_cas_failure + increment;
             }   

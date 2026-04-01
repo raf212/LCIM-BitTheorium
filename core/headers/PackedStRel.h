@@ -22,6 +22,9 @@
 #if defined(_MSC_VER)
     #include <intrin.h>
 #endif
+//STRL->[priority->4 | locality->3 | PackedCell Type->1 | relmask->4 | reloffset->2 | celldatatype->2 ]-> = 16 bit->Bit distribution = [12 | 9 | 8 | 4 | 2 | 0 ]
+//clk16 =>16 Bits
+
 
 namespace PredictedAdaptedEncoding {
     using packed64_t = uint64_t;
@@ -39,6 +42,7 @@ namespace PredictedAdaptedEncoding {
     #define DEFAULT_INTERNAL_PRIORITY 8u
     #define DEFAULT_PAIRED_HEAD_HALF_PRIORITY 10u
     #define MAX_TRIES 128
+    #define SIZE_OF_MODE_48 6u // 6 * 8 = 48
 
     static constexpr ::std::memory_order MoLoad_      = ::std::memory_order_acquire;
     static constexpr ::std::memory_order MoStoreSeq_  = ::std::memory_order_release;
@@ -53,7 +57,6 @@ namespace PredictedAdaptedEncoding {
     static constexpr unsigned STBITS   = 8u;
     static constexpr unsigned TOTAL_LOW = 48u;
 
-    //STRL->[priority->4 | locality->3 | PackedCell Type->1 | relmask->4 | reloffset->2 | celldatatype->2 ]-> = 16 bit->Bit distribution = [12 | 9 | 8 | 4 | 2 | 0 ]
     static constexpr unsigned PRIO_LEN = 4u;
     static constexpr unsigned LOCALITY_LEN = 3u;
     static constexpr unsigned PCTYPE_LEN = 1u;
@@ -76,19 +79,8 @@ namespace PredictedAdaptedEncoding {
     static constexpr tag8_t LOCALITY_MASK = static_cast<tag8_t>((1u << LOCALITY_LEN) - 1u);
     static constexpr tag8_t PRIORITY_MASK = static_cast<tag8_t>((1u << PRIO_LEN) - 1u);
     
-    //priority(4 bit)
     static constexpr tag8_t PRIORITY_MIN = 0;
     static constexpr uint8_t MAX_PRIORITY   = static_cast<tag8_t>(PRIORITY_MASK);
-
-    // // locality (4-bit)
-    // static constexpr tag8_t ST_IDLE        = 0x0;
-    // static constexpr tag8_t ST_PUBLISHED   = 0x1;
-    // static constexpr tag8_t ST_EXCEPTION_BIT_FAULTY = 0x2;
-    // static constexpr tag8_t ST_CLAIMED     = 0x3;
-    // static constexpr tag8_t ST_PROCESSING  = 0x4;
-    // static constexpr tag8_t ST_COMPLETE    = 0x5;
-    // static constexpr tag8_t ST_RETIRED     = 0x6;
-    // static constexpr tag8_t ST_EPOCH_BUMP  = 0x7;
 
     enum class PackedCellLocalityTypes : tag8_t
     {
@@ -137,38 +129,31 @@ namespace PredictedAdaptedEncoding {
         RELOFFSET_STANDALONE_PTR = 2,
         RESERVED = 3
     };
-    
-    template <typename pcdt32>
-    static inline PackedCellDataType PCellTypeCheckUser()
+
+    template<typename pcdt>
+    struct PackedCellTypeBridge
     {
-        static_assert(std::is_trivially_copyable_v<pcdt32>, "Passed value Must be Trivially Copyable ");
-        PackedCellDataType expected_pcdt;
-        if constexpr (std::is_floating_point_v<pcdt32>)
-        {
-            expected_pcdt = PackedCellDataType::FloatPCellDataType;
-        }
-        else if constexpr (std::is_integral_v<pcdt32> && std::is_signed_v<pcdt32> 
-            && !std::is_same_v<pcdt32, char> && !std::is_same_v<pcdt32, signed char>
-        )
-        {
-            expected_pcdt = PackedCellDataType::IntPCellDataType;
-        }
-        else if constexpr (std::is_integral_v<pcdt32> && std::is_unsigned_v<pcdt32> 
-            && !std::is_same_v<pcdt32, unsigned char>
-        )
-        {
-            expected_pcdt = PackedCellDataType::UnsignedPCellDataType;
-        }
-        else if constexpr (std::is_same_v<pcdt32, char> || std::is_same_v<pcdt32, signed char> || std::is_same_v<pcdt32, unsigned char>)
-        {
-            expected_pcdt = PackedCellDataType::CharPCellDataType;
-        }
-        else
-        {
-            expected_pcdt = PackedCellDataType::UnsignedPCellDataType;
-        }
-        return expected_pcdt;
-    }
+        static_assert(std::is_trivially_copyable_v<pcdt>, "Packed Cell allowes Trivially copyable 32/48 bit unsigned, int, float, char");
+        using Decayed = std::remove_cv_t<std::remove_reference_t<pcdt>>;
+        static constexpr bool IS_CHAR_LIKE = std::is_same_v<Decayed, char> || std::is_same_v<Decayed, signed char> || std::is_same_v<Decayed, unsigned char>;
+        static constexpr bool IS_FLOAT_LIKE = std::is_floating_point_v<Decayed>;
+        static constexpr bool IS_SIGNED_LIKE = std::is_integral_v<Decayed> && std::is_signed_v<Decayed> && !IS_CHAR_LIKE;
+        static constexpr bool IS_UNSIGNED_LIKE = std::is_integral_v<Decayed> && std::is_unsigned_v<Decayed> && !IS_CHAR_LIKE;
+
+
+        static constexpr PackedCellDataType DType  = 
+            IS_FLOAT_LIKE           ? PackedCellDataType::FloatPCellDataType    :
+            IS_SIGNED_LIKE          ? PackedCellDataType::IntPCellDataType      :
+            IS_UNSIGNED_LIKE        ? PackedCellDataType::UnsignedPCellDataType :
+            IS_CHAR_LIKE            ? PackedCellDataType::CharPCellDataType     :
+                                    PackedCellDataType::UnsignedPCellDataType   ;
+        static constexpr bool FITS_MODE_32 = (sizeof(Decayed) <= sizeof(val32_t));
+        static constexpr bool FITS_MODE_48 = (sizeof(Decayed) <= SIZE_OF_MODE_48);
+
+    };
+
+    template<typename pcdt>
+    inline constexpr PackedCellDataType BridgeOfPackedCellDataType_v = PackedCellTypeBridge<pcdt>::DType;
 
     inline constexpr strl16_t MakeSTRL4_t(tag8_t priority, PackedCellLocalityTypes locality, tag8_t rel_mask, tag8_t rel_offset, PackedMode pc_type = PackedMode::MODE_VALUE32, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
     {

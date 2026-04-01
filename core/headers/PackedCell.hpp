@@ -49,7 +49,7 @@ namespace PredictedAdaptedEncoding
         template <typename pcdt32>
         static inline packed64_t ComposeValue32X_64(pcdt32 value32, clk16_t clk, strl16_t strl) noexcept
         {
-            PackedCellDataType expected_pcdt = PCellTypeCheckUser<pcdt32>();
+            constexpr PackedCellDataType expected_pcdt = BridgeOfPackedCellDataType_v<pcdt32>;
             static_assert(sizeof(pcdt32) <= (VALBITS / LN_OF_BYTE_IN_BITS), "Data Type length should be less than 32 bits\n");
             PackedMode pcmode = static_cast<PackedMode>(ExtractPCellTypeFromSTRL(strl));
             if (pcmode != PackedMode::MODE_VALUE32)
@@ -70,7 +70,7 @@ namespace PredictedAdaptedEncoding
         template <typename pcdt32_48>
         static inline packed64_t ComposeCLKVal48X_64(pcdt32_48 value48, strl16_t strl) noexcept
         {
-            PackedCellDataType expected_pcdt = PCellTypeCheckUser<pcdt32_48>();
+            constexpr PackedCellDataType expected_pcdt = BridgeOfPackedCellDataType_v<pcdt32_48>;
             static_assert(sizeof(pcdt32_48) <= (CLK_B48 / LN_OF_BYTE_IN_BITS), "Passed Datat Type length should be less than 48 bits\n");
             PackedMode pcmode = static_cast<PackedMode>(ExtractPCellTypeFromSTRL(strl));
             if (pcmode != PackedMode::MODE_CLKVAL48)
@@ -89,7 +89,7 @@ namespace PredictedAdaptedEncoding
         template <typename pcdt>
         static inline pcdt ExtractAnyPackedValueX(packed64_t p) noexcept
         {
-            PackedCellDataType expected_pcdt = PCellTypeCheckUser<pcdt>();
+            constexpr PackedCellDataType expected_pcdt = BridgeOfPackedCellDataType_v<pcdt>;
             strl16_t sr = ExtractSTRL(p);
             PackedMode pcmode = static_cast<PackedMode>(ExtractPCellTypeFromSTRL(sr));
             if (pcmode == PackedMode::MODE_VALUE32)

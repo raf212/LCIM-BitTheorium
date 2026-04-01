@@ -35,15 +35,10 @@ namespace PredictedAdaptedEncoding {
     #define MAX_VAL 64u
     #define LN_OF_BYTE_IN_BITS 8u
     #define MASK_8_BIT  0xFFu
-    #define RELATION_MASK_5 0x1Fu
-    #define RELATION_PRIORITY 0x07u
     #define ID_HASH_GOLDEN_CONST 0x9E3779B97F4A7C15ull 
-    #define ATOMIC_THRESHOLD 64u
     #define DEFAULT_INTERNAL_PRIORITY 8u
-    #define PTR_HIGH16 16u
     #define DEFAULT_PAIRED_HEAD_HALF_PRIORITY 10u
-
-    static constexpr unsigned MASK16B_HIGH8B_0 = 0xFF00u;
+    #define MAX_TRIES 128
 
     static constexpr ::std::memory_order MoLoad_      = ::std::memory_order_acquire;
     static constexpr ::std::memory_order MoStoreSeq_  = ::std::memory_order_release;
@@ -56,10 +51,7 @@ namespace PredictedAdaptedEncoding {
     static constexpr unsigned CLK_B16  = 16u;
     static constexpr unsigned STRL_B16  = 16u;
     static constexpr unsigned STBITS   = 8u;
-    static constexpr unsigned RELBITS  = 8u;
     static constexpr unsigned TOTAL_LOW = 48u;
-    static constexpr unsigned MASK_OF_RELBIT = 5u;
-    static constexpr unsigned CLK48TO16_PACKED_ERROR = 16u;
 
     //STRL->[priority->4 | locality->3 | PackedCell Type->1 | relmask->4 | reloffset->2 | celldatatype->2 ]-> = 16 bit->Bit distribution = [12 | 9 | 8 | 4 | 2 | 0 ]
     static constexpr unsigned PRIO_LEN = 4u;

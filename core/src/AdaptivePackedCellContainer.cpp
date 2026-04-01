@@ -478,28 +478,7 @@ namespace PredictedAdaptedEncoding
             child_container->InitOwned(child_capacity, child_container_conf);
 
             const uint32_t child_brunch_id = child_container->GetBranchId();
-            const uint32_t parent_id_current_brunch_id = GetBranchId();
-            const uint32_t parent_depth_current_depth = BranchPluginOfAPC_->ReadMetaCellValue32(
-                PackedCellBranchPlugin::MetaIndexOfAPCBranch::BRANCH_DEPTH
-            );
-            uint32_t region_count = static_cast<uint32_t>(
-                region_size_of_current_branch == NO_VAL ? NO_VAL : ((child_capacity + region_size_of_current_branch -1) / region_size_of_current_branch)
-            );
-            child_container->GetBranchPlugin()->InitRootOrChildBranch(
-                child_brunch_id,
-                parent_id_current_brunch_id,
-                child_capacity,
-                branch_tree_position,
-                branch_split_threshold,
-                parent_depth_current_depth + 1u,
-                max_depth_of_container,
-                producer_block_size,
-                background_epoch_ms,
-                region_size_of_current_branch,
-                region_count,
-                static_cast<uint8_t>(BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::BRANCH_PRIORITY)),
-                ZERO_PRIORITY
-            );
+
             bool attached = false;
             if (branch_tree_position == PackedCellBranchPlugin::TreePosition::LEFT)
             {

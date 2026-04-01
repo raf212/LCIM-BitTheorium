@@ -153,13 +153,6 @@ PYBIND11_MODULE(atomiccim_bind, m) {
     //     return PackedCell64_t::SetRelOffsetInPacked(static_cast<packed64_t>(p), reloffset);
     // });
 
-    // AsValue: expose as bytes view (return python bytes representing 8 bytes)
-    m.def("packed_as_bytes", [](uint64_t p) {
-        char buf[8];
-        std::memcpy(buf, &p, sizeof(p));
-        return py::bytes(buf, sizeof(buf));
-    });
-
 
     // -------------------------
     // AtomicAdaptiveBackoff & helpers

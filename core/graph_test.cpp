@@ -80,13 +80,29 @@ namespace
         {
             return fanout.SelfPtr;
         }
-        graph_status.ForwardedToChild.fetch_add(1, std::memory_order_acq_rel);
-        if (fanout.LeftChildPtr && fanout.RightCgildPtr)
-        {
-            return ((produced_idx & 1u) == 0u) ? fanout.LeftChildPtr : fanout.RightCgildPtr;
-        }
-        
 
+        const size_t self_apc_occupancy = fanout.SelfPtr ? fanout.SelfPtr->OccupancyAddOrSubAndGetAfterChange() : SIZE_MAX;
+        const size_t left_child_apc_occupancy = fanout.LeftChildPtr ? fanout.LeftChildPtr->OccupancyAddOrSubAndGetAfterChange() : SIZE_MAX;
+        const size_t right_child_apc_occupancy = fanout.RightCgildPtr ? fanout.RightCgildPtr->OccupancyAddOrSubAndGetAfterChange() : SIZE_MAX;
+
+        AdaptivePackedCellContainer* best_target_ptr = fanout.SelfPtr;
+        size_t best_occupancy = self_apc_occupancy;
+        if (fanout.LeftChildPtr && left_child_apc_occupancy < best_occupancy)
+        {
+            best_target_ptr = fanout.LeftChildPtr;
+            best_occupancy = left_child_apc_occupancy;
+        }
+
+        if (fanout.RightCgildPtr && right_child_apc_occupancy < best_occupancy)
+        {
+            best_target_ptr = fanout.RightCgildPtr;
+            best_occupancy = right_child_apc_occupancy;
+        }
+        if (best_target_ptr != fanout.SelfPtr)
+        {
+            graph_status.ForwardedToChild.fetch_add(1, std::memory_order_acq_rel);
+        }
+        return best_target_ptr ? best_target_ptr : fanout.SelfPtr;
     }
 
 }

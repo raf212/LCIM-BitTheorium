@@ -346,7 +346,7 @@ int main()
     std::vector<uint64_t> base_primes = BuildBasePrimes(sqrt_limit);
 
     PackedCellContainerManager& apc_manager = PackedCellContainerManager::Instance();
-    apc_manager.StartPCCManager();
+    apc_manager.StartAPCManager();
 
     std::vector<std::pair<uint64_t, uint64_t>> task_ranges;
     for (uint64_t lo = FIRST_PRIME; lo <= NTH_ELEMENT; lo += BLOCK_SIZE)

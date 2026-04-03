@@ -105,4 +105,15 @@ namespace
         return best_target_ptr ? best_target_ptr : fanout.SelfPtr;
     }
 
+    int main()
+    {
+        std::ios::sync_with_stdio(true);
+        std::cout.setf(std::ios::unitbuf);
+        std::cerr.setf(std::ios::unitbuf);
+
+        PackedCellContainerManager& apc_manager = PackedCellContainerManager::Instance();
+        apc_manager.StartAPCManager();
+
+    }
+
 }

@@ -26,7 +26,7 @@ namespace PredictedAdaptedEncoding
                 return *inst;
             }
 
-            void StartPCCManager();
+            void StartAPCManager();
             void StopPCCManager();
             ThreadHandlePCCM RegisterAPCThread();
             void UnRegisterAPCThread(const ThreadHandlePCCM& thread_handle) noexcept;

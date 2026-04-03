@@ -52,7 +52,7 @@ namespace PredictedAdaptedEncoding
         
     }
 
-    void PackedCellContainerManager::StartPCCManager()
+    void PackedCellContainerManager::StartAPCManager()
     {
         bool expect = false;
         if (!RunningManager_.compare_exchange_strong(expect, true, std::memory_order_acq_rel))

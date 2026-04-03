@@ -75,7 +75,7 @@ namespace PredictedAdaptedEncoding
         {
             try
             {
-                pointer_of_global_apc_manager->StartPCCManager();
+                pointer_of_global_apc_manager->StartAPCManager();
                 APCManagerPtr_ = pointer_of_global_apc_manager;
             }
             catch(...)

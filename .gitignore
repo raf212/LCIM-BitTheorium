@@ -9,3 +9,5 @@ Dump
 /venv
 /core/pybind11
 /core/out
+/package-lock.json
+/package.json

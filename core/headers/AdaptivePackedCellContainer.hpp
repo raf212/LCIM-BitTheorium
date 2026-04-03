@@ -13,6 +13,7 @@
 namespace PredictedAdaptedEncoding
 {
 static_assert(__cpp_lib_atomic_wait, "C++ must suppoet atomic wait/notify");
+#define CURRENT_BRANCHING_CLIENT  3
 
 struct AcquirePairedPointerStruct
 {
@@ -325,6 +326,41 @@ public:
         }
         return false;
     }
+
+    //has to replaced with node logic
+    struct BinaryFanOutView
+    {
+        AdaptivePackedCellContainer* SelfPtr = nullptr;
+        AdaptivePackedCellContainer* LeftChildPtr = nullptr;
+        AdaptivePackedCellContainer* RightCgildPtr = nullptr;
+    };
+
+    std::optional<BinaryFanOutView> GetAFanOut(
+    ) noexcept
+    {
+        if (!IfAPCBranchValid() || !APCManagerPtr_)
+        {
+            return std::nullopt;
+        }
+
+        BinaryFanOutView out_binary_fanout{};
+        out_binary_fanout.SelfPtr = this;
+
+        const uint32_t left_branch_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::LEFT_CHILD_ID);
+        const uint32_t right_branch_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::RIGHT_CHILD_ID);
+
+        if (left_branch_id != PackedCellBranchPlugin::BRANCH_SENTINAL)
+        {
+            out_binary_fanout.LeftChildPtr = APCManagerPtr_->GetAPCPtrFromBranchId(left_branch_id);
+        }
+        
+        if (right_branch_id != PackedCellBranchPlugin::BRANCH_SENTINAL)
+        {
+            out_binary_fanout.RightCgildPtr = APCManagerPtr_->GetAPCPtrFromBranchId(right_branch_id);
+        }
+        return out_binary_fanout;
+    }
+    
 
 };
 

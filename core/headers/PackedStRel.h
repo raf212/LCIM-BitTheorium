@@ -130,11 +130,11 @@ namespace PredictedAdaptedEncoding {
         RESERVED = 3
     };
 
-    template<typename pcdt>
+    template<typename PCDT>
     struct PackedCellTypeBridge
     {
-        static_assert(std::is_trivially_copyable_v<pcdt>, "Packed Cell allowes Trivially copyable 32/48 bit unsigned, int, float, char");
-        using Decayed = std::remove_cv_t<std::remove_reference_t<pcdt>>;
+        static_assert(std::is_trivially_copyable_v<PCDT>, "Packed Cell allowes Trivially copyable 32/48 bit unsigned, int, float, char");
+        using Decayed = std::remove_cv_t<std::remove_reference_t<PCDT>>;
         static constexpr bool IS_CHAR_LIKE = std::is_same_v<Decayed, char> || std::is_same_v<Decayed, signed char> || std::is_same_v<Decayed, unsigned char>;
         static constexpr bool IS_FLOAT_LIKE = std::is_floating_point_v<Decayed>;
         static constexpr bool IS_SIGNED_LIKE = std::is_integral_v<Decayed> && std::is_signed_v<Decayed> && !IS_CHAR_LIKE;
@@ -149,11 +149,12 @@ namespace PredictedAdaptedEncoding {
                                     PackedCellDataType::UnsignedPCellDataType   ;
         static constexpr bool FITS_MODE_32 = (sizeof(Decayed) <= sizeof(val32_t));
         static constexpr bool FITS_MODE_48 = (sizeof(Decayed) <= SIZE_OF_MODE_48);
+        static constexpr bool IS_SUPPORTED_TYPE = IS_FLOAT_LIKE || IS_SIGNED_LIKE || IS_UNSIGNED_LIKE || IS_CHAR_LIKE;
 
     };
 
-    template<typename pcdt>
-    inline constexpr PackedCellDataType BridgeOfPackedCellDataType_v = PackedCellTypeBridge<pcdt>::DType;
+    template<typename PCDT>
+    inline constexpr PackedCellDataType BridgeOfPackedCellDataType_v = PackedCellTypeBridge<PCDT>::DType;
 
     inline constexpr strl16_t MakeSTRL4_t(tag8_t priority, PackedCellLocalityTypes locality, tag8_t rel_mask, tag8_t rel_offset, PackedMode pc_type = PackedMode::MODE_VALUE32, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
     {

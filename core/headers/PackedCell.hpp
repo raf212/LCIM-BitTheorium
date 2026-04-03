@@ -17,6 +17,29 @@ namespace PredictedAdaptedEncoding
 
     struct PackedCell64_t 
     {
+
+        private:
+        template <typename pcdt32>
+        static inline packed64_t ComposeValue32M_64_(pcdt32 value32, clk16_t clk, strl16_t strl) noexcept
+        {
+            constexpr PackedCellDataType expected_pcdt = BridgeOfPackedCellDataType_v<pcdt32>;
+            static_assert(sizeof(pcdt32) <= (VALBITS / LN_OF_BYTE_IN_BITS), "Data Type length should be less than 32 bits\n");
+            PackedMode pcmode = static_cast<PackedMode>(ExtractPCellTypeFromSTRL(strl));
+            if (pcmode != PackedMode::MODE_VALUE32)
+            {
+                return ComposeValue32u_64(0u, 0u, MakeSTRLMode32_t(MAX_PRIORITY, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY, 0u, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, PackedCellDataType::UnsignedPCellDataType)); // assert(false)->is an option
+            }
+            PackedCellDataType strl_pcdt = ExtractPCellDataTypeFromSTRL(strl);
+            assert(strl_pcdt == expected_pcdt && "STRL PackedCellDataType mismatch; ComposeValue32M_64_ == MODE_VALUE32\n");
+
+            val32_t valbits32 = 0u;
+            valbits32 = BitCastMaybe<val32_t>(value32);
+            packed64_t p = (packed64_t(valbits32) & MaskBits(VALBITS));
+            p = SetCLK16InPacked(p, clk);
+            p = SetSTRLInPacked(p, strl);
+            return p;
+        }
+        public:
         static inline packed64_t MakeInitialPacked(PackedMode mode, PackedCellDataType pcdata_type = PackedCellDataType::UnsignedPCellDataType) noexcept
         {
             packed64_t p = 0;
@@ -45,26 +68,22 @@ namespace PredictedAdaptedEncoding
             p = SetSTRLInPacked(p, strl);
             return p;
         }
-        
-        template <typename pcdt32>
-        static inline packed64_t ComposeValue32X_64(pcdt32 value32, clk16_t clk, strl16_t strl) noexcept
-        {
-            constexpr PackedCellDataType expected_pcdt = BridgeOfPackedCellDataType_v<pcdt32>;
-            static_assert(sizeof(pcdt32) <= (VALBITS / LN_OF_BYTE_IN_BITS), "Data Type length should be less than 32 bits\n");
-            PackedMode pcmode = static_cast<PackedMode>(ExtractPCellTypeFromSTRL(strl));
-            if (pcmode != PackedMode::MODE_VALUE32)
-            {
-                return ComposeValue32u_64(0u, 0u, MakeSTRLMode32_t(MAX_PRIORITY, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY, 0u, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, PackedCellDataType::UnsignedPCellDataType)); // assert(false)->is an option
-            }
-            PackedCellDataType strl_pcdt = ExtractPCellDataTypeFromSTRL(strl);
-            assert(strl_pcdt == expected_pcdt && "STRL PackedCellDataType mismatch; ComposeValue32X_64 == MODE_VALUE32\n");
 
-            val32_t valbits32 = 0u;
-            valbits32 = BitCastMaybe<val32_t>(value32);
-            packed64_t p = (packed64_t(valbits32) & MaskBits(VALBITS));
-            p = SetCLK16InPacked(p, clk);
-            p = SetSTRLInPacked(p, strl);
-            return p;
+        template<typename PCDT>
+        static inline packed64_t ComposeModeValue32Typed(
+            PCDT value,
+            clk16_t in_cell_clock16,
+            tag8_t priority = ZERO_PRIORITY,
+            PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
+            tag8_t rel_mask = REL_MASK4_NONE,
+            RelOffsetMode32 reloffset = RelOffsetMode32::RELOFFSET_GENERIC_VALUE
+        )
+        {
+            static_assert(PackedCellTypeBridge<PCDT>::IS_SUPPORTED_TYPE, "Packed Cell allowes only unsigned, int, float, char\n");
+            static_assert(PackedCellTypeBridge<PCDT>::FITS_MODE_32, "Type too large for MODE_VALUE32 <= (4 byte/32 bit)\n");
+            constexpr PackedCellDataType PACKED_CELL_DTYPE = PackedCellTypeBridge<PCDT>::DType;
+            const strl16_t strl16_value32 = MakeSTRLMode32_t(priority, locality, rel_mask, reloffset, PACKED_CELL_DTYPE);
+            return ComposeValue32M_64_<PCDT>(value, in_cell_clock16, strl16_value32);
         }
 
         template <typename pcdt32_48>

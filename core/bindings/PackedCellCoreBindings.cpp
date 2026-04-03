@@ -89,18 +89,18 @@ PYBIND11_MODULE(atomiccim_bind, m) {
         return static_cast<uint64_t>(PackedCell64_t::ComposeCLKVal48X_64<float>(v, static_cast<strl16_t>(strl)));
     });
 
-    // // ---------- instantiate ComposeValue32X_64 for typical types ----------
+    // // ---------- instantiate ComposeValue32M_64_ for typical types ----------
     // m.def("compose_value32_u32", [](uint32_t v, uint16_t clk16, uint16_t strl) {
     //     return static_cast<uint64_t>(PackedCell64_t::ComposeValue32u_64(static_cast<val32_t>(v), static_cast<clk16_t>(clk16), static_cast<strl16_t>(strl)));
     // }, py::arg("value32"), py::arg("clk16"), py::arg("strl"));
 
 
     // m.def("compose_value32_i32", [](int32_t v, uint16_t clk16, uint16_t strl) -> uint64_t {
-    //     return static_cast<uint64_t>(PackedCell64_t::ComposeValue32X_64<int32_t>(v, static_cast<clk16_t>(clk16), static_cast<strl16_t>(strl)));
+    //     return static_cast<uint64_t>(PackedCell64_t::ComposeValue32M_64_<int32_t>(v, static_cast<clk16_t>(clk16), static_cast<strl16_t>(strl)));
     // }, py::arg("value32"), py::arg("clk16"), py::arg("strl"));
 
     // m.def("compose_value32_f32", [](float v, uint16_t clk16, uint16_t strl) -> uint64_t {
-    //     return static_cast<uint64_t>(PackedCell64_t::ComposeValue32X_64<float>(v, static_cast<clk16_t>(clk16), static_cast<strl16_t>(strl)));
+    //     return static_cast<uint64_t>(PackedCell64_t::ComposeValue32M_64_<float>(v, static_cast<clk16_t>(clk16), static_cast<strl16_t>(strl)));
     // }, py::arg("value32"), py::arg("clk16"), py::arg("strl"));
 
     // // ---------- instantiate ExtractAnyPackedValueX for common types ----------

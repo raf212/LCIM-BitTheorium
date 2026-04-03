@@ -1,3 +1,4 @@
+#include "PCSideHelper.hpp"
 #include "AdaptivePackedCellContainer.hpp"
 #include "PackedCellContainerManager.hpp"
 
@@ -7,8 +8,6 @@ namespace
 {
     constexpr uint32_t VALUE_COUNT = 96u;
     constexpr float DEMO_MULT = 0.5f;
-    constexpr unsigned STOP_CODE = 1u;
-
     struct GraphStatus
     {
 // A generates unsigned cells
@@ -46,8 +45,48 @@ namespace
 
     static bool AcceptCausalClockDemo (NodeCausalState& causal_state, packed64_t cell) noexcept
     {
-        if(PackedCell64_t)
+        if(IsControlStopCell(cell))
+        {
+            return true;
+        }
+        const uint16_t incoming = PackedCell64_t::ExtractClk16(cell);
+        uint16_t last_seen = causal_state.LastAcceptedClk16.load(MoLoad_);
+        if (incoming < last_seen)
+        {
+            return false;
+        }
+        while (last_seen < incoming && !causal_state.LastAcceptedClk16.compare_exchange_strong(last_seen, incoming, OnExchangeSuccess, OnExchangeFailure))
+        {
+            //loop
+        }
+        return true;
     }
 
-    
+    static AdaptivePackedCellContainer* ChooseOutputBranchA(
+        AdaptivePackedCellContainer& root_a,
+        uint32_t produced_idx,
+        GraphStatus& graph_status
+    )noexcept
+    {
+        auto maybe_fanout = root_a.GetAFanOut();
+
+        if (!maybe_fanout)
+        {
+            return &root_a;
+        }
+        AdaptivePackedCellContainer::BinaryFanOutView fanout = *maybe_fanout;
+
+        if (!fanout.LeftChildPtr && !fanout.RightCgildPtr)
+        {
+            return fanout.SelfPtr;
+        }
+        graph_status.ForwardedToChild.fetch_add(1, std::memory_order_acq_rel);
+        if (fanout.LeftChildPtr && fanout.RightCgildPtr)
+        {
+            return ((produced_idx & 1u) == 0u) ? fanout.LeftChildPtr : fanout.RightCgildPtr;
+        }
+        
+
+    }
+
 }

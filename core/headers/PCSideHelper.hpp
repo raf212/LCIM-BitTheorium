@@ -1,8 +1,18 @@
+#pragma once
 #include "PackedCell.hpp"
 
 namespace PredictedAdaptedEncoding
 {
     constexpr unsigned STOP_CODE = 1u;
+    
+    enum class APCPortKind : uint8_t
+    {
+        SELF_APC = 0,
+        FEED_FORWARD_IN = 1,
+        FEED_FORWARD_OUT = 2,
+        FEED_BACKWARD_IN = 3,
+        FEED_BACKWARD_OUT = 4
+    };
 
     static inline bool IsCellPublishedMode32Generic (packed64_t packed_cell) noexcept
     {
@@ -14,9 +24,11 @@ namespace PredictedAdaptedEncoding
     template<typename PCDT>
     static inline bool IsMode32TypedPublishedCell(packed64_t packed_cell) noexcept
     {
-        static_assert(PackedCellTypeBridge<PCDT>::IS_SUPPORTED_TYPE, "Unnsupported Type for typed PackedCell check\n");
-        static_assert(PackedCellTypeBridge<PCDT>::FITS_MODE_32, "TYpe dose not fit MODE_VALUE32\n");
-        return IsCellPublishedMode32Generic(packed64_t) && PackedCell64_t::ExtractPCellDataTypeFromPacked(packed_cell) == PackedCellTypeBridge<PCDT>::DType;
+        if (!IsCellPublishedMode32Generic(packed_cell))
+        {
+            return false;
+        }
+        return PackedCell64_t::ExtractPCellDataTypeFromPacked(packed_cell)  == PackedCell64_t::PackedCellTypeBridge<PCDT>::DType;
     }
 
     static inline bool IsControlStopCell(packed64_t packed_cell) noexcept
@@ -29,5 +41,5 @@ namespace PredictedAdaptedEncoding
             PackedCell64_t::ExtractRelMaskFromPacked(packed_cell) == REL_SELF &&
             PackedCell64_t::ExtractValue32(packed_cell) == STOP_CODE;
     }
-    
+        
 }

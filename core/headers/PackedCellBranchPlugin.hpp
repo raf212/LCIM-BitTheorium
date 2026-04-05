@@ -98,9 +98,24 @@ public:
         //ownership status(leter can be converted into ownership bit flags enum class)
         CURRENTLY_OWNED = 29,
 
+        //node
+        FEEDFORWARD_IN_TARGET_ID = 33,
+        FEEDFORWARD_OUT_TARGET_ID = 34,
+        FEEDBACKWARD_IN_TARGET_ID = 35,
+        FEEDBACKWARD_OUT_TARGET_ID = 36,
+        LATERAL_0_TARGET_ID = 37,
+        LATERAL_1_TARGET_ID = 38,
+        NODE_ROLE_FLAGS = 39,
+        LAST_ACCEPTED_FEED_FORWARD_CLOCK16 = 40,
+        LAST_EMITTED_FEED_FORWARD_CLOCK16 = 41,
+        LAST_ACCEPTED_FEED_BACKWARD_CLOCK16 = 42,
+        LAST_EMITTED_FEED_BACKWARD_CLOCK16 = 43,
+        NODE_COMPUTE_KIND = 44,
+        NODE_AUX_PARAM_U32 = 45,
+
         //free exception 
         HALFWAY_MAGIC = 31,
-        RESERVED_33 = 33,
+        RESERVED_46 = 46,
         EOF_APC_HEADER = 63
     };
 
@@ -343,6 +358,20 @@ public:
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::PAYLOAD_END, static_cast<uint32_t>(std::min<size_t>(total_capacity, BRANCH_SENTINAL)), priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::PRODUCER_BLOCK_SIZE, producer_minimum_block_size, priority);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::BACKGROUND_EPOCH_ADVANCE_MS, background_epoch_ms, priority);
+        //node
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::FEEDFORWARD_IN_TARGET_ID, BRANCH_SENTINAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::FEEDFORWARD_OUT_TARGET_ID, BRANCH_SENTINAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::FEEDBACKWARD_IN_TARGET_ID, BRANCH_SENTINAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::FEEDBACKWARD_OUT_TARGET_ID, BRANCH_SENTINAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::LATERAL_0_TARGET_ID, BRANCH_SENTINAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::LATERAL_1_TARGET_ID, BRANCH_SENTINAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::LAST_ACCEPTED_FEED_FORWARD_CLOCK16, NO_VAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::LAST_EMITTED_FEED_FORWARD_CLOCK16, NO_VAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::LAST_ACCEPTED_FEED_BACKWARD_CLOCK16, NO_VAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::LAST_EMITTED_FEED_BACKWARD_CLOCK16, NO_VAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::NODE_COMPUTE_KIND, NO_VAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCBranch::NODE_AUX_PARAM_U32, NO_VAL, priority);
+        ////-----/////
 
         WriteOrUpdateMetaClock48(priority, NO_VAL);
         WriteBrenchMeta32_(MetaIndexOfAPCBranch::LAST_SPLIT_EPOCH, NO_VAL, priority);
@@ -464,6 +493,50 @@ public:
         
     }
 
+    inline bool TryBindPortTarget(MetaIndexOfAPCBranch port_meta_idx, uint32_t target_branch_id) noexcept
+    {
+        if (target_branch_id == BRANCH_SENTINAL)
+        {
+            return false;
+        }
+        while (true)
+        {
+            const uint32_t current_meta_value = ReadMetaCellValue32(port_meta_idx);
+            if (current_meta_value == target_branch_id)
+            {
+                return true;
+            }
+            if (current_meta_value != BRANCH_SENTINAL)
+            {
+                return false;
+            }
+            if (JustUpdateValueOfMeta32(port_meta_idx, current_meta_value, target_branch_id))
+            {
+                return true;
+            }
+        }
+    }
+
+    inline bool TurnOnFlags(uint32_t use_or_between_flags = NO_VAL) noexcept
+    {
+        return UpdateFlagsOfBranch_(use_or_between_flags);
+    }
+
+    inline bool HasThisFlag(APCFlags flag) noexcept
+    {
+        return (ReadAPCFlags_() & static_cast<uint32_t>(flag)) != 0u;
+    }
+
+    inline void SetGraphNodeFlag() noexcept
+    {
+        TurnOnFlags(static_cast<uint32_t>(APCFlags::IS_GRAPH_NODE));
+    }
+
+    inline bool IsGraphNode() noexcept
+    {
+        return HasThisFlag(APCFlags::IS_GRAPH_NODE);
+    }
+
     inline uint32_t ReadCapacity() noexcept
     {
         return ReadMetaCellValue32(MetaIndexOfAPCBranch::CAPACITY);
@@ -497,17 +570,6 @@ public:
     inline uint32_t CurrentBranchDepthRead() noexcept
     {
         return ReadMetaCellValue32(MetaIndexOfAPCBranch::BRANCH_DEPTH);
-    }
-
-    inline bool HasThisFlag(APCFlags flag) noexcept
-    {
-        return (ReadAPCFlags_() & static_cast<uint32_t>(flag)) != 0u;
-    }
-
-
-    inline bool TurnOnFlags(uint32_t use_or_between_flags = NO_VAL) noexcept
-    {
-        return UpdateFlagsOfBranch_(use_or_between_flags);
     }
 
     inline bool ClearFlags(uint32_t use_or_between_flags = NO_VAL) noexcept

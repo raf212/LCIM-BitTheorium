@@ -227,105 +227,9 @@ public:
         return will_return;
     }
 
-    bool WriteGenericValueCellWithCASClaimedManager(packed64_t packed_cell, uint16_t max_tries = MAX_TRIES) noexcept
-    {
-        if (!IfAPCBranchValid() || !APCManagerPtr_)
-        {
-            return false;
-        }
-        const size_t payload_capacity = GetPayloadCapacity();
-        if (payload_capacity == 0)
-        {
-            return false;
-        }
-        
-        uint16_t tries = 0;
-        while (tries++ < max_tries)
-        {
-            const size_t next_sequense = NextProducerSequence();
-            if (next_sequense == SIZE_MAX)
-            {
-                return false;
-            }
+    bool WriteGenericValueCellWithCASClaimedManager(packed64_t packed_cell, uint16_t max_tries = MAX_TRIES) noexcept;
 
-            size_t idx = PayloadBegin() + ((next_sequense - PayloadBegin()) % payload_capacity);
-            size_t step = 1u + ((next_sequense * ID_HASH_GOLDEN_CONST) % ((payload_capacity > 1) ? (payload_capacity - 1) : 1));
-            for (size_t prob = 0; prob < payload_capacity; prob++)
-            {
-                packed64_t current_cell = BackingPtr[idx].load(MoLoad_);
-                if (PackedCell64_t::ExtractLocalityFromPacked(current_cell) == PackedCellLocalityTypes::ST_IDLE)
-                {
-                    packed64_t local_claimed = PackedCell64_t::SetLocalityInPacked(current_cell, PackedCellLocalityTypes::ST_CLAIMED);
-                    packed64_t expected_cell = current_cell;
-                    if (BackingPtr[idx].compare_exchange_strong(expected_cell, local_claimed, OnExchangeSuccess, OnExchangeFailure))
-                    {
-                        BackingPtr[idx].store(packed_cell, MoStoreSeq_);
-                        BackingPtr[idx].notify_all();
-                        OccupancyAddOrSubAndGetAfterChange(+1);
-                        BranchPluginOfAPC_->TouchLocalMetaClock48();
-                        if (BranchPluginOfAPC_->ShouldSplitNow())
-                        {
-                            APCManagerPtr_->RequestBranchCreationForTheAdaptivePackedCellContainer(this);
-                        }
-                        return true;
-                    }
-                }
-                idx = PayloadBegin() + ((idx - PayloadBegin() + step) % payload_capacity);
-            }
-            const size_t observed_idx = PayloadBegin() + (next_sequense % payload_capacity);
-            APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(BackingPtr[observed_idx].load(MoLoad_));
-        }
-        return false;
-    }
-
-    bool ConsumeAndIdleGenericValueCell(size_t& scan_cursor, packed64_t& out_cell) noexcept
-    {
-        if (!IfAPCBranchValid() || !APCManagerPtr_)
-        {
-            return false;
-        }
-        const size_t payload_capacity = GetPayloadCapacity();
-        if (payload_capacity == 0)
-        {
-            return false;
-        }
-        for (size_t prob = 0; prob < payload_capacity; prob++)
-        {
-            const size_t idx = PayloadBegin() + ((scan_cursor - PayloadBegin() + prob) % payload_capacity);
-            packed64_t current_cell = BackingPtr[idx].load(MoLoad_);
-            if (PackedCell64_t::ExtractLocalityFromPacked(current_cell) != PackedCellLocalityTypes::ST_PUBLISHED)
-            {
-                continue;
-            }
-            if (static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(current_cell)) != RelOffsetMode32::RELOFFSET_GENERIC_VALUE)
-            {
-                continue;
-            }
-            
-            packed64_t local_claimed = PackedCell64_t::SetLocalityInPacked(current_cell, PackedCellLocalityTypes::ST_CLAIMED);
-            packed64_t expected_cell = current_cell;
-            if (!BackingPtr[idx].compare_exchange_strong(expected_cell, local_claimed, OnExchangeSuccess, OnExchangeFailure))
-            {
-                APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(expected_cell);
-                continue;
-            }
-            out_cell = current_cell;
-
-            const PackedMode old_mode = PackedCell64_t::ExtractModeOfPackedCellFromPacked(current_cell);
-            const PackedCellDataType old_dtype = PackedCell64_t::ExtractPCellDataTypeFromPacked(current_cell);
-
-            BackingPtr[idx].store(PackedCell64_t::MakeInitialPacked(old_mode, old_dtype), MoStoreSeq_);
-            BackingPtr[idx].notify_all();
-            OccupancyAddOrSubAndGetAfterChange(-1);
-            scan_cursor = idx + 1;
-            if (scan_cursor >= (PayloadBegin() + payload_capacity))
-            {
-                scan_cursor = PayloadBegin();
-            }
-            return true;
-        }
-        return false;
-    }
+    bool ConsumeAndIdleGenericValueCell(size_t& scan_cursor, packed64_t& out_cell) noexcept;
 
     //has to replaced with node logic
     struct BinaryFanOutView
@@ -336,32 +240,8 @@ public:
     };
 
     std::optional<BinaryFanOutView> GetAFanOut(
-    ) noexcept
-    {
-        if (!IfAPCBranchValid() || !APCManagerPtr_)
-        {
-            return std::nullopt;
-        }
-
-        BinaryFanOutView out_binary_fanout{};
-        out_binary_fanout.SelfPtr = this;
-
-        const uint32_t left_branch_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::LEFT_CHILD_ID);
-        const uint32_t right_branch_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::RIGHT_CHILD_ID);
-
-        if (left_branch_id != PackedCellBranchPlugin::BRANCH_SENTINAL)
-        {
-            out_binary_fanout.LeftChildPtr = APCManagerPtr_->GetAPCPtrFromBranchId(left_branch_id);
-        }
-        
-        if (right_branch_id != PackedCellBranchPlugin::BRANCH_SENTINAL)
-        {
-            out_binary_fanout.RightCgildPtr = APCManagerPtr_->GetAPCPtrFromBranchId(right_branch_id);
-        }
-        return out_binary_fanout;
-    }
+    ) noexcept;
     
-
 };
 
 

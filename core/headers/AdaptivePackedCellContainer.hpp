@@ -9,6 +9,7 @@
 #include "MasterClockConf.hpp"
 #include "PackedCellBranchPlugin.hpp"
 #include "PackedCellContainerManager.hpp"
+#include "NodeInGraphView.h"
 
 namespace PredictedAdaptedEncoding
 {
@@ -230,18 +231,6 @@ public:
     bool WriteGenericValueCellWithCASClaimedManager(packed64_t packed_cell, uint16_t max_tries = MAX_TRIES) noexcept;
 
     bool ConsumeAndIdleGenericValueCell(size_t& scan_cursor, packed64_t& out_cell) noexcept;
-
-    //has to replaced with node logic
-    struct BinaryFanOutView
-    {
-        AdaptivePackedCellContainer* SelfPtr = nullptr;
-        AdaptivePackedCellContainer* LeftChildPtr = nullptr;
-        AdaptivePackedCellContainer* RightCgildPtr = nullptr;
-    };
-
-    std::optional<BinaryFanOutView> GetAFanOut(
-    ) noexcept;
-    
 };
 
 

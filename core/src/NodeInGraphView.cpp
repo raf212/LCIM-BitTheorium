@@ -72,6 +72,42 @@ namespace PredictedAdaptedEncoding
         return bind_ok && bind_ok_2;
     }
 
+    bool NodeInGraphView::AcceptCausalCellForPort(APCSideHelper::APCPortKind port_kind, packed64_t packed_cell) noexcept
+    {
+        if (!BranchPluginPtr_)
+        {
+            return false;
+        }
+        if (APCSideHelper::IsControlStopCell(packed_cell))
+        {
+            return true;
+        }
+        
+        const uint16_t incoming_clock16 = PackedCell64_t::ExtractClk16(packed_cell);
+
+        PackedCellBranchPlugin::MetaIndexOfAPCBranch last_accepted_feed_slot_idx = PackedCellBranchPlugin::MetaIndexOfAPCBranch::LAST_ACCEPTED_FEED_FORWARD_CLOCK16;
+        if (port_kind == APCSideHelper::APCPortKind::FEED_BACKWARD_IN)
+        {
+            last_accepted_feed_slot_idx = PackedCellBranchPlugin::MetaIndexOfAPCBranch::LAST_ACCEPTED_FEED_BACKWARD_CLOCK16;
+        }
+        while (true)
+        {
+            uint16_t last_accepted_clock16 = static_cast<uint16_t>(BranchPluginPtr_->ReadMetaCellValue32(last_accepted_feed_slot_idx));
+            if (incoming_clock16 < last_accepted_clock16)
+            {
+                return false;
+            }
+            if (incoming_clock16 > last_accepted_clock16)
+            {
+                return true;
+            }
+            if (BranchPluginPtr_->JustUpdateValueOfMeta32(last_accepted_feed_slot_idx, last_accepted_clock16, incoming_clock16))
+            {
+                return true;
+            }
+        }
+    }
+
     
 
 }

@@ -1,5 +1,6 @@
 #pragma once
 #include "MasterClockConf.hpp"
+#include "APCSideHelper.hpp"
 
 namespace PredictedAdaptedEncoding
 {
@@ -34,6 +35,7 @@ public:
     GraphPortView GetGraphPortView() noexcept;
     bool BindFeedForwardOut(AdaptivePackedCellContainer* target_apc) noexcept;
     bool BindFeedBackwardOut(AdaptivePackedCellContainer* target_apc) noexcept;
+    bool AcceptCausalCellForPort(APCSideHelper::APCPortKind port_kind, packed64_t packed_cell) noexcept;
     
 };
     

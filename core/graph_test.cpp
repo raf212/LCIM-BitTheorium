@@ -35,7 +35,7 @@ namespace
     {
         return manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(
             STOP_CODE,
-            REL_SELF,
+            static_cast<tag8_t>(NodeControlMask::SELF_ORDER),
             MAX_PRIORITY,
             PackedCellLocalityTypes::ST_PUBLISHED,
             RelOffsetMode32::RELOFFSET_GENERIC_VALUE,

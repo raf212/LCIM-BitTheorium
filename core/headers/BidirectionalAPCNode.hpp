@@ -4,6 +4,20 @@
 
 namespace PredictedAdaptedEncoding
 {
+//have to rewrite 
+struct BidirectionalNodeStepResult
+{
+    bool ConsumedFeedForward = false;
+    bool ConsumedFeedback = false;
+    bool EmittedForward = false;
+    bool EmittedBackward = false;
+    bool EmittedLateral = false;
+    uint32_t Evidence = 0;
+    uint32_t Prediction = 0;
+    uint32_t Residual = 0;
+    uint32_t Latent = 0;
+};
+
     class BidirectionalAPCNode
     {
     private:

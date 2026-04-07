@@ -15,7 +15,12 @@ namespace PredictedAdaptedEncoding
         enum class NodeControlMask : uint8_t
         {
             UNDEFINED_ORDER = 0,
-            SELF_ORDER = 1
+            SELF_ORDER = 1,
+            FEEDFORWARD_EVIDANCE = 2,
+            FEEDBACKWARD_EVIDANCE = 3,
+            RESIDUAL_ERROR = 4,
+            LATENT_STATE = 5,
+            LATERAL_SIGNAL = 6
         };
         
         enum class APCPortKind : uint8_t
@@ -24,7 +29,9 @@ namespace PredictedAdaptedEncoding
             FEED_FORWARD_IN = 1,
             FEED_FORWARD_OUT = 2,
             FEED_BACKWARD_IN = 3,
-            FEED_BACKWARD_OUT = 4
+            FEED_BACKWARD_OUT = 4,
+            LATERAL_0 = 5,
+            LATERAL_1 = 6
         };
 
         static inline bool IsCellPublishedMode32Generic (packed64_t packed_cell) noexcept

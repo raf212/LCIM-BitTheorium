@@ -35,6 +35,99 @@ public:
     static constexpr uint32_t BRANCH_VERSION = 1u;
     static constexpr uint32_t BRANCH_SENTINAL = UINT32_MAX;
     static constexpr packed64_t APC_SENTENAL = UINT64_MAX;
+    
+    enum class APCNodeComputeKind : uint32_t
+    {
+        none = 0u,
+        GENERATOR_UINT32 = 1u,
+        SQUARE_UINT32 = 2u,
+        ADD_UINT32 = 3u,
+        DIV_UINT32 = 4u,
+        BIDIRECTIONAL_PREDECTIVE = 6u,
+        GENERIC_VECTOR = 7u
+    };
+
+    enum class APCBranchNodeRoleFlags : uint32_t
+    {
+        NODE_NONE = 0u,
+        ACCEPTS_FEEDFORWARD = 1u << 0,
+        EMMITS_FEEDFORWARD = 1u << 1,
+        ACCETS_FEEDBACKWARD = 1u << 2,
+        EMMITS_FEEDBACKWARD = 1u << 3,
+        USES_LETERAL_0 = 1u << 4,
+        USES_LETERAL_1 = 1u << 5,
+        STORES_LOCAL_STATE = 1u << 6,
+        STORES_LOCAL_ERROR = 1u  << 7,
+        SELF_DATA_NODE = 1u << 8,
+        SHARED_NODE_MEMBER = 1u << 9
+    };
+
+    enum class APCHeaderIdxForNode : size_t
+    {
+        //identity
+        MAGIC_ID = 0,
+        VERSION = 1,
+        CAPACITY = 2,
+        BRANCH_ID = 3,
+
+        //logical-node Identity
+        LOGICAL_NODE_ID = 4,
+        SHARED_ID = 5,
+        SHARED_PREVIOUS_ID = 6,
+        SHARED_NEXT_ID = 7,
+
+        //runtime-controle
+        BRANCH_DEPTH = 8,
+        BRANCH_PRIORITY = 9,
+        FLAGS = 10,
+        CURRENT_ACTIVE_THREADS = 11,
+        OCCUPANCY_SNAPSHOT = 12,
+        SAFE_POINT = 13,
+        SPLIT_THRESHOLD_PERCENTAGE = 14,
+        MAX_DEPTH = 15,
+
+        //payload-Bounds
+        PAYLOAD_BEGIN = 16,
+        PAYLOAD_END = 17,
+
+        //timing
+        LOCAL_CLOCK48 = 18,
+        LAST_SPLIT_EPOCH = 19,
+
+        //region summery
+        REGION_SIZE = 20,
+        REGION_COUNT = 21,
+        READY_REL_MASK = 22,
+        PRODUCER_BLOCK_SIZE = 23,
+        BACKGROUND_EPOCH_ADVANCE_MS =  24,
+        DEFINED_MODE_OF_CURRENT_APC = 25,
+        RETIRE_BRANCH_THRASHOLD = 26,
+        PRODUCER_CURSOR_PLACEMENT = 27,
+        CONSUMER_CURSORE_PLACEMENT = 28,
+        CURRENTLY_OWNED = 29,
+        TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH = 30,
+        NODE_GROUP_SIZE = 31,
+        NODE_AUX_PARAM_U32 = 32,
+
+        //graph ports 
+        FEEDFORWARD_IN_TARGET_ID = 33,
+        FEEDFORWARD_OUT_TARGET_ID = 34,
+        FEEDBACKWARD_IN_TARGET_ID = 35,
+        FEEDBACKWARD_OUT_TARGET_ID = 36,
+        LATERAL_0_TARGET_ID = 37,
+        LATERAL_1_TARGET_ID = 38,
+        NODE_ROLE_FLAGS = 39,
+        LAST_ACCEPTED_FEED_FORWARD_CLOCK16 = 40,
+        LAST_EMITTED_FEED_FORWARD_CLOCK16 = 41,
+        LAST_ACCEPTED_FEED_BACKWARD_CLOCK16 = 42,
+        LAST_EMITTED_FEED_BACKWARD_CLOCK16 = 43,
+        NODE_COMPUTE_KIND = 44,
+
+        RESERVED_45 = 45,
+        EOF_APC_HEADER = 63
+    };
+
+    //remove
 
     enum class TreePosition : uint32_t
     {
@@ -65,10 +158,13 @@ public:
         CAPACITY = 2,
         BRANCH_ID = 3,
         PARENT_BRANCH_ID = 4,
+        ///have to remove 
         LEFT_CHILD_ID = 5,
         RIGHT_CHILD_ID = 6,
         NUMBER_OF_CHILD = 30,
         CURRENT_TREE_POSITION = 7,
+        //--up remove 
+
         DEFINED_MODE_OF_CURRENT_APC = 25,
         // runtime control
         BRANCH_DEPTH = 8,
@@ -79,6 +175,8 @@ public:
         SAFE_POINT = 13,
         SPLIT_THRESHOLD_PERCENTAGE = 14,
         MAX_DEPTH = 15,
+        //--review up
+        
         RETIRE_BRANCH_THRASHOLD = 26,
         PRODUCER_CURSOR_PLACEMENT = 27,
         CONSUMER_CURSORE_PLACEMENT = 28,
@@ -118,6 +216,8 @@ public:
         RESERVED_46 = 46,
         EOF_APC_HEADER = 63
     };
+    //--top remove
+
 
     inline bool ValidMeteIdx(MetaIndexOfAPCBranch idx) const noexcept
     {

@@ -528,8 +528,8 @@ int main()
     {
         PackedCellBranchPlugin* current_branch_plugin = leaf_branches_struct[branch].APC_UniqPtr->GetBranchPlugin();
         uint32_t branch_id = leaf_branches_struct[branch].APC_UniqPtr->GetBranchId();
-        uint32_t left_id = current_branch_plugin->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::LEFT_CHILD_ID);
-        uint32_t right_id = current_branch_plugin->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::RIGHT_CHILD_ID);
+        uint32_t left_id = current_branch_plugin->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::LEFT_CHILD_ID);
+        uint32_t right_id = current_branch_plugin->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::RIGHT_CHILD_ID);
         std::cout << "Brunch number :: " << branch << "\n"
             << "Branch ID :: " << branch_id << "\n"
             << "Left cgild container ID :: " << left_id << "\n"

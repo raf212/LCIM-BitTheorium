@@ -10,7 +10,7 @@ namespace PredictedAdaptedEncoding
     {
         if (BranchPluginOfAPC_)
         {
-            return BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::BRANCH_ID);
+            return BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::BRANCH_ID);
         }
         return NO_VAL;
     }
@@ -182,24 +182,9 @@ namespace PredictedAdaptedEncoding
         }
         BranchPluginOfAPC_ = std::make_unique<PackedCellBranchPlugin>();
         BranchPluginOfAPC_->Bind(BackingPtr, container_capacity, MasterClockConfPtr_);
-        const uint32_t new_branch_id = GlobalBranchIdAlloc_.fetch_add(1, std::memory_order_acq_rel);
-        const uint32_t region_count_u32 = container_cfg.RegionSize == NO_VAL ? NO_VAL : static_cast<uint32_t>(((container_capacity - PayloadBegin()) + container_cfg.RegionSize -1) / container_cfg.RegionSize);
+        // const uint32_t new_branch_id = GlobalBranchIdAlloc_.fetch_add(1, std::memory_order_acq_rel);
+        // const uint32_t region_count_u32 = container_cfg.RegionSize == NO_VAL ? NO_VAL : static_cast<uint32_t>(((container_capacity - PayloadBegin()) + container_cfg.RegionSize -1) / container_cfg.RegionSize);
 
-        BranchPluginOfAPC_->InitRootOrChildBranch(
-            new_branch_id,
-            NO_VAL,
-            container_capacity,
-            PackedCellBranchPlugin::TreePosition::ROOT,
-            container_cfg.BranchSplitThresholdPercentage,
-            0u,
-            container_cfg.BranchMaxDepth,
-            static_cast<uint32_t>(container_cfg.ProducerBlockSize),
-            container_cfg.BackgroundEpochAdvanceMS,
-            static_cast<uint32_t>(container_cfg.RegionSize),
-            region_count_u32,
-            ZERO_PRIORITY,
-            ZERO_PRIORITY
-        );
         InitZeroState_();
         RefreshAPCMeta_();
     }
@@ -264,15 +249,15 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        uint32_t current_region_size = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_SIZE);
-        bool ok = BranchPluginOfAPC_->JustUpdateValueOfMeta32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_SIZE, current_region_size, static_cast<uint32_t>(region_size));
+        uint32_t current_region_size = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::REGION_SIZE);
+        bool ok = BranchPluginOfAPC_->JustUpdateValueOfMeta32(PackedCellBranchPlugin::MetaIndexOfAPCNode::REGION_SIZE, current_region_size, static_cast<uint32_t>(region_size));
         if (!ok)
         {
             return;
         }
         size_t number_of_region = ((GetPayloadCapacity() + region_size - 1) / region_size);
-        uint32_t current_number_of_region = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_COUNT);
-        ok = BranchPluginOfAPC_->JustUpdateValueOfMeta32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_COUNT, current_number_of_region, static_cast<uint32_t>(number_of_region));
+        uint32_t current_number_of_region = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::REGION_COUNT);
+        ok = BranchPluginOfAPC_->JustUpdateValueOfMeta32(PackedCellBranchPlugin::MetaIndexOfAPCNode::REGION_COUNT, current_number_of_region, static_cast<uint32_t>(number_of_region));
         if (!ok)
         {
             return;
@@ -324,7 +309,7 @@ namespace PredictedAdaptedEncoding
         {
             return SIZE_MAX;
         }
-        size_t current_block_size = static_cast<size_t>(BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::PRODUCER_BLOCK_SIZE));
+        size_t current_block_size = static_cast<size_t>(BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::PRODUCER_BLOCK_SIZE));
         thread_local size_t block_base = 0;
         thread_local size_t block_left = 0;
         if (block_left == 0)
@@ -427,15 +412,15 @@ namespace PredictedAdaptedEncoding
         PackedCellBranchPlugin::TreePosition branch_tree_position = PackedCellBranchPlugin::TreePosition::TREE_OVERFLOW;
         //const reads
         const size_t child_capacity = SuggestedChildCapacity_();
-        const uint32_t left_child_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::LEFT_CHILD_ID);
-        const uint32_t right_child_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::RIGHT_CHILD_ID);
-        const uint32_t region_size_of_current_branch = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::REGION_SIZE);
-        const uint32_t branch_split_threshold = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::SPLIT_THRESHOLD_PERCENTAGE);
-        const uint32_t max_depth_of_container = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::MAX_DEPTH);
-        const uint32_t producer_block_size = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::PRODUCER_BLOCK_SIZE);
-        const uint32_t background_epoch_ms = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::BACKGROUND_EPOCH_ADVANCE_MS);
-        const uint32_t retire_branch_thrashold = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::RETIRE_BRANCH_THRASHOLD);
-        const PackedMode probable_initial_branch_mode = static_cast<PackedMode>(BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::DEFINED_MODE_OF_CURRENT_APC));
+        const uint32_t left_child_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::LEFT_CHILD_ID);
+        const uint32_t right_child_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::RIGHT_CHILD_ID);
+        const uint32_t region_size_of_current_branch = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::REGION_SIZE);
+        const uint32_t branch_split_threshold = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::SPLIT_THRESHOLD_PERCENTAGE);
+        const uint32_t max_depth_of_container = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::MAX_DEPTH);
+        const uint32_t producer_block_size = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::PRODUCER_BLOCK_SIZE);
+        const uint32_t background_epoch_ms = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::BACKGROUND_EPOCH_ADVANCE_MS);
+        const uint32_t retire_branch_thrashold = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::RETIRE_BRANCH_THRASHOLD);
+        const PackedMode probable_initial_branch_mode = static_cast<PackedMode>(BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::DEFINED_MODE_OF_CURRENT_APC));
         ContainerConf child_container_conf = {};
         child_container_conf.InitialMode = probable_initial_branch_mode;
         child_container_conf.ProducerBlockSize = producer_block_size;
@@ -549,7 +534,7 @@ namespace PredictedAdaptedEncoding
     }
 
     uint32_t AdaptivePackedCellContainer::ProducerORConsumerCursorSetAndGet_(std::optional<uint32_t> cursor_placement, int32_t increment_or_decrement_of_cursor, 
-        bool* did_changed_easy_return, const PackedCellBranchPlugin::MetaIndexOfAPCBranch cursors_meta_idx
+        bool* did_changed_easy_return, const PackedCellBranchPlugin::MetaIndexOfAPCNode cursors_meta_idx
     ) noexcept
     {
         if (!BranchPluginOfAPC_)
@@ -647,11 +632,11 @@ namespace PredictedAdaptedEncoding
 
         if (delta == 0)
         {
-            return static_cast<size_t>(BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT));
+            return static_cast<size_t>(BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT));
         }
         while (true)
         {
-            packed64_t current_occupancy_cell = BranchPluginOfAPC_->ReadFullMetaCell(PackedCellBranchPlugin::MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT);
+            packed64_t current_occupancy_cell = BranchPluginOfAPC_->ReadFullMetaCell(PackedCellBranchPlugin::MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT);
             val32_t current_occupancy = PackedCell64_t::ExtractValue32(current_occupancy_cell);
             if (current_occupancy == PackedCellBranchPlugin::BRANCH_SENTINAL)
             {
@@ -670,7 +655,7 @@ namespace PredictedAdaptedEncoding
             }
             
             uint32_t next_occupancy = static_cast<uint32_t>(next_occupancy_winded);
-            if (BranchPluginOfAPC_->JustUpdateValueOfMeta32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::OCCUPANCY_SNAPSHOT, current_occupancy, next_occupancy))
+            if (BranchPluginOfAPC_->JustUpdateValueOfMeta32(PackedCellBranchPlugin::MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT, current_occupancy, next_occupancy))
             {
                 return static_cast<size_t>(next_occupancy);
             }

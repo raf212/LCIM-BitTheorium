@@ -48,6 +48,17 @@ public:
     std::atomic<packed64_t>* BackingPtr{nullptr};
 
     struct QSBRGuard;
+
+    enum class APCPortSlot : uint32_t
+    {
+        NONE = 0,
+        FEED_FORWARD_IN = 1,
+        FEED_FORWARD_OUT = 2,
+        FEED_BACKWARD_IN = 3,
+        FEED_BACKWARD_OUT = 4,
+        LATERAL_0 = 5,
+        LATERAL_1 = 6
+    };
     
 private:
     AtomicAdaptiveBackoff* AdaptiveBackoffOfAPCPtr_{nullptr};
@@ -121,20 +132,25 @@ public:
     AdaptivePackedCellContainer& operator = (const AdaptivePackedCellContainer&) = delete;
 
     uint32_t GetBranchId() const noexcept;
+    uint32_t GetLogicalId() const noexcept;
+    uint32_t GetSharedId() const noexcept;
 
     size_t ReserveProducerSlots(size_t number_of_slots) noexcept;
-
     size_t NextProducerSequence() noexcept;
 
     void InitOwned(size_t cpacity, ContainerConf container_cfg = {});
+    void InitOwnedAsNode(
+        size_t capacity,
+        const ContainerConf& container_configuration,
+        uint32_t node_role_flags,
+        PackedCellBranchPlugin::APCNodeComputeKind compute_kind = PackedCellBranchPlugin::APCNodeComputeKind::NONE,
+        uint32_t aux_param_u32 = NO_VAL
+
+    );
 
     void FreeAll() noexcept;
-
     void InitRegionIdx(size_t region_size) noexcept;
-    
-
     void TryCreateBranchIfNeeded() noexcept;
-    
     void SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager) noexcept;
     //Paired Pointer functions
     PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;
@@ -187,50 +203,55 @@ public:
     }
 
     uint32_t ProducerORConsumerCursorSetAndGet_(std::optional<uint32_t> cursor_placement = std::nullopt, int32_t increment_or_decrement_of_cursor = 0, 
-        bool* did_changed_easy_return = nullptr, const PackedCellBranchPlugin::MetaIndexOfAPCBranch cursors_meta_idx = PackedCellBranchPlugin::MetaIndexOfAPCBranch::PRODUCER_CURSOR_PLACEMENT
+        bool* did_changed_easy_return = nullptr, const PackedCellBranchPlugin::MetaIndexOfAPCNode cursors_meta_idx = PackedCellBranchPlugin::MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT
     ) noexcept;
 
     uint32_t GetProducerCursorPlacement() noexcept
     {
-        return BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::PRODUCER_CURSOR_PLACEMENT);
+        return BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
     }
 
     bool UpdateProducerCursorPlacement(uint32_t new_cursor_placement_idx) noexcept
     {
         bool will_return = false;
-        ProducerORConsumerCursorSetAndGet_(new_cursor_placement_idx, 0, &will_return, PackedCellBranchPlugin::MetaIndexOfAPCBranch::PRODUCER_CURSOR_PLACEMENT);
+        ProducerORConsumerCursorSetAndGet_(new_cursor_placement_idx, 0, &will_return, PackedCellBranchPlugin::MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
         return will_return;
     }
 
     bool ProducerCursorIncrementOrdecrement(int32_t increment_decrement_value)  noexcept
     {
         bool will_retuen = false;
-        ProducerORConsumerCursorSetAndGet_(std::nullopt, increment_decrement_value, &will_retuen, PackedCellBranchPlugin::MetaIndexOfAPCBranch::PRODUCER_CURSOR_PLACEMENT);
+        ProducerORConsumerCursorSetAndGet_(std::nullopt, increment_decrement_value, &will_retuen, PackedCellBranchPlugin::MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
         return will_retuen;
     }
 
     uint32_t GetConsumerCursorPlacement() noexcept
     {
-        return BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCBranch::CONSUMER_CURSORE_PLACEMENT);
+        return BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
     }
 
     bool UpdateConsumerCursorPlacement(uint32_t new_cursor_value) noexcept
     {
         bool will_return = false;
-        ProducerORConsumerCursorSetAndGet_(new_cursor_value, 0, &will_return, PackedCellBranchPlugin::MetaIndexOfAPCBranch::CONSUMER_CURSORE_PLACEMENT);
+        ProducerORConsumerCursorSetAndGet_(new_cursor_value, 0, &will_return, PackedCellBranchPlugin::MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
         return will_return;
     }
 
     bool ConsumerCursorIncrementOrDecrement(int32_t increment_decrement_value) noexcept
     {
         bool will_return = false;
-        ProducerORConsumerCursorSetAndGet_(std::nullopt, increment_decrement_value, &will_return, PackedCellBranchPlugin::MetaIndexOfAPCBranch::CONSUMER_CURSORE_PLACEMENT);
+        ProducerORConsumerCursorSetAndGet_(std::nullopt, increment_decrement_value, &will_return, PackedCellBranchPlugin::MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
         return will_return;
     }
 
     bool WriteGenericValueCellWithCASClaimedManager(packed64_t packed_cell, uint16_t max_tries = MAX_TRIES) noexcept;
 
     bool ConsumeAndIdleGenericValueCell(size_t& scan_cursor, packed64_t& out_cell) noexcept;
+
+    bool ConsumeAndIdleGenericValueCellSelfOrShared(size_t& scan_cursor, packed64_t& out_cell) noexcept;
+
+    bool PublishToPort(APCPortSlot port_slot, packed64_t packed_cell, uint16_t max_tries = MAX_TRIES) noexcept;
+    AdaptivePackedCellContainer* GrowSharedNodeCheaply() noexcept;
 };
 
 

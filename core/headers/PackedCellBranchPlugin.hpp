@@ -39,7 +39,7 @@ public:
     
     enum class APCNodeComputeKind : uint32_t
     {
-        none = 0u,
+        NONE = 0u,
         GENERATOR_UINT32 = 1u,
         SQUARE_UINT32 = 2u,
         ADD_UINT32 = 3u,
@@ -374,7 +374,7 @@ public:
         const ContainerConf& container_configuration,
         bool is_root_shared = true,
         uint32_t node_role_flags = static_cast<uint32_t>(APCBranchNodeRoleFlags::NODE_NONE),
-        APCNodeComputeKind node_compute_kind = APCNodeComputeKind::none,
+        APCNodeComputeKind node_compute_kind = APCNodeComputeKind::NONE,
         uint32_t aux_param_uint32 = NO_VAL,
         uint32_t branch_depth = NO_VAL,
         uint8_t branch_priority = ZERO_PRIORITY,

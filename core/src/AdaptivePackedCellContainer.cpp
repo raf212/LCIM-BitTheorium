@@ -81,30 +81,28 @@ namespace PredictedAdaptedEncoding
         }
         while (true)
         {
-            const uint32_t current_producer_sequence = GetProducerCursorPlacement();
-            if (current_producer_sequence == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            const uint32_t current_producer_cursor = GetProducerCursorPlacement();
+            if (current_producer_cursor == PackedCellBranchPlugin::BRANCH_SENTINAL)
             {
                 return SIZE_MAX;
             }
-            uint32_t base_producer_sequense = current_producer_sequence;
-            if (base_producer_sequense < PayloadBegin())
+
+            uint64_t base = (current_producer_cursor < PayloadBegin()) ? PayloadBegin() : current_producer_cursor;
+            uint64_t desired_cursor_placement = static_cast<uint64_t>(base) + static_cast<uint64_t>(number_of_slots);
+            if (desired_cursor_placement > static_cast<uint64_t>(GetPayloadEnd()))
             {
-                base_producer_sequense = PayloadBegin();
+                return SIZE_MAX;
             }
-            const uint64_t desired64 = static_cast<uint64_t>(base_producer_sequense) + static_cast<uint64_t>(number_of_slots);
-            uint32_t desiered_producer_sequence = 0;
-            if (desired64 >= static_cast<uint64_t>(GetPayloadEnd()))
+            bool changed = false;
+            ProducerORConsumerCursorSetAndGet_(
+                static_cast<uint32_t>(desired_cursor_placement),
+                0,
+                &changed,
+                PackedCellBranchPlugin::MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT
+            );
+            if (changed)
             {
-                desiered_producer_sequence = static_cast<uint32_t>(GetPayloadEnd());
-            }
-            else
-            {
-                desiered_producer_sequence = static_cast<uint32_t>(desired64);
-            }
-            bool ok = UpdateProducerCursorPlacement(desiered_producer_sequence);
-            if (ok)
-            {
-                return static_cast<size_t>(base_producer_sequense);
+                return static_cast<size_t>(base);
             }
         }
     }
@@ -194,6 +192,11 @@ namespace PredictedAdaptedEncoding
             shared_id,
             container_capacity,
             container_cfg
+        );
+        BranchPluginOfAPC_->InitLogicalNodeIdentity(
+            logical_node_id,
+            shared_id,
+            true
         );
         InitZeroState_();
         if (container_cfg.RegionSize > 0)
@@ -585,8 +588,7 @@ namespace PredictedAdaptedEncoding
     size_t AdaptivePackedCellContainer::SuggestedChildCapacity_() const noexcept
     {
         const size_t payload_capacity = GetPayloadCapacity();
-        const size_t min_child_capacity = 256u;
-        const size_t child_payload_size = std::max<size_t>(min_child_capacity, payload_capacity / 2);
+        const size_t child_payload_size = std::max<size_t>(MINIMUM_BRANCH_CAPACITY, payload_capacity / 2);
         return child_payload_size + PayloadBegin();
     }
 
@@ -753,47 +755,82 @@ namespace PredictedAdaptedEncoding
         {
             return false;
         }
-        const size_t payload_capacity = GetPayloadCapacity();
-        if (payload_capacity == 0)
+
+        auto try_write_into_one = [&](AdaptivePackedCellContainer& target_apc) noexcept->bool
         {
-            return false;
-        }
-        
-        uint16_t tries = 0;
-        while (tries++ < max_tries)
-        {
-            const size_t next_sequense = NextProducerSequence();
-            if (next_sequense == SIZE_MAX)
+            const size_t payload_capacity = target_apc.GetPayloadCapacity();
+            if (payload_capacity == 0)
             {
                 return false;
             }
-
-            size_t idx = PayloadBegin() + ((next_sequense - PayloadBegin()) % payload_capacity);
-            size_t step = 1u + ((next_sequense * ID_HASH_GOLDEN_CONST) % ((payload_capacity > 1) ? (payload_capacity - 1) : 1));
-            for (size_t prob = 0; prob < payload_capacity; prob++)
+            uint16_t tries = 0;
+            while (tries++ < max_tries)
             {
-                packed64_t current_cell = BackingPtr[idx].load(MoLoad_);
-                if (PackedCell64_t::ExtractLocalityFromPacked(current_cell) == PackedCellLocalityTypes::ST_IDLE)
+                const size_t next_sequense = target_apc.NextProducerSequence();
+                if (next_sequense == SIZE_MAX)
                 {
-                    packed64_t local_claimed = PackedCell64_t::SetLocalityInPacked(current_cell, PackedCellLocalityTypes::ST_CLAIMED);
-                    packed64_t expected_cell = current_cell;
-                    if (BackingPtr[idx].compare_exchange_strong(expected_cell, local_claimed, OnExchangeSuccess, OnExchangeFailure))
-                    {
-                        BackingPtr[idx].store(packed_cell, MoStoreSeq_);
-                        BackingPtr[idx].notify_all();
-                        OccupancyAddOrSubAndGetAfterChange(+1);
-                        BranchPluginOfAPC_->TouchLocalMetaClock48();
-                        if (BranchPluginOfAPC_->ShouldSplitNow())
-                        {
-                            APCManagerPtr_->RequestBranchCreationForTheAdaptivePackedCellContainer(this);
-                        }
-                        return true;
-                    }
+                    return false;
                 }
-                idx = PayloadBegin() + ((idx - PayloadBegin() + step) % payload_capacity);
+
+                size_t idx = PayloadBegin() + ((next_sequense - PayloadBegin()) % payload_capacity);
+                size_t step = 1u + ((next_sequense * ID_HASH_GOLDEN_CONST) % ((payload_capacity > 1) ? (payload_capacity - 1) : 1));
+                for (size_t prob = 0; prob < payload_capacity; prob++)
+                {
+                    packed64_t current_cell = target_apc.BackingPtr[idx].load(MoLoad_);
+                    if (PackedCell64_t::ExtractLocalityFromPacked(current_cell) == PackedCellLocalityTypes::ST_IDLE)
+                    {
+                        packed64_t local_claimed = PackedCell64_t::SetLocalityInPacked(current_cell, PackedCellLocalityTypes::ST_CLAIMED);
+                        packed64_t expected_cell = current_cell;
+                        if (target_apc.BackingPtr[idx].compare_exchange_strong(expected_cell, local_claimed, OnExchangeSuccess, OnExchangeFailure))
+                        { 
+                            target_apc.BackingPtr[idx].store(packed_cell, MoStoreSeq_);
+                            target_apc.BackingPtr[idx].notify_all();
+                            target_apc.OccupancyAddOrSubAndGetAfterChange(+1);
+                            target_apc.BranchPluginOfAPC_->TouchLocalMetaClock48();
+                            target_apc.RefreshAPCMeta_();
+                            return true;
+                        }
+                        else
+                        {
+                            target_apc.GetBranchPlugin()->TotalCASFailForThisBranchIncreaseAndGet(1u);
+                        }
+                    }
+                    idx = PayloadBegin() + ((idx - PayloadBegin() + step) % payload_capacity);
+                }
+                const size_t observed_idx = PayloadBegin() + (next_sequense % payload_capacity);
+                APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(BackingPtr[observed_idx].load(MoLoad_));
             }
-            const size_t observed_idx = PayloadBegin() + (next_sequense % payload_capacity);
-            APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(BackingPtr[observed_idx].load(MoLoad_));
+            return false;
+        };
+
+        if (try_write_into_one(*this))
+        {
+            return true;
+        }
+
+        if (BranchPluginOfAPC_->ShouldSplitNow())
+        {
+            APCManagerPtr_->RequestBranchCreationForTheAdaptivePackedCellContainer(this);
+            AdaptivePackedCellContainer* grown_this_apc = GrowSharedNodeCheaply();
+            if (grown_this_apc && try_write_into_one(*grown_this_apc))
+            {
+                return true;
+            }
+        }
+        uint32_t next_branch_shared_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
+
+        while (next_branch_shared_id != NO_VAL && next_branch_shared_id != PackedCellBranchPlugin::BRANCH_SENTINAL)
+        {
+            AdaptivePackedCellContainer* sibling_apc_ptr = APCManagerPtr_->GetAPCPtrFromBranchId(next_branch_shared_id);
+            if (!sibling_apc_ptr)
+            {
+                break;
+            }
+            if (try_write_into_one(*sibling_apc_ptr))
+            {
+                return true;
+            }
+            next_branch_shared_id = sibling_apc_ptr->GetBranchPlugin()->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
         }
         return false;
     }
@@ -804,45 +841,73 @@ namespace PredictedAdaptedEncoding
         {
             return false;
         }
-        const size_t payload_capacity = GetPayloadCapacity();
-        if (payload_capacity == 0)
+
+        auto try_consume_one_apc = [&](AdaptivePackedCellContainer& target_apc, size_t& scan_cursor) noexcept->bool
         {
+            const size_t payload_capacity = target_apc.GetPayloadCapacity();
+            if (payload_capacity == 0)
+            {
+                return false;
+            }
+            for (size_t prob = 0; prob < payload_capacity; prob++)
+            {
+                const size_t idx = PayloadBegin() + ((scan_cursor - PayloadBegin() + prob) % payload_capacity);
+                packed64_t current_cell = target_apc.BackingPtr[idx].load(MoLoad_);
+                if (PackedCell64_t::ExtractLocalityFromPacked(current_cell) != PackedCellLocalityTypes::ST_PUBLISHED)
+                {
+                    continue;
+                }
+                if (static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(current_cell)) != RelOffsetMode32::RELOFFSET_GENERIC_VALUE)
+                {
+                    continue;
+                }
+                
+                packed64_t local_claimed = PackedCell64_t::SetLocalityInPacked(current_cell, PackedCellLocalityTypes::ST_CLAIMED);
+                packed64_t expected_cell = current_cell;
+                if (!target_apc.BackingPtr[idx].compare_exchange_strong(expected_cell, local_claimed, OnExchangeSuccess, OnExchangeFailure))
+                {
+                    APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(expected_cell);
+                    target_apc.GetBranchPlugin()->TotalCASFailForThisBranchIncreaseAndGet(1u);
+                    continue;
+                }
+                out_cell = current_cell;
+
+                const PackedMode old_mode = PackedCell64_t::ExtractModeOfPackedCellFromPacked(current_cell);
+                const PackedCellDataType old_dtype = PackedCell64_t::ExtractPCellDataTypeFromPacked(current_cell);
+
+                target_apc.BackingPtr[idx].store(PackedCell64_t::MakeInitialPacked(old_mode, old_dtype), MoStoreSeq_);
+                target_apc.BackingPtr[idx].notify_all();
+                target_apc.OccupancyAddOrSubAndGetAfterChange(-1);
+                target_apc.RefreshAPCMeta_();
+                scan_cursor = idx + 1;
+                if (scan_cursor >= (PayloadBegin() + payload_capacity))
+                {
+                    scan_cursor = PayloadBegin();
+                }
+                return true;
+            }
             return false;
-        }
-        for (size_t prob = 0; prob < payload_capacity; prob++)
+        };
+        if (try_consume_one_apc(*this, scan_cursor))
         {
-            const size_t idx = PayloadBegin() + ((scan_cursor - PayloadBegin() + prob) % payload_capacity);
-            packed64_t current_cell = BackingPtr[idx].load(MoLoad_);
-            if (PackedCell64_t::ExtractLocalityFromPacked(current_cell) != PackedCellLocalityTypes::ST_PUBLISHED)
-            {
-                continue;
-            }
-            if (static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(current_cell)) != RelOffsetMode32::RELOFFSET_GENERIC_VALUE)
-            {
-                continue;
-            }
-            
-            packed64_t local_claimed = PackedCell64_t::SetLocalityInPacked(current_cell, PackedCellLocalityTypes::ST_CLAIMED);
-            packed64_t expected_cell = current_cell;
-            if (!BackingPtr[idx].compare_exchange_strong(expected_cell, local_claimed, OnExchangeSuccess, OnExchangeFailure))
-            {
-                APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(expected_cell);
-                continue;
-            }
-            out_cell = current_cell;
-
-            const PackedMode old_mode = PackedCell64_t::ExtractModeOfPackedCellFromPacked(current_cell);
-            const PackedCellDataType old_dtype = PackedCell64_t::ExtractPCellDataTypeFromPacked(current_cell);
-
-            BackingPtr[idx].store(PackedCell64_t::MakeInitialPacked(old_mode, old_dtype), MoStoreSeq_);
-            BackingPtr[idx].notify_all();
-            OccupancyAddOrSubAndGetAfterChange(-1);
-            scan_cursor = idx + 1;
-            if (scan_cursor >= (PayloadBegin() + payload_capacity))
-            {
-                scan_cursor = PayloadBegin();
-            }
             return true;
+        }
+
+        uint32_t next_apc_shared_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
+
+        while (next_apc_shared_id != NO_VAL && next_apc_shared_id != PackedCellBranchPlugin::BRANCH_SENTINAL)
+        {
+            AdaptivePackedCellContainer* sibling_apc_ptr = APCManagerPtr_->GetAPCPtrFromBranchId(next_apc_shared_id);
+            if (!sibling_apc_ptr)
+            {
+                break;
+            }
+            size_t sibling_cursor = PayloadBegin();
+            if (try_consume_one_apc(*sibling_apc_ptr, sibling_cursor))
+            {
+                return true;
+            }
+            next_apc_shared_id = sibling_apc_ptr->GetBranchPlugin()->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
         }
         return false;
     }

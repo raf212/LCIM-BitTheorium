@@ -18,8 +18,8 @@ struct ContainerConf
     PackedMode InitialMode = PackedMode::MODE_VALUE32;
     size_t ProducerBlockSize = MIN_PRODUCER_BLOCK_SIZE;
     size_t RegionSize = MIN_REGION_SIZE;
-    unsigned RetireBatchThreshold = MIN_RETIRE_BATCH_THRESHOLD;
-    unsigned BackgroundEpochAdvanceMS = MIN_BACKGROUND_EPOCH_MS;
+    uint32_t RetireBatchThreshold = MIN_RETIRE_BATCH_THRESHOLD;
+    uint32_t BackgroundEpochAdvanceMS = MIN_BACKGROUND_EPOCH_MS;
     bool EnableBranching = true;
     uint32_t BranchSplitThresholdPercentage = INITIAL_BRANCH_SPLIT_THRESHOLD_PERCENTAGE;
     uint32_t BranchMaxDepth = MAX_BRANCH_DEPTH;

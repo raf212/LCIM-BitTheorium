@@ -139,7 +139,7 @@ public:
     size_t NextProducerSequence() noexcept;
 
     void InitOwned(size_t cpacity, ContainerConf container_cfg = {});
-    void InitOwnedAsNode(
+    void InitAPCAsNode(
         size_t capacity,
         const ContainerConf& container_configuration,
         uint32_t node_role_flags,
@@ -251,7 +251,7 @@ public:
     bool ConsumeAndIdleGenericValueCellSelfOrShared(size_t& scan_cursor, packed64_t& out_cell) noexcept;
 
     bool PublishToPort(APCPortSlot port_slot, packed64_t packed_cell, uint16_t max_tries = MAX_TRIES) noexcept;
-    AdaptivePackedCellContainer* GrowSharedNodeCheaply() noexcept;
+    AdaptivePackedCellContainer* GrowSharedNodeCheaply(bool enable_recursive_branching = true) noexcept;
 };
 
 

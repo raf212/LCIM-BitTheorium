@@ -1,258 +1,304 @@
 #include <iostream>
 #include <vector>
 #include <thread>
-#include <chrono>
 #include <atomic>
-#include <cassert>
+#include <chrono>
+#include <cstring>
+#include <mutex>
 #include <algorithm>
-#include <cmath>
-#include <sstream>
-#include <iomanip>
+#include <array>
+#include <memory>
 
 #include "AdaptivePackedCellContainer.hpp"
 #include "PackedCellContainerManager.hpp"
-#include "TestHelper.hpp"
-
-#define FIRST_PRIME 2u
 
 using namespace PredictedAdaptedEncoding;
 
-constexpr unsigned MAX_TREE_LEAFS = 20u;
-
-struct APCLeafBrunch
+namespace PredictedAdaptedEncoding
 {
-    std::unique_ptr<AdaptivePackedCellContainer> APC_UniqPtr;
-    unsigned LogicalLeafIdx = 0;
-};
-
-static unsigned NextPowerOf2 (unsigned x) noexcept
-{
-    if (x <= 1u)
+    static bool SharedChainEmpty_(
+        AdaptivePackedCellContainer& any_member
+    ) noexcept
     {
-        return 1u;
-    }
-    --x;
-    x |= x >> 1u;
-    x |= x >> 2u;
-    x |= x >> 4u;
-    x |= x >> 8u;
-    x |= x >> 16u;
-    return x + 1u;
-}
-
-// Build small/base primes ONCE, exactly like the baseline idea.
-static std::vector<uint64_t> BuildBasePrimes(uint64_t limit)
-{
-    std::vector<uint64_t> primes;
-    if (limit < 2)
-    {
-        return primes;
-    }
-
-    std::vector<char> is_prime(limit + 1, 1);
-    is_prime[0] = 0;
-    is_prime[1] = 0;
-
-    for (uint64_t p = FIRST_PRIME; p * p <= limit; ++p)
-    {
-        if (is_prime[p])
+        if (!any_member.IfAPCBranchValid() || !any_member.GetBranchPlugin())
         {
-            for (uint64_t q = p * p; q <= limit; q += p)
+            return true;
+        }
+
+        PackedCellContainerManager* manager_ptr = any_member.GetAPCManager();
+        if (!manager_ptr)
+        {
+            return any_member.OccupancyAddOrSubAndGetAfterChange(0) == 0;
+        }
+
+        AdaptivePackedCellContainer* current = any_member.FindSharedRootOrThis();
+
+        while (current)
+        {
+            if (current->OccupancyAddOrSubAndGetAfterChange(0) > 0)
             {
-                is_prime[q] = 0;
+                return false;
             }
-        }
-    }
 
-    for (uint64_t i = FIRST_PRIME; i <= limit; ++i)
-    {
-        if (is_prime[i])
-        {
-            primes.push_back(i);
-        }
-    }
-
-    return primes;
-}
-
-// Fair segmented sieve: uses shared base primes, not rebuilding them every task.
-static void SegmentedSiveUsingBasePrimes(
-    uint64_t left,
-    uint64_t right,
-    const std::vector<uint64_t>& base_primes,
-    std::vector<uint64_t>& primes_out)
-{
-    if (right < FIRST_PRIME || left > right)
-    {
-        return;
-    }
-
-    if (left < FIRST_PRIME)
-    {
-        left = FIRST_PRIME;
-    }
-
-    const uint64_t width = (right - left) + 1;
-    std::vector<char> is_prime(width, 1);
-
-    for (uint64_t p : base_primes)
-    {
-        if (p * p > right)
-        {
-            break;
-        }
-
-        uint64_t start = ((left + p - 1) / p) * p;
-        if (start < p * p)
-        {
-            start = p * p;
-        }
-
-        for (uint64_t x = start; x <= right; x += p)
-        {
-            is_prime[x - left] = 0;
-        }
-    }
-
-    for (uint64_t i = 0; i < width; ++i)
-    {
-        if (is_prime[i])
-        {
-            primes_out.push_back(left + i);
-        }
-    }
-}
-
-struct WorkerStats
-{
-    uint64_t tasks = 0;
-    uint64_t compute_us = 0;
-};
-
-static inline packed64_t MakePublishedTaskCellWithStamp16(uint32_t task_id, PackedCellContainerManager& apc_mannager) noexcept
-{
-    MasterClockConf& thereds_master_clock = apc_mannager.GetMasterClockAdaptivePackedCellContainerManager();
-    return thereds_master_clock.ComposeValue32WithCurrentThreadStamp16(
-        static_cast<val32_t>(task_id),
-        REL_ALL_LOW_4,
-        ZERO_PRIORITY,
-        PackedCellLocalityTypes::ST_PUBLISHED,
-        RelOffsetMode32::RELOFFSET_GENERIC_VALUE
-    );
-}
-
-static bool PublishTaskIdCell(
-    AdaptivePackedCellContainer& apc_address,
-    PackedCellContainerManager & apc_mannager_address,
-    uint32_t task_id,
-    uint16_t max_tries = 128
-) noexcept
-{
-    if (!apc_address.IfAPCBranchValid())
-    {
-        return false;
-    }
-    const size_t payload_begin = apc_address.PayloadBegin();
-    const size_t payload_capacity = apc_address.GetPayloadCapacity();
-    uint16_t tries = 0;
-    while (tries++ < max_tries)
-    {
-        size_t next_sequense = apc_address.NextProducerSequence();
-        if (next_sequense == SIZE_MAX)
-        {
-            return false;
-        }
-
-        size_t idx = payload_begin + ((next_sequense - payload_begin) % payload_capacity);
-        size_t step = 1u + ((next_sequense * ID_HASH_GOLDEN_CONST) % ((payload_capacity > 1) ? (payload_capacity - 1) : 1));
-        for (size_t probs = 0; probs < payload_capacity; probs++)
-        {
-            packed64_t current_cell = apc_address.BackingPtr[idx].load(MoLoad_);
-            PackedCellLocalityTypes cur_locality = PackedCell64_t::ExtractLocalityFromPacked(current_cell);
-            if (cur_locality == PackedCellLocalityTypes::ST_IDLE)
+            PackedCellBranchPlugin* plugin = current->GetBranchPlugin();
+            if (!plugin)
             {
-                packed64_t claimed_cell = PackedCell64_t::SetLocalityInPacked(current_cell, PackedCellLocalityTypes::ST_PUBLISHED);
-                packed64_t expected_cell = current_cell;
-                if (apc_address.BackingPtr[idx].compare_exchange_strong(expected_cell, claimed_cell, OnExchangeSuccess, OnExchangeFailure))
-                {
-                    packed64_t published_cell = MakePublishedTaskCellWithStamp16(task_id, apc_mannager_address);
-                    apc_address.BackingPtr[idx].store(published_cell, MoStoreSeq_);
-                    apc_address.BackingPtr[idx].notify_all();
-                    apc_address.OccupancyAddOrSubAndGetAfterChange(+1);
-                    if (apc_address.GetBranchPlugin()->ShouldSplitNow())
-                    {
-                        apc_mannager_address.RequestBranchCreationForTheAdaptivePackedCellContainer(&apc_address);
-                    }
-                    return true;
-                }
+                break;
             }
-            idx = payload_begin + ((idx - payload_begin + step) % payload_capacity);
+
+            const uint32_t next_id =
+                plugin->ReadMetaCellValue32(
+                    PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
+
+            if (next_id == NO_VAL || next_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            {
+                break;
+            }
+
+            AdaptivePackedCellContainer* next_ptr =
+                manager_ptr->GetAPCPtrFromBranchId(next_id);
+
+            if (!next_ptr || next_ptr == current)
+            {
+                break;
+            }
+
+            current = next_ptr;
         }
-        size_t observed_idx = payload_begin + (task_id % payload_capacity);
-        apc_mannager_address.GetCellsAdaptiveBackoffFromManager(
-            apc_address.BackingPtr[observed_idx].load(MoLoad_)
-        );
+
+        return true;
     }
-    return false;
+
+    static bool TryConsumeFromSharedChain_(
+        AdaptivePackedCellContainer& any_member,
+        size_t& root_scan_cursor,
+        packed64_t& out_cell
+    ) noexcept
+    {
+        PackedCellContainerManager* manager_ptr = any_member.GetAPCManager();
+        if (!manager_ptr)
+        {
+            return any_member.ConsumeAndIdleGenericValueCell(root_scan_cursor, out_cell);
+        }
+
+        AdaptivePackedCellContainer* current = any_member.FindSharedRootOrThis();
+        while (current)
+        {
+            if (current->ConsumeAndIdleGenericValueCell(root_scan_cursor, out_cell))
+            {
+                return true;
+            }
+
+            PackedCellBranchPlugin* plugin = current->GetBranchPlugin();
+            if (!plugin)
+            {
+                break;
+            }
+
+            const uint32_t next_id =
+                plugin->ReadMetaCellValue32(
+                    PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
+
+            if (next_id == NO_VAL || next_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            {
+                break;
+            }
+
+            AdaptivePackedCellContainer* next_ptr =
+                manager_ptr->GetAPCPtrFromBranchId(next_id);
+
+            if (!next_ptr || next_ptr == current)
+            {
+                break;
+            }
+
+            current = next_ptr;
+        }
+
+        return false;
+    }
 }
 
-static bool TryClaimOneTaskIdCell(
-    AdaptivePackedCellContainer& apc_address,
-    PackedCellContainerManager& manager_address,
-    size_t& scan_cursor,
-    uint32_t& out_task_id
-) noexcept
+namespace
 {
-    if (!apc_address.IfAPCBranchValid())
+    constexpr uint32_t VALUE_COUNT      = 256u;
+    constexpr float    D_MULTIPLIER     = 0.5f;
+
+    constexpr uint32_t PRODUCER_COUNT   = 2u;
+    constexpr uint32_t B_WORKER_COUNT   = 3u;
+    constexpr uint32_t C_WORKER_COUNT   = 2u;
+    constexpr uint32_t D_WORKER_COUNT   = 2u;
+    constexpr uint32_t E_WORKER_COUNT   = 1u;
+
+    struct GraphStats
     {
-        return false;
+        std::atomic<uint64_t> ProducedA{0};
+
+        std::atomic<uint64_t> ConsumedB{0};
+        std::atomic<uint64_t> ConsumedC{0};
+        std::atomic<uint64_t> ConsumedD{0};
+        std::atomic<uint64_t> ConsumedE{0};
+
+        // terminal failures only
+        std::atomic<uint64_t> TerminalPublishFailA{0};
+        std::atomic<uint64_t> TerminalPublishFailB{0};
+        std::atomic<uint64_t> TerminalPublishFailC{0};
+        std::atomic<uint64_t> TerminalPublishFailD{0};
+
+        // successful growth attempts
+        std::atomic<uint64_t> SharedGrowA{0};
+        std::atomic<uint64_t> SharedGrowB{0};
+        std::atomic<uint64_t> SharedGrowC{0};
+        std::atomic<uint64_t> SharedGrowD{0};
+
+        std::atomic<uint64_t> StaleDroppedB{0};
+        std::atomic<uint64_t> StaleDroppedC{0};
+        std::atomic<uint64_t> StaleDroppedD{0};
+        std::atomic<uint64_t> StaleDroppedE{0};
+
+        // retry counts only
+        std::atomic<uint64_t> RetryPublishA{0};
+        std::atomic<uint64_t> RetryPublishB{0};
+        std::atomic<uint64_t> RetryPublishC{0};
+        std::atomic<uint64_t> RetryPublishD{0};
+    };
+
+    struct NodeCausalState
+    {
+        std::atomic<uint16_t> LastAcceptedClk16{0};
+    };
+
+    static inline uint32_t BitCastFloatToU32(float x) noexcept
+    {
+        uint32_t out = 0u;
+        std::memcpy(&out, &x, sizeof(out));
+        return out;
     }
 
-    const size_t payload_begain = apc_address.PayloadBegin();
-    const size_t payload_capacity = apc_address.GetPayloadCapacity();
-
-    uint32_t current_occupancy = static_cast<uint32_t>(apc_address.OccupancyAddOrSubAndGetAfterChange());
-    if (current_occupancy == 0)
+    static inline packed64_t MakeStampedU32Cell(
+        PackedCellContainerManager& manager,
+        uint32_t value,
+        tag8_t rel_mask = REL_NONE,
+        tag8_t priority = ZERO_PRIORITY
+    ) noexcept
     {
-        return false;
+        return manager.GetMasterClockAdaptivePackedCellContainerManager()
+            .ComposeValue32WithCurrentThreadStamp16(
+                static_cast<val32_t>(value),
+                rel_mask,
+                priority,
+                PackedCellLocalityTypes::ST_PUBLISHED,
+                RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
+                PackedCellDataType::UnsignedPCellDataType
+            );
     }
-    
-    for (size_t prob = 0; prob < payload_capacity; prob++)
+
+    static inline packed64_t MakeStampedFloatCell(
+        PackedCellContainerManager& manager,
+        float value,
+        tag8_t rel_mask = REL_NONE,
+        tag8_t priority = ZERO_PRIORITY
+    ) noexcept
     {
-        size_t idx = payload_begain + ((scan_cursor - payload_begain + prob) % payload_capacity);
-        packed64_t current_cell = apc_address.BackingPtr[idx].load(MoLoad_);
-        if (PackedCell64_t::ExtractLocalityFromPacked(current_cell) != PackedCellLocalityTypes::ST_PUBLISHED)
-        {
-            continue;
-        }
+        return manager.GetMasterClockAdaptivePackedCellContainerManager()
+            .ComposeValue32WithCurrentThreadStamp16(
+                BitCastFloatToU32(value),
+                rel_mask,
+                priority,
+                PackedCellLocalityTypes::ST_PUBLISHED,
+                RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
+                PackedCellDataType::FloatPCellDataType
+            );
+    }
 
-        if (static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(current_cell)) != RelOffsetMode32::RELOFFSET_GENERIC_VALUE)
-        {
-            continue;
-        }
-        packed64_t claimed_cell = PackedCell64_t::SetLocalityInPacked(current_cell, PackedCellLocalityTypes::ST_CLAIMED);
+    static inline bool AcceptByCausalClockDemo(
+        NodeCausalState& state,
+        packed64_t cell
+    ) noexcept
+    {
+        const uint16_t incoming = PackedCell64_t::ExtractClk16(cell);
+        uint16_t seen = state.LastAcceptedClk16.load(std::memory_order_relaxed);
 
-        packed64_t expected_cell = current_cell;
-        if (!apc_address.BackingPtr[idx].compare_exchange_strong(expected_cell, claimed_cell, OnExchangeSuccess, OnExchangeFailure))
+        while (seen < incoming &&
+               !state.LastAcceptedClk16.compare_exchange_weak(
+                    seen,
+                    incoming,
+                    std::memory_order_relaxed,
+                    std::memory_order_relaxed))
         {
-            manager_address.GetCellsAdaptiveBackoffFromManager(expected_cell);
-            continue;
-        }
-        out_task_id = static_cast<uint32_t>(PackedCell64_t::ExtractValue32(current_cell));
-        packed64_t idle_cell = PackedCell64_t::MakeInitialPacked(PackedMode::MODE_VALUE32);
-        apc_address.BackingPtr[idx].store(idle_cell, MoStoreSeq_);
-        apc_address.BackingPtr[idx].notify_all();
-        apc_address.OccupancyAddOrSubAndGetAfterChange(-1);
-        scan_cursor = idx + 1;
-        if (scan_cursor >= payload_begain + payload_capacity)
-        {
-            scan_cursor = payload_begain;
         }
         return true;
     }
-    return false;
+
+    static bool TryPublishWithSharedGrowthOnce(
+        AdaptivePackedCellContainer& root,
+        packed64_t packed_cell,
+        std::atomic<uint64_t>* growth_counter = nullptr
+    ) noexcept
+    {
+        if (root.WriteGenericValueCellWithCASClaimedManager(packed_cell))
+        {
+            return true;
+        }
+
+        AdaptivePackedCellContainer* grown = root.GrowSharedNodeCheaply(true);
+        if (grown != nullptr)
+        {
+            if (growth_counter)
+            {
+                growth_counter->fetch_add(1, std::memory_order_relaxed);
+            }
+
+            if (root.WriteGenericValueCellWithCASClaimedManager(packed_cell))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    static bool PublishUntilSuccessOrBudgetEnd(
+        AdaptivePackedCellContainer& root,
+        packed64_t packed_cell,
+        PackedCellContainerManager& manager,
+        std::atomic<uint64_t>* growth_counter,
+        std::atomic<uint64_t>* retry_counter,
+        uint32_t max_attempts = 4096
+    ) noexcept
+    {
+        for (uint32_t attempt = 0; attempt < max_attempts; ++attempt)
+        {
+            if (TryPublishWithSharedGrowthOnce(root, packed_cell, growth_counter))
+            {
+                return true;
+            }
+
+            if (retry_counter)
+            {
+                retry_counter->fetch_add(1, std::memory_order_relaxed);
+            }
+
+            manager.GetCellsAdaptiveBackoffFromManager(packed_cell);
+            std::this_thread::sleep_for(std::chrono::microseconds(10));
+        }
+
+        return false;
+    }
+
+    static void PrintNodeSummary(
+        const char* name,
+        AdaptivePackedCellContainer& apc
+    )
+    {
+        std::cout << name
+                  << " branch=" << apc.GetBranchId()
+                  << " logical=" << apc.GetLogicalId()
+                  << " shared=" << apc.GetSharedId()
+                  << " occ=" << apc.OccupancyAddOrSubAndGetAfterChange(0)
+                  << "\n";
+    }
 }
-///continue
 
 int main()
 {
@@ -260,281 +306,478 @@ int main()
     std::cout.setf(std::ios::unitbuf);
     std::cerr.setf(std::ios::unitbuf);
 
-    std::cout << "AdaptivePackedCellContainer fair task-transport prime test\n";
-    std::cout << "Finding Upto Element : " << NTH_ELEMENT
-              << ", Each Block Size : " << BLOCK_SIZE << "\n";
+    PackedCellContainerManager& manager = PackedCellContainerManager::Instance();
+    manager.StartAPCManager();
 
-    StopWatch runtime_stop_watch;
+    ContainerConf cfg;
+    cfg.InitialMode = PackedMode::MODE_VALUE32;
+    cfg.ProducerBlockSize = 8;
+    cfg.RegionSize = 16;
+    cfg.EnableBranching = true;
+    cfg.BranchSplitThresholdPercentage = 20;
+    cfg.BranchMaxDepth = 3;
+    cfg.BranchMinChildCapacity = 256;
+    cfg.NodeGroupSize = 1u;
 
-    const uint64_t sqrt_limit =
-        static_cast<uint64_t>(std::sqrt(static_cast<long double>(NTH_ELEMENT))) + 1;
-    std::vector<uint64_t> base_primes = BuildBasePrimes(sqrt_limit);
+    AdaptivePackedCellContainer A;
+    AdaptivePackedCellContainer B;
+    AdaptivePackedCellContainer C;
+    AdaptivePackedCellContainer D;
+    AdaptivePackedCellContainer E;
 
-    PackedCellContainerManager& apc_manager = PackedCellContainerManager::Instance();
-    apc_manager.StartAPCManager();
+    A.SetManagerForGlobalAPC(&manager);
+    B.SetManagerForGlobalAPC(&manager);
+    C.SetManagerForGlobalAPC(&manager);
+    D.SetManagerForGlobalAPC(&manager);
+    E.SetManagerForGlobalAPC(&manager);
 
-    std::vector<std::pair<uint64_t, uint64_t>> task_ranges;
-    for (uint64_t lo = FIRST_PRIME; lo <= NTH_ELEMENT; lo += BLOCK_SIZE)
+    A.InitAPCAsNode(
+        256,
+        cfg,
+        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::SELF_DATA_NODE),
+        PackedCellBranchPlugin::APCNodeComputeKind::GENERATOR_UINT32,
+        NO_VAL
+    );
+
+    B.InitAPCAsNode(
+        256,
+        cfg,
+        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::ACCEPTS_FEEDFORWARD) |
+        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::EMMITS_FEEDFORWARD),
+        PackedCellBranchPlugin::APCNodeComputeKind::SQUARE_UINT32,
+        NO_VAL
+    );
+
+    C.InitAPCAsNode(
+        256,
+        cfg,
+        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::ACCEPTS_FEEDFORWARD) |
+        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::EMMITS_FEEDFORWARD),
+        PackedCellBranchPlugin::APCNodeComputeKind::ADD_UINT32,
+        NO_VAL
+    );
+
+    D.InitAPCAsNode(
+        256,
+        cfg,
+        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::ACCEPTS_FEEDFORWARD) |
+        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::EMMITS_FEEDFORWARD),
+        PackedCellBranchPlugin::APCNodeComputeKind::DIV_UINT32,
+        NO_VAL
+    );
+
+    E.InitAPCAsNode(
+        256,
+        cfg,
+        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::ACCEPTS_FEEDFORWARD) |
+        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::SELF_DATA_NODE),
+        PackedCellBranchPlugin::APCNodeComputeKind::GENERIC_VECTOR,
+        NO_VAL
+    );
+
+    GraphStats stats;
+
+    std::array<NodeCausalState, B_WORKER_COUNT> causalB{};
+    std::array<NodeCausalState, C_WORKER_COUNT> causalC{};
+    std::array<NodeCausalState, D_WORKER_COUNT> causalD{};
+    std::array<NodeCausalState, E_WORKER_COUNT> causalE{};
+
+    std::vector<float> collected;
+    std::mutex collected_mutex;
+
+    std::atomic<bool> producers_done{false};
+
+    std::atomic<uint64_t> total_done_B{0};
+    std::atomic<uint64_t> total_done_C{0};
+    std::atomic<uint64_t> total_done_D{0};
+    std::atomic<uint64_t> total_done_E{0};
+
+    std::vector<std::thread> producer_threads;
+    std::vector<std::thread> worker_threads;
+
+    for (uint32_t producer_id = 0; producer_id < PRODUCER_COUNT; ++producer_id)
     {
-        uint64_t hi = std::min<uint64_t>(NTH_ELEMENT, lo + BLOCK_SIZE - 1);
-        task_ranges.emplace_back(lo, hi);
-    }
-
-    const size_t num_of_tasks = task_ranges.size();
-    if (num_of_tasks >= PackedCellBranchPlugin::BRANCH_SENTINAL)
-    {
-        std::cerr << "numver of tasks should be less than UINT32_MAX";
-        return 1;
-    }
-
-    const unsigned leaf_branch_count = std::min<unsigned>(MAX_TREE_LEAFS, NextPowerOf2(std::max(1u, std::min(CONSUMER_COUNT, MAX_TREE_LEAFS))));
-    std::vector<APCLeafBrunch> leaf_branches_struct;
-    leaf_branches_struct.resize(leaf_branch_count);
-    ContainerConf branch_cfg_default;
-
-    const size_t task_per_leaf_set = (num_of_tasks + leaf_branch_count -1) / leaf_branch_count;
-    const size_t branch_capacity = std::max<size_t>(MINIMUM_BRANCH_CAPACITY, AdaptivePackedCellContainer::PayloadBegin() + task_per_leaf_set * 4 + 128);
-
-    for (unsigned i = 0; i < leaf_branch_count; i++)
-    {
-        leaf_branches_struct[i].APC_UniqPtr = std::make_unique<AdaptivePackedCellContainer>();
-        leaf_branches_struct[i].LogicalLeafIdx = i;
-        leaf_branches_struct[i].APC_UniqPtr->InitOwned(branch_capacity, branch_cfg_default);
-        leaf_branches_struct[i].APC_UniqPtr->SetManagerForGlobalAPC(&apc_manager);
-        leaf_branches_struct[i].APC_UniqPtr->InitRegionIdx(branch_cfg_default.RegionSize);
-        apc_manager.RequestBranchCreationForTheAdaptivePackedCellContainer(leaf_branches_struct[i].APC_UniqPtr.get());
-    }
-
-    std::atomic<size_t> producer_done{0};
-    std::atomic<uint64_t> task_processed{0};
-    std::atomic<uint64_t> failed_task_publications{0};
-    std::atomic<uint64_t> retired_from_task{0};
-
-    AtomicTimerStatus producer_publish_timer;
-    AtomicTimerStatus consumer_compute_timer;
-
-    std::vector<WorkerStats> stats(CONSUMER_COUNT);
-    std::vector<std::vector<uint64_t>> thread_results(CONSUMER_COUNT);
-
-    auto producer_function = [&](unsigned producer_id)
-    {
-        std::cout << "Producer ID : " << producer_id << " -> starting\n";
-        StopWatch local_stop_watch_producer;
-
-        const size_t start_idx = (task_ranges.size() * producer_id) / PRODUCER_COUNT;
-        const size_t end_idx   = (task_ranges.size() * (producer_id + 1)) / PRODUCER_COUNT;
-
-        for (size_t i = start_idx; i < end_idx; ++i)
+        producer_threads.emplace_back([&, producer_id]()
         {
-            uint32_t task_id = static_cast<uint32_t>(i);
-            const unsigned leaf = static_cast<unsigned>(task_id & (leaf_branch_count - 1u));
-            AdaptivePackedCellContainer& target_producer_container = *leaf_branches_struct[leaf].APC_UniqPtr;
-            StopWatch operation_stop_watch;
-            bool ok = PublishTaskIdCell(target_producer_container, apc_manager, task_id, 256);
-            uint64_t elapsed_us = operation_stop_watch.ElapsedMicroSecond();
-            producer_publish_timer.AddSamplMicroSecond(elapsed_us);
+            auto th = manager.RegisterAPCThread();
 
-            if (!ok)
+            for (uint32_t i = producer_id + 1; i <= VALUE_COUNT; i += PRODUCER_COUNT)
             {
-                std::cerr << "Producer ID : " << producer_id
-                          << " failed to publish task id = "
-                          << task_id << "-> into leaf = " << leaf << "\n";
-            }
-        }
-        uint64_t total_loop_us = local_stop_watch_producer.ElapsedMicroSecond();
-        producer_done.fetch_add(1, std::memory_order_release);
+                packed64_t cell = MakeStampedU32Cell(manager, i, REL_NODE0, ZERO_PRIORITY);
 
-        std::cout << "Producer ID : " << producer_id
-                  << " -> Done || Elapsed Time : " << total_loop_us << " us\n";
-    };
-
-    auto consumer_function = [&](unsigned worker_id)
-    {
-        std::cout << "Consumer ID : " << worker_id << " started\n";
-
-        PackedCellContainerManager::ThreadHandlePCCM thread_handle_consumer =
-            apc_manager.RegisterAPCThread();
-
-        std::vector<uint64_t>& local_output = thread_results[worker_id];
-        local_output.reserve(256000);
-
-        std::vector<size_t>scan_offsets(leaf_branch_count, 0);
-        for (unsigned branch = 0; branch < leaf_branch_count; branch++)
-        {
-            scan_offsets[branch] = AdaptivePackedCellContainer::PayloadBegin();
-        }
-        const unsigned preffered_leaf = worker_id & (leaf_branch_count - 1u);
-        size_t idle_loops = 0;
-        while (true)
-        {
-            bool did_work = false;
-
-            for (unsigned hop = 0; hop < leaf_branch_count; hop++)
-            {
-                const unsigned current_leaf = (preffered_leaf + hop) & (leaf_branch_count - 1u);
-                AdaptivePackedCellContainer& current_branch_address = *leaf_branches_struct[current_leaf].APC_UniqPtr;
-                uint32_t current_task_id = 0;
-                if (!TryClaimOneTaskIdCell(current_branch_address, apc_manager, scan_offsets[current_leaf], current_task_id))
+                if (PublishUntilSuccessOrBudgetEnd(
+                        A,
+                        cell,
+                        manager,
+                        &stats.SharedGrowA,
+                        &stats.RetryPublishA))
                 {
-                    continue;
-                }
-
-                const uint64_t low = task_ranges[current_task_id].first;
-                const uint64_t high = task_ranges[current_task_id].second;
-                StopWatch compute_watch;
-                SegmentedSiveUsingBasePrimes(low, high, base_primes, local_output);
-                uint64_t compute_us = compute_watch.ElapsedMicroSecond();
-
-                consumer_compute_timer.AddSamplMicroSecond(compute_us);
-                ++stats[worker_id].tasks;
-                stats[worker_id].compute_us +=compute_us;
-                task_processed.fetch_add(1, std::memory_order_relaxed);
-                did_work = true;
-                idle_loops = 0;
-                break;
-            }
-            if (!did_work)
-            {
-                ++idle_loops;
-                bool all_done = producer_done.load(MoLoad_) >= PRODUCER_COUNT;
-                bool any_work_left = false;
-                for (unsigned branch = 0; branch < leaf_branch_count; branch++)
-                {
-                    if (leaf_branches_struct[branch].APC_UniqPtr->OccupancyAddOrSubAndGetAfterChange() > 0)
-                    {
-                        any_work_left = true;
-                        break;
-                    }
-                }
-                if (all_done && !any_work_left)
-                {
-                    break;
-                }
-                if ((idle_loops & 0x3f) == 0)
-                {
-                    std::this_thread::yield();
+                    stats.ProducedA.fetch_add(1, std::memory_order_relaxed);
                 }
                 else
                 {
-                    std::this_thread::sleep_for(std::chrono::microseconds(20));
+                    stats.TerminalPublishFailA.fetch_add(1, std::memory_order_relaxed);
+                    std::cerr << "A terminal publish failure for value " << i << "\n";
+                }
+            }
+
+            manager.UnRegisterAPCThread(th);
+        });
+    }
+
+    for (uint32_t worker_id = 0; worker_id < B_WORKER_COUNT; ++worker_id)
+    {
+        worker_threads.emplace_back([&, worker_id]()
+        {
+            auto th = manager.RegisterAPCThread();
+            size_t scan_cursor = A.PayloadBegin();
+            uint64_t idle_loops = 0;
+
+            while (true)
+            {
+                if (total_done_B.load(std::memory_order_acquire) >= VALUE_COUNT)
+                {
+                    break;
                 }
 
-            }
-            
+                packed64_t in = 0;
+                if (!PredictedAdaptedEncoding::TryConsumeFromSharedChain_(A, scan_cursor, in))
+                {
+                    if (producers_done.load(std::memory_order_acquire) &&
+                        PredictedAdaptedEncoding::SharedChainEmpty_(A) &&
+                        total_done_B.load(std::memory_order_acquire) >= VALUE_COUNT)
+                    {
+                        break;
+                    }
 
-            if ((++idle_loops & 0x3f) == 0)
+                    if ((++idle_loops & 0x3FFu) == 0u)
+                    {
+                        std::cout << "[B-" << worker_id << "] heartbeat done="
+                                  << total_done_B.load() << "/" << VALUE_COUNT
+                                  << " A_occ=" << A.OccupancyAddOrSubAndGetAfterChange(0)
+                                  << "\n";
+                    }
+
+                    std::this_thread::sleep_for(std::chrono::microseconds(20));
+                    continue;
+                }
+
+                idle_loops = 0;
+
+                if (!AcceptByCausalClockDemo(causalB[worker_id], in))
+                {
+                    stats.StaleDroppedB.fetch_add(1, std::memory_order_relaxed);
+                    continue;
+                }
+
+                if (!APCSideHelper::IsCellPublishedMode32Generic(in))
+                {
+                    std::cerr << "B received non-unsigned payload cell\n";
+                    continue;
+                }
+
+                const uint32_t x = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(in);
+                const uint32_t y = x * x;
+                packed64_t out = MakeStampedU32Cell(manager, y, REL_NODE1, ZERO_PRIORITY);
+
+                if (PublishUntilSuccessOrBudgetEnd(
+                        B,
+                        out,
+                        manager,
+                        &stats.SharedGrowB,
+                        &stats.RetryPublishB))
+                {
+                    stats.ConsumedB.fetch_add(1, std::memory_order_relaxed);
+                    total_done_B.fetch_add(1, std::memory_order_release);
+                }
+                else
+                {
+                    stats.TerminalPublishFailB.fetch_add(1, std::memory_order_relaxed);
+                    std::cerr << "B terminal publish failure for value " << y << "\n";
+                }
+            }
+
+            manager.UnRegisterAPCThread(th);
+        });
+    }
+
+    for (uint32_t worker_id = 0; worker_id < C_WORKER_COUNT; ++worker_id)
+    {
+        worker_threads.emplace_back([&, worker_id]()
+        {
+            auto th = manager.RegisterAPCThread();
+            size_t scan_cursor = B.PayloadBegin();
+            uint64_t idle_loops = 0;
+
+            while (true)
             {
-                std::cout << "consumer " << worker_id
-                          << " heartbeat loops=" << idle_loops
-                          << " retired_tasks=" << retired_from_task.load()
-                          << " producers_done=" << producer_done.load() << "\n";
+                if (total_done_C.load(std::memory_order_acquire) >= VALUE_COUNT)
+                {
+                    break;
+                }
+
+                packed64_t in = 0;
+                if (!PredictedAdaptedEncoding::TryConsumeFromSharedChain_(B, scan_cursor, in))
+                {
+                    if (total_done_B.load(std::memory_order_acquire) >= VALUE_COUNT &&
+                        PredictedAdaptedEncoding::SharedChainEmpty_(B) &&
+                        total_done_C.load(std::memory_order_acquire) >= VALUE_COUNT)
+                    {
+                        break;
+                    }
+
+                    if ((++idle_loops & 0x3FFu) == 0u)
+                    {
+                        std::cout << "[C-" << worker_id << "] heartbeat done="
+                                  << total_done_C.load() << "/" << VALUE_COUNT
+                                  << " B_occ=" << B.OccupancyAddOrSubAndGetAfterChange(0)
+                                  << "\n";
+                    }
+
+                    std::this_thread::sleep_for(std::chrono::microseconds(20));
+                    continue;
+                }
+
+                idle_loops = 0;
+
+                if (!AcceptByCausalClockDemo(causalC[worker_id], in))
+                {
+                    stats.StaleDroppedC.fetch_add(1, std::memory_order_relaxed);
+                    continue;
+                }
+
+                if (!APCSideHelper::IsCellPublishedMode32Generic(in))
+                {
+                    std::cerr << "C received non-unsigned payload cell\n";
+                    continue;
+                }
+
+                const uint32_t x = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(in);
+                const uint32_t y = x + 1u;
+                packed64_t out = MakeStampedU32Cell(manager, y, REL_PAGE, ZERO_PRIORITY);
+
+                if (PublishUntilSuccessOrBudgetEnd(
+                        C,
+                        out,
+                        manager,
+                        &stats.SharedGrowC,
+                        &stats.RetryPublishC))
+                {
+                    stats.ConsumedC.fetch_add(1, std::memory_order_relaxed);
+                    total_done_C.fetch_add(1, std::memory_order_release);
+                }
+                else
+                {
+                    stats.TerminalPublishFailC.fetch_add(1, std::memory_order_relaxed);
+                    std::cerr << "C terminal publish failure for value " << y << "\n";
+                }
             }
-        }
 
-        apc_manager.UnRegisterAPCThread(thread_handle_consumer);
-        std::cout << "Consumer stopped ID : " << worker_id << "\n";
-    };
-
-    std::vector<std::thread> producers;
-    for (unsigned producer = 0; producer < PRODUCER_COUNT; ++producer)
-    {
-        producers.emplace_back(producer_function, producer);
+            manager.UnRegisterAPCThread(th);
+        });
     }
 
-    std::vector<std::thread> consumers;
-    consumers.reserve(CONSUMER_COUNT);
-    for (unsigned consumer = 0; consumer < CONSUMER_COUNT; ++consumer)
+    for (uint32_t worker_id = 0; worker_id < D_WORKER_COUNT; ++worker_id)
     {
-        consumers.emplace_back(consumer_function, consumer);
+        worker_threads.emplace_back([&, worker_id]()
+        {
+            auto th = manager.RegisterAPCThread();
+            size_t scan_cursor = C.PayloadBegin();
+            uint64_t idle_loops = 0;
+
+            while (true)
+            {
+                if (total_done_D.load(std::memory_order_acquire) >= VALUE_COUNT)
+                {
+                    break;
+                }
+
+                packed64_t in = 0;
+                if (!PredictedAdaptedEncoding::TryConsumeFromSharedChain_(C, scan_cursor, in))
+                {
+                    if (total_done_C.load(std::memory_order_acquire) >= VALUE_COUNT &&
+                        PredictedAdaptedEncoding::SharedChainEmpty_(C) &&
+                        total_done_D.load(std::memory_order_acquire) >= VALUE_COUNT)
+                    {
+                        break;
+                    }
+
+                    if ((++idle_loops & 0x3FFu) == 0u)
+                    {
+                        std::cout << "[D-" << worker_id << "] heartbeat done="
+                                  << total_done_D.load() << "/" << VALUE_COUNT
+                                  << " C_occ=" << C.OccupancyAddOrSubAndGetAfterChange(0)
+                                  << "\n";
+                    }
+
+                    std::this_thread::sleep_for(std::chrono::microseconds(20));
+                    continue;
+                }
+
+                idle_loops = 0;
+
+                if (!AcceptByCausalClockDemo(causalD[worker_id], in))
+                {
+                    stats.StaleDroppedD.fetch_add(1, std::memory_order_relaxed);
+                    continue;
+                }
+
+                if (!APCSideHelper::IsCellPublishedMode32Generic(in))
+                {
+                    std::cerr << "D received non-unsigned payload cell\n";
+                    continue;
+                }
+
+                const uint32_t x = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(in);
+                const float y = static_cast<float>(x) * D_MULTIPLIER;
+                packed64_t out = MakeStampedFloatCell(manager, y, REL_PATTERN, ZERO_PRIORITY);
+
+                if (PublishUntilSuccessOrBudgetEnd(
+                        D,
+                        out,
+                        manager,
+                        &stats.SharedGrowD,
+                        &stats.RetryPublishD))
+                {
+                    stats.ConsumedD.fetch_add(1, std::memory_order_relaxed);
+                    total_done_D.fetch_add(1, std::memory_order_release);
+                }
+                else
+                {
+                    stats.TerminalPublishFailD.fetch_add(1, std::memory_order_relaxed);
+                    std::cerr << "D terminal publish failure for value " << y << "\n";
+                }
+            }
+
+            manager.UnRegisterAPCThread(th);
+        });
     }
 
-    for (auto& thrd : producers)
+    for (uint32_t worker_id = 0; worker_id < E_WORKER_COUNT; ++worker_id)
     {
-        thrd.join();
+        worker_threads.emplace_back([&, worker_id]()
+        {
+            auto th = manager.RegisterAPCThread();
+            size_t scan_cursor = D.PayloadBegin();
+            uint64_t idle_loops = 0;
+
+            while (true)
+            {
+                if (total_done_E.load(std::memory_order_acquire) >= VALUE_COUNT)
+                {
+                    break;
+                }
+
+                packed64_t in = 0;
+                if (!PredictedAdaptedEncoding::TryConsumeFromSharedChain_(D, scan_cursor, in))
+                {
+                    if (total_done_D.load(std::memory_order_acquire) >= VALUE_COUNT &&
+                        PredictedAdaptedEncoding::SharedChainEmpty_(D) &&
+                        total_done_E.load(std::memory_order_acquire) >= VALUE_COUNT)
+                    {
+                        break;
+                    }
+
+                    if ((++idle_loops & 0x3FFu) == 0u)
+                    {
+                        std::cout << "[E-" << worker_id << "] heartbeat done="
+                                  << total_done_E.load() << "/" << VALUE_COUNT
+                                  << " D_occ=" << D.OccupancyAddOrSubAndGetAfterChange(0)
+                                  << "\n";
+                    }
+
+                    std::this_thread::sleep_for(std::chrono::microseconds(20));
+                    continue;
+                }
+
+                idle_loops = 0;
+
+                if (!AcceptByCausalClockDemo(causalE[worker_id], in))
+                {
+                    stats.StaleDroppedE.fetch_add(1, std::memory_order_relaxed);
+                    continue;
+                }
+
+                if (!APCSideHelper::IsMode32TypedPublishedCell<float>(in))
+                {
+                    std::cerr << "E received non-float payload cell\n";
+                    continue;
+                }
+
+                const float value = PackedCell64_t::ExtractAnyPackedValueX<float>(in);
+                {
+                    std::lock_guard<std::mutex> lock(collected_mutex);
+                    collected.push_back(value);
+                }
+
+                stats.ConsumedE.fetch_add(1, std::memory_order_relaxed);
+                total_done_E.fetch_add(1, std::memory_order_release);
+            }
+
+            manager.UnRegisterAPCThread(th);
+        });
     }
+
+    for (auto& t : producer_threads)
+    {
+        t.join();
+    }
+    producers_done.store(true, std::memory_order_release);
     std::cout << "All producers joined\n";
 
-    for (auto& thrd : consumers)
+    for (auto& t : worker_threads)
     {
-        thrd.join();
+        t.join();
     }
-    std::cout << "All consumers joined\n";
+    std::cout << "All workers joined\n";
 
-    // Final merge: same style as baseline.
-    StopWatch merge_stop_watch;
-    std::vector<uint64_t> all_primes_array;
-    for (auto& vec : thread_results)
+    std::sort(collected.begin(), collected.end());
+
+    std::cout << "\n==== Current APC Shared-Node Concurrent Test (shared-chain fixed) ====\n";
+    std::cout << "A produced values      : " << stats.ProducedA.load() << "\n";
+    std::cout << "B squared              : " << stats.ConsumedB.load() << "\n";
+    std::cout << "C add+1                : " << stats.ConsumedC.load() << "\n";
+    std::cout << "D float*0.5            : " << stats.ConsumedD.load() << "\n";
+    std::cout << "E collected            : " << stats.ConsumedE.load() << "\n";
+
+    std::cout << "A terminal fail        : " << stats.TerminalPublishFailA.load() << "\n";
+    std::cout << "B terminal fail        : " << stats.TerminalPublishFailB.load() << "\n";
+    std::cout << "C terminal fail        : " << stats.TerminalPublishFailC.load() << "\n";
+    std::cout << "D terminal fail        : " << stats.TerminalPublishFailD.load() << "\n";
+
+    std::cout << "A shared grows         : " << stats.SharedGrowA.load() << "\n";
+    std::cout << "B shared grows         : " << stats.SharedGrowB.load() << "\n";
+    std::cout << "C shared grows         : " << stats.SharedGrowC.load() << "\n";
+    std::cout << "D shared grows         : " << stats.SharedGrowD.load() << "\n";
+
+    std::cout << "B stale dropped        : " << stats.StaleDroppedB.load() << "\n";
+    std::cout << "C stale dropped        : " << stats.StaleDroppedC.load() << "\n";
+    std::cout << "D stale dropped        : " << stats.StaleDroppedD.load() << "\n";
+    std::cout << "E stale dropped        : " << stats.StaleDroppedE.load() << "\n";
+
+    std::cout << "Retry publish A        : " << stats.RetryPublishA.load() << "\n";
+    std::cout << "Retry publish B        : " << stats.RetryPublishB.load() << "\n";
+    std::cout << "Retry publish C        : " << stats.RetryPublishC.load() << "\n";
+    std::cout << "Retry publish D        : " << stats.RetryPublishD.load() << "\n";
+
+    PrintNodeSummary("A", A);
+    PrintNodeSummary("B", B);
+    PrintNodeSummary("C", C);
+    PrintNodeSummary("D", D);
+    PrintNodeSummary("E", E);
+
+    std::cout << "\nFirst 16 collected values:\n";
+    for (size_t i = 0; i < std::min<size_t>(16, collected.size()); ++i)
     {
-        all_primes_array.insert(all_primes_array.end(), vec.begin(), vec.end());
-    }
-
-    std::sort(all_primes_array.begin(), all_primes_array.end());
-    all_primes_array.erase(
-        std::unique(all_primes_array.begin(), all_primes_array.end()),
-        all_primes_array.end());
-    uint64_t merge_us = merge_stop_watch.ElapsedMicroSecond();
-
-    std::cout << "Found number of Primes : " << all_primes_array.size() << "\n";
-    for (size_t i = 0; i < std::min<size_t>(20u, all_primes_array.size()); ++i)
-    {
-        std::cout << "Position : " << i
-                  << " Prime number : " << all_primes_array[i] << "\n";
-    }
-
-    auto print_us = [](uint64_t us) {
-        std::ostringstream ss;
-        ss << us << " us (" << std::fixed << std::setprecision(3)
-           << static_cast<double>(us) / 1e6 << " s)";
-        return ss.str();
-    };
-
-    std::cout << "\n==== Instrumentation Summary ====\n";
-    std::cout << "Total runtime (steady): "
-              << print_us(runtime_stop_watch.ElapsedMicroSecond()) << "\n";
-    std::cout << "Final merge runtime: "
-              << print_us(merge_us) << "\n";
-
-    std::cout << "\nProducer publish stats:\n";
-    std::cout << "  samples: " << producer_publish_timer.GetSampleCount()
-              << "  total: "   << print_us(producer_publish_timer.GetTotalMicroSeconds())
-              << "  avg: "     << std::fixed << std::setprecision(3)
-              << producer_publish_timer.AvarageMicoSecond() << " us"
-              << "  max: "     << print_us(producer_publish_timer.GetMaxMicroSecond())
-              << "\n";
-
-    std::cout << "\nConsumer compute stats (per-task):\n";
-    std::cout << "  tasks processed: " << task_processed.load()
-              << "  total compute: "   << print_us(consumer_compute_timer.GetTotalMicroSeconds())
-              << "  avg compute: "     << std::fixed << std::setprecision(3)
-              << consumer_compute_timer.AvarageMicoSecond() << " us"
-              << "  max compute: "     << print_us(consumer_compute_timer.GetMaxMicroSecond())
-              << "\n";
-
-    std::cout << "\nPer-thread stats:\n";
-    for (unsigned i = 0; i < CONSUMER_COUNT; ++i)
-    {
-        std::cout << "  Thread " << i
-                  << " -> tasks=" << stats[i].tasks
-                  << ", compute=" << stats[i].compute_us << " us\n";
+        std::cout << i << " -> " << collected[i] << "\n";
     }
 
-    std::cout << "\nAPC counts:\n";
-    std::cout << "  retired_from_task: " << retired_from_task.load() << "\n";
-    std::cout << "  task_apc_capacity: " << branch_capacity << "\n";
-    std::cout << "  num_of_tasks: " << num_of_tasks << "\n";
+    E.FreeAll();
+    D.FreeAll();
+    C.FreeAll();
+    B.FreeAll();
+    A.FreeAll();
 
-    std::cout << "Branch Status \n";
-    
-
-    for (auto& branch : leaf_branches_struct)
-    {
-        if (branch.APC_UniqPtr)
-        {
-            branch.APC_UniqPtr->FreeAll();
-        }
-    }
-    apc_manager.StopPCCManager();
-
-    std::cout << "Adaptive Packed Cell Container :: Fair Prime Test :: DONE\n";
+    manager.StopPCCManager();
     return 0;
 }

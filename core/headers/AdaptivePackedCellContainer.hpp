@@ -259,6 +259,31 @@ public:
         }
         return APCManagerPtr_;
     }
+
+    AdaptivePackedCellContainer* FindSharedRootOrThis()
+    {
+        if (!IfAPCBranchValid() || !APCManagerPtr_)
+        {
+            return this;
+        }
+        AdaptivePackedCellContainer* current_apc_ptr = this;
+        while (current_apc_ptr)
+        {
+            const uint32_t previous_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_PREVIOUS_ID);
+            if (previous_id == NO_VAL || previous_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            {
+                break;
+            }
+            AdaptivePackedCellContainer* previous_apc_ptr = APCManagerPtr_->GetAPCPtrFromBranchId(previous_id);
+            if (!previous_apc_ptr || previous_apc_ptr == current_apc_ptr)
+            {
+                break;
+            }
+            current_apc_ptr = previous_apc_ptr;
+        }
+        return current_apc_ptr;
+        
+    }
 };
 
 

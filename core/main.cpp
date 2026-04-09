@@ -14,110 +14,6 @@
 
 using namespace PredictedAdaptedEncoding;
 
-namespace PredictedAdaptedEncoding
-{
-    static bool SharedChainEmpty_(
-        AdaptivePackedCellContainer& any_member
-    ) noexcept
-    {
-        if (!any_member.IfAPCBranchValid() || !any_member.GetBranchPlugin())
-        {
-            return true;
-        }
-
-        PackedCellContainerManager* manager_ptr = any_member.GetAPCManager();
-        if (!manager_ptr)
-        {
-            return any_member.OccupancyAddOrSubAndGetAfterChange(0) == 0;
-        }
-
-        AdaptivePackedCellContainer* current = any_member.FindSharedRootOrThis();
-
-        while (current)
-        {
-            if (current->OccupancyAddOrSubAndGetAfterChange(0) > 0)
-            {
-                return false;
-            }
-
-            PackedCellBranchPlugin* plugin = current->GetBranchPlugin();
-            if (!plugin)
-            {
-                break;
-            }
-
-            const uint32_t next_id =
-                plugin->ReadMetaCellValue32(
-                    PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
-
-            if (next_id == NO_VAL || next_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
-            {
-                break;
-            }
-
-            AdaptivePackedCellContainer* next_ptr =
-                manager_ptr->GetAPCPtrFromBranchId(next_id);
-
-            if (!next_ptr || next_ptr == current)
-            {
-                break;
-            }
-
-            current = next_ptr;
-        }
-
-        return true;
-    }
-
-    static bool TryConsumeFromSharedChain_(
-        AdaptivePackedCellContainer& any_member,
-        size_t& root_scan_cursor,
-        packed64_t& out_cell
-    ) noexcept
-    {
-        PackedCellContainerManager* manager_ptr = any_member.GetAPCManager();
-        if (!manager_ptr)
-        {
-            return any_member.ConsumeAndIdleGenericValueCell(root_scan_cursor, out_cell);
-        }
-
-        AdaptivePackedCellContainer* current = any_member.FindSharedRootOrThis();
-        while (current)
-        {
-            if (current->ConsumeAndIdleGenericValueCell(root_scan_cursor, out_cell))
-            {
-                return true;
-            }
-
-            PackedCellBranchPlugin* plugin = current->GetBranchPlugin();
-            if (!plugin)
-            {
-                break;
-            }
-
-            const uint32_t next_id =
-                plugin->ReadMetaCellValue32(
-                    PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
-
-            if (next_id == NO_VAL || next_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
-            {
-                break;
-            }
-
-            AdaptivePackedCellContainer* next_ptr =
-                manager_ptr->GetAPCPtrFromBranchId(next_id);
-
-            if (!next_ptr || next_ptr == current)
-            {
-                break;
-            }
-
-            current = next_ptr;
-        }
-
-        return false;
-    }
-}
 
 namespace
 {
@@ -441,10 +337,10 @@ int main()
                 }
 
                 packed64_t in = 0;
-                if (!PredictedAdaptedEncoding::TryConsumeFromSharedChain_(A, scan_cursor, in))
+                if (!A.TryConsumeFromSharedChain(in, scan_cursor))
                 {
                     if (producers_done.load(std::memory_order_acquire) &&
-                        PredictedAdaptedEncoding::SharedChainEmpty_(A) &&
+                        A.IsAPCSharedChainEmpty() &&
                         total_done_B.load(std::memory_order_acquire) >= VALUE_COUNT)
                     {
                         break;
@@ -517,10 +413,10 @@ int main()
                 }
 
                 packed64_t in = 0;
-                if (!PredictedAdaptedEncoding::TryConsumeFromSharedChain_(B, scan_cursor, in))
+                if (!B.TryConsumeFromSharedChain(in, scan_cursor))
                 {
                     if (total_done_B.load(std::memory_order_acquire) >= VALUE_COUNT &&
-                        PredictedAdaptedEncoding::SharedChainEmpty_(B) &&
+                        B.IsAPCSharedChainEmpty() &&
                         total_done_C.load(std::memory_order_acquire) >= VALUE_COUNT)
                     {
                         break;
@@ -593,10 +489,10 @@ int main()
                 }
 
                 packed64_t in = 0;
-                if (!PredictedAdaptedEncoding::TryConsumeFromSharedChain_(C, scan_cursor, in))
+                if (!C.TryConsumeFromSharedChain(in, scan_cursor))
                 {
                     if (total_done_C.load(std::memory_order_acquire) >= VALUE_COUNT &&
-                        PredictedAdaptedEncoding::SharedChainEmpty_(C) &&
+                        C.IsAPCSharedChainEmpty() &&
                         total_done_D.load(std::memory_order_acquire) >= VALUE_COUNT)
                     {
                         break;
@@ -669,10 +565,10 @@ int main()
                 }
 
                 packed64_t in = 0;
-                if (!PredictedAdaptedEncoding::TryConsumeFromSharedChain_(D, scan_cursor, in))
+                if (!D.TryConsumeFromSharedChain(in, scan_cursor))
                 {
                     if (total_done_D.load(std::memory_order_acquire) >= VALUE_COUNT &&
-                        PredictedAdaptedEncoding::SharedChainEmpty_(D) &&
+                        D.IsAPCSharedChainEmpty() &&
                         total_done_E.load(std::memory_order_acquire) >= VALUE_COUNT)
                     {
                         break;

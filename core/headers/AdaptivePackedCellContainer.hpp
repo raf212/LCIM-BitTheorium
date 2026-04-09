@@ -260,7 +260,7 @@ public:
         return APCManagerPtr_;
     }
 
-    AdaptivePackedCellContainer* FindSharedRootOrThis()
+    AdaptivePackedCellContainer* FindSharedRootOrThis() noexcept
     {
         if (!IfAPCBranchValid() || !APCManagerPtr_)
         {
@@ -283,6 +283,73 @@ public:
         }
         return current_apc_ptr;
         
+    }
+
+    bool IsAPCSharedChainEmpty() noexcept
+    {
+        if (!IfAPCBranchValid() || !APCManagerPtr_)
+        {
+            return true;
+        }
+        AdaptivePackedCellContainer* current_apc_ptr = FindSharedRootOrThis();
+        while (current_apc_ptr)
+        {
+            if (current_apc_ptr->OccupancyAddOrSubAndGetAfterChange() > NO_VAL)
+            {
+                return false;
+            }
+            if (!current_apc_ptr->IfAPCBranchValid())
+            {
+                break;
+            }
+            PackedCellBranchPlugin* current_branch_plugin = current_apc_ptr->GetBranchPlugin();
+            uint32_t next_apc_id = current_branch_plugin->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
+            if (next_apc_id == NO_VAL || next_apc_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            {
+                break;
+            }
+            AdaptivePackedCellContainer* next_apc_ptr = APCManagerPtr_->GetAPCPtrFromBranchId(next_apc_id);
+            if (!next_apc_ptr || next_apc_ptr == current_apc_ptr)
+            {
+                break;
+            }
+            current_apc_ptr = next_apc_ptr;
+        }
+        return true;
+    }
+
+    bool TryConsumeFromSharedChain(packed64_t& out_cell_easy_return, size_t& root_scan_cursor) noexcept
+    {
+        if (!APCManagerPtr_ || !IfAPCBranchValid())
+        {
+            return false;
+        }
+
+        AdaptivePackedCellContainer* current_apc_ptr = FindSharedRootOrThis();
+        while (current_apc_ptr)
+        {
+            if (current_apc_ptr->ConsumeAndIdleGenericValueCell(root_scan_cursor, out_cell_easy_return))
+            {
+                return true;
+            }
+            PackedCellBranchPlugin* current_branch_plugin = current_apc_ptr->GetBranchPlugin();
+            if (!current_branch_plugin)
+            {
+                break;
+            }
+            const uint32_t next_apc_id = current_branch_plugin->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
+            if (next_apc_id == NO_VAL || next_apc_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            {
+                break;
+            }
+            AdaptivePackedCellContainer* next_apc_ptr = APCManagerPtr_->GetAPCPtrFromBranchId(next_apc_id);
+            if (!next_apc_ptr || next_apc_ptr == current_apc_ptr)
+            {
+                break;
+            }
+            current_apc_ptr = next_apc_ptr;
+        }
+        return false;
     }
 };
 

@@ -248,10 +248,17 @@ public:
 
     bool ConsumeAndIdleGenericValueCell(size_t& scan_cursor, packed64_t& out_cell) noexcept;
 
-    bool ConsumeAndIdleGenericValueCellSelfOrShared(size_t& scan_cursor, packed64_t& out_cell) noexcept;
-
     bool PublishToPort(APCPortSlot port_slot, packed64_t packed_cell, uint16_t max_tries = MAX_TRIES) noexcept;
     AdaptivePackedCellContainer* GrowSharedNodeCheaply(bool enable_recursive_branching = true) noexcept;
+
+    PackedCellContainerManager* GetAPCManager() noexcept
+    {
+        if (!APCManagerPtr_)
+        {
+            return nullptr;
+        }
+        return APCManagerPtr_;
+    }
 };
 
 

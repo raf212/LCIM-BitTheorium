@@ -470,7 +470,6 @@ namespace PredictedAdaptedEncoding
         child_configuration.BranchMaxDepth = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::MAX_DEPTH);
         child_configuration.BranchMinChildCapacity = SuggestedChildCapacity_();
 
-
         try
         {
             new_shared_container = new AdaptivePackedCellContainer();
@@ -479,7 +478,16 @@ namespace PredictedAdaptedEncoding
         }
         catch(...)
         {
+            clear_flags();
+            return nullptr;
         }
+
+        if (!new_shared_container)
+        {
+            clear_flags();
+            return nullptr;
+        }
+        
         const uint32_t this_branch_id = GetBranchId();
         const uint32_t this_logical_id = GetLogicalId();
         const uint32_t this_shared_id = (GetSharedId() == NO_VAL) ? this_branch_id : GetSharedId();
@@ -540,18 +548,25 @@ namespace PredictedAdaptedEncoding
             }
             tail = APCManagerPtr_->GetAPCPtrFromBranchId(next_id);
         }
-        uint32_t group_size = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::NODE_GROUP_SIZE);
+        const uint32_t current_group_size = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::NODE_GROUP_SIZE);
+        uint32_t group_size = current_group_size;
         if (group_size == NO_VAL)
         {
             group_size = 1u;
         }
-        group_size = group_size + 1;
-
-        BranchPluginOfAPC_->JustUpdateValueOfMeta32(PackedCellBranchPlugin::MetaIndexOfAPCNode::NODE_GROUP_SIZE, new_branch_plugin->ReadMetaCellValue32(
-            PackedCellBranchPlugin::MetaIndexOfAPCNode::NODE_GROUP_SIZE
-        ),
-        group_size
+        group_size += 1u;
+        BranchPluginOfAPC_->JustUpdateValueOfMeta32(
+            PackedCellBranchPlugin::MetaIndexOfAPCNode::NODE_GROUP_SIZE,
+            current_group_size,
+            group_size
         );
+        const uint32_t new_group_size_expected = new_branch_plugin->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::NODE_GROUP_SIZE);
+        new_branch_plugin->JustUpdateValueOfMeta32(
+            PackedCellBranchPlugin::MetaIndexOfAPCNode::NODE_GROUP_SIZE,
+            new_group_size_expected,
+            group_size
+        );
+        
         RefreshAPCMeta_();
         new_shared_container->RefreshAPCMeta_();
         clear_flags();
@@ -798,7 +813,7 @@ namespace PredictedAdaptedEncoding
                     idx = PayloadBegin() + ((idx - PayloadBegin() + step) % payload_capacity);
                 }
                 const size_t observed_idx = PayloadBegin() + (next_sequense % payload_capacity);
-                APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(BackingPtr[observed_idx].load(MoLoad_));
+                APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(target_apc.BackingPtr[observed_idx].load(MoLoad_));
             }
             return false;
         };

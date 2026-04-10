@@ -260,6 +260,15 @@ public:
         return APCManagerPtr_;
     }
 
+    MasterClockConf* GetMasterClockPtrForThisAPC() noexcept
+    {
+        if (!APCManagerPtr_)
+        {
+            return nullptr;
+        }
+        return (APCManagerPtr_->GetMasterClockAdaptivePackedCellContainerManager().GetMasterClockPtr());
+    }
+
     AdaptivePackedCellContainer* FindSharedRootOrThis() noexcept
     {
         if (!IfAPCBranchValid() || !APCManagerPtr_)
@@ -348,6 +357,28 @@ public:
                 break;
             }
             current_apc_ptr = next_apc_ptr;
+        }
+        return false;
+    }
+
+    bool TryPublishSharedGrowthOnce(packed64_t packed_cell, std::atomic<uint64_t>* growth_counter = nullptr) noexcept
+    {
+        if (WriteGenericValueCellWithCASClaimedManager(packed_cell))
+        {
+            return true;
+        }
+        AdaptivePackedCellContainer* grown_apc_ptr = GrowSharedNodeCheaply(true);
+        if (grown_apc_ptr != nullptr)
+        {
+            if (growth_counter)
+            {
+                growth_counter->fetch_add(1, std::memory_order_relaxed);
+            }
+            if (WriteGenericValueCellWithCASClaimedManager(packed_cell))
+            {
+                return true;
+            }
+            return false;
         }
         return false;
     }

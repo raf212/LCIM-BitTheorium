@@ -74,35 +74,35 @@ namespace PredictedAdaptedEncoding
         {
             return SIZE_MAX;
         }
-
-        if (GetPayloadEnd() <= PayloadBegin())
+        const size_t payload_capacity = GetPayloadCapacity();
+        if (payload_capacity == 0)
         {
             return SIZE_MAX;
         }
+        if (number_of_slots > payload_capacity)
+        {
+            number_of_slots = payload_capacity;
+        }
         while (true)
         {
-            const uint32_t current_producer_cursor = GetProducerCursorPlacement();
-            if (current_producer_cursor == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            uint32_t current_producer_cursor = GetProducerCursorPlacement();
+            if (current_producer_cursor == PackedCellBranchPlugin::BRANCH_SENTINAL || current_producer_cursor < PayloadBegin() || current_producer_cursor >= GetPayloadEnd())
             {
-                return SIZE_MAX;
+                current_producer_cursor = PayloadBegin();
             }
-
-            uint64_t base = (current_producer_cursor < PayloadBegin()) ? PayloadBegin() : current_producer_cursor;
-            uint64_t desired_cursor_placement = static_cast<uint64_t>(base) + static_cast<uint64_t>(number_of_slots);
-            if (desired_cursor_placement > static_cast<uint64_t>(GetPayloadEnd()))
-            {
-                return SIZE_MAX;
-            }
+            const size_t current_offset = static_cast<size_t>(current_producer_cursor - PayloadBegin()) % payload_capacity;
+            const size_t next_offset = (current_offset + number_of_slots) % payload_capacity;
+            const uint32_t desired_cursor = static_cast<uint32_t>(PayloadBegin() + next_offset);
             bool changed = false;
             ProducerORConsumerCursorSetAndGet_(
-                static_cast<uint32_t>(desired_cursor_placement),
+                static_cast<uint32_t>(desired_cursor),
                 0,
                 &changed,
                 PackedCellBranchPlugin::MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT
             );
             if (changed)
             {
-                return static_cast<size_t>(base);
+                return static_cast<size_t>(current_producer_cursor);
             }
         }
     }
@@ -408,8 +408,6 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        const uint32_t occupancy_now = static_cast<uint32_t>(OccupancyAddOrSubAndGetAfterChange());
-        BranchPluginOfAPC_->ForceOccupancyUpdateAndReturn(occupancy_now);//why to update if same occupancy???
         if (BranchPluginOfAPC_->ShouldSplitNow())
         {
             BranchPluginOfAPC_->TurnOnFlags(static_cast<uint32_t>(PackedCellBranchPlugin::APCFlags::SATURATED));
@@ -658,6 +656,7 @@ namespace PredictedAdaptedEncoding
             {
                 desired_cursor_place = cursor_placement.value();
             }
+
             else if (increment_or_decrement_of_cursor != 0)
             {
                 if (current_cursor_placement == PackedCellBranchPlugin::BRANCH_SENTINAL)
@@ -668,19 +667,33 @@ namespace PredictedAdaptedEncoding
                     }
                     return current_cursor_placement;
                 }
-                const int64_t winded_cursor = static_cast<int64_t>(current_cursor_placement) + static_cast<int64_t>(increment_or_decrement_of_cursor);
-                if (winded_cursor < static_cast<int64_t>(PayloadBegin()))
+                const size_t payload_end = GetPayloadEnd();
+                const size_t payload_capacity = (payload_end > PayloadBegin()) ? (payload_end - PayloadBegin()) : NO_VAL;
+                if (payload_capacity == 0)
                 {
-                    desired_cursor_place = PayloadBegin();
+                    if (did_changed_easy_return)
+                    {
+                        *did_changed_easy_return = false;
+                    }
+                    return PackedCellBranchPlugin::BRANCH_SENTINAL;
                 }
-                else if (winded_cursor >= static_cast<int64_t>(GetPayloadEnd()))
+                
+                size_t current_placement = static_cast<size_t>(PayloadBegin());
+                if (current_cursor_placement >= PayloadBegin() || current_cursor_placement < payload_end)
                 {
-                    desired_cursor_place = static_cast<uint32_t>(GetPayloadEnd() - 1u);
+                    current_placement = static_cast<size_t>(current_cursor_placement);
                 }
-                else
+
+                const int64_t current_offset = static_cast<int64_t>(current_placement - PayloadBegin());
+                int64_t next_offset = current_offset + static_cast<int64_t>(increment_or_decrement_of_cursor);
+
+                const int64_t modulo = static_cast<int64_t>(payload_capacity);
+                next_offset  = next_offset % modulo;
+                if (next_offset < 0)
                 {
-                    desired_cursor_place = static_cast<uint32_t>(winded_cursor);
+                    next_offset = next_offset + modulo;
                 }
+                desired_cursor_place = static_cast<uint32_t>(PayloadBegin() + static_cast<uint32_t>(next_offset));
             }
             else
             {

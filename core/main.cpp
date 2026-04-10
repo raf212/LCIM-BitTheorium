@@ -64,48 +64,6 @@ namespace
         std::atomic<uint16_t> LastAcceptedClk16{0};
     };
 
-    static inline uint32_t BitCastFloatToU32(float x) noexcept
-    {
-        uint32_t out = 0u;
-        std::memcpy(&out, &x, sizeof(out));
-        return out;
-    }
-
-    static inline packed64_t MakeStampedU32Cell(
-        PackedCellContainerManager& manager,
-        uint32_t value,
-        tag8_t rel_mask = REL_NONE,
-        tag8_t priority = ZERO_PRIORITY
-    ) noexcept
-    {
-        return manager.GetMasterClockAdaptivePackedCellContainerManager()
-            .ComposeValue32WithCurrentThreadStamp16(
-                static_cast<val32_t>(value),
-                rel_mask,
-                priority,
-                PackedCellLocalityTypes::ST_PUBLISHED,
-                RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
-                PackedCellDataType::UnsignedPCellDataType
-            );
-    }
-
-    static inline packed64_t MakeStampedFloatCell(
-        PackedCellContainerManager& manager,
-        float value,
-        tag8_t rel_mask = REL_NONE,
-        tag8_t priority = ZERO_PRIORITY
-    ) noexcept
-    {
-        return manager.GetMasterClockAdaptivePackedCellContainerManager()
-            .ComposeValue32WithCurrentThreadStamp16(
-                BitCastFloatToU32(value),
-                rel_mask,
-                priority,
-                PackedCellLocalityTypes::ST_PUBLISHED,
-                RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
-                PackedCellDataType::FloatPCellDataType
-            );
-    }
 
     static inline bool AcceptByCausalClockDemo(
         NodeCausalState& state,
@@ -126,33 +84,7 @@ namespace
         return true;
     }
 
-    static bool TryPublishWithSharedGrowthOnce(
-        AdaptivePackedCellContainer& root,
-        packed64_t packed_cell,
-        std::atomic<uint64_t>* growth_counter = nullptr
-    ) noexcept
-    {
-        if (root.WriteGenericValueCellWithCASClaimedManager(packed_cell))
-        {
-            return true;
-        }
 
-        AdaptivePackedCellContainer* grown = root.GrowSharedNodeCheaply(true);
-        if (grown != nullptr)
-        {
-            if (growth_counter)
-            {
-                growth_counter->fetch_add(1, std::memory_order_relaxed);
-            }
-
-            if (root.WriteGenericValueCellWithCASClaimedManager(packed_cell))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     static bool PublishUntilSuccessOrBudgetEnd(
         AdaptivePackedCellContainer& root,
@@ -165,7 +97,7 @@ namespace
     {
         for (uint32_t attempt = 0; attempt < max_attempts; ++attempt)
         {
-            if (TryPublishWithSharedGrowthOnce(root, packed_cell, growth_counter))
+            if (root.TryPublishSharedGrowthOnce(packed_cell,growth_counter))
             {
                 return true;
             }
@@ -299,7 +231,7 @@ int main()
 
             for (uint32_t i = producer_id + 1; i <= VALUE_COUNT; i += PRODUCER_COUNT)
             {
-                packed64_t cell = MakeStampedU32Cell(manager, i, REL_NODE0, ZERO_PRIORITY);
+                packed64_t cell = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(i, REL_NONE, ZERO_PRIORITY);
 
                 if (PublishUntilSuccessOrBudgetEnd(
                         A,
@@ -374,7 +306,7 @@ int main()
 
                 const uint32_t x = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(in);
                 const uint32_t y = x * x;
-                packed64_t out = MakeStampedU32Cell(manager, y, REL_NODE1, ZERO_PRIORITY);
+                packed64_t out = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(y, REL_NONE, ZERO_PRIORITY);
 
                 if (PublishUntilSuccessOrBudgetEnd(
                         B,
@@ -450,7 +382,7 @@ int main()
 
                 const uint32_t x = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(in);
                 const uint32_t y = x + 1u;
-                packed64_t out = MakeStampedU32Cell(manager, y, REL_PAGE, ZERO_PRIORITY);
+                packed64_t out = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(y, REL_PAGE, ZERO_PRIORITY);
 
                 if (PublishUntilSuccessOrBudgetEnd(
                         C,
@@ -526,7 +458,11 @@ int main()
 
                 const uint32_t x = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(in);
                 const float y = static_cast<float>(x) * D_MULTIPLIER;
-                packed64_t out = MakeStampedFloatCell(manager, y, REL_PATTERN, ZERO_PRIORITY);
+                uint32_t unsigned_casted_float_y = BitCastMaybe<uint32_t>(y);
+                packed64_t out = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(
+                    unsigned_casted_float_y, REL_NONE, ZERO_PRIORITY, 
+                    PackedCellLocalityTypes::ST_PUBLISHED, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, PackedCellDataType::FloatPCellDataType
+                );
 
                 if (PublishUntilSuccessOrBudgetEnd(
                         D,

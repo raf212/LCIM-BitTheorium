@@ -136,14 +136,6 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    void AdaptivePackedCellContainer::UpdateRegionRelForIdx_(tag8_t rel_mask) noexcept
-    {
-        if (!BranchPluginOfAPC_)
-        {
-            return;
-        }
-        return BranchPluginOfAPC_->OrReadyRelMask(rel_mask);
-    }
 
     
     void AdaptivePackedCellContainer::InitOwned(size_t container_capacity,

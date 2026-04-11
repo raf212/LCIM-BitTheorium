@@ -191,7 +191,10 @@ struct Timer48
 
         MasterClockConf& operator = (MasterClockConf&& other) noexcept = delete;
 
-
+        MasterClockConf* GetMasterClockPtr() noexcept
+        {
+            return this;
+        }
 
         bool InitMasterClockSlots(size_t max_slots, size_t allignment = 64)
         {

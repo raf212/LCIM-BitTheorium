@@ -23,16 +23,6 @@ namespace PredictedAdaptedEncoding
             LATERAL_SIGNAL = 6
         };
         
-        enum class APCPortKind : uint8_t
-        {
-            SELF_APC = 0,
-            FEED_FORWARD_IN = 1,
-            FEED_FORWARD_OUT = 2,
-            FEED_BACKWARD_IN = 3,
-            FEED_BACKWARD_OUT = 4,
-            LATERAL_0 = 5,
-            LATERAL_1 = 6
-        };
 
         static inline bool IsCellPublishedMode32Generic (packed64_t packed_cell) noexcept
         {

@@ -14,6 +14,152 @@
 
 using namespace PredictedAdaptedEncoding;
 
+namespace PredictedAdaptedEncoding
+{
+    static AdaptivePackedCellContainer* FindSharedRoot_(
+        AdaptivePackedCellContainer* apc_ptr,
+        PackedCellContainerManager* manager_ptr
+    ) noexcept
+    {
+        if (!apc_ptr || !manager_ptr || !apc_ptr->GetBranchPlugin())
+        {
+            return apc_ptr;
+        }
+
+        AdaptivePackedCellContainer* current = apc_ptr;
+        while (current)
+        {
+            PackedCellBranchPlugin* plugin = current->GetBranchPlugin();
+            if (!plugin)
+            {
+                break;
+            }
+
+            const uint32_t prev_id =
+                plugin->ReadMetaCellValue32(
+                    PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_PREVIOUS_ID);
+
+            if (prev_id == NO_VAL || prev_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            {
+                break;
+            }
+
+            AdaptivePackedCellContainer* prev_ptr =
+                manager_ptr->GetAPCPtrFromBranchId(prev_id);
+
+            if (!prev_ptr || prev_ptr == current)
+            {
+                break;
+            }
+
+            current = prev_ptr;
+        }
+
+        return current;
+    }
+
+    static bool SharedChainEmpty_(
+        AdaptivePackedCellContainer& any_member
+    ) noexcept
+    {
+        if (!any_member.IfAPCBranchValid() || !any_member.GetBranchPlugin())
+        {
+            return true;
+        }
+
+        PackedCellContainerManager* manager_ptr = any_member.GetAPCManager();
+        if (!manager_ptr)
+        {
+            return any_member.OccupancyAddOrSubAndGetAfterChange(0) == 0;
+        }
+
+        AdaptivePackedCellContainer* current = FindSharedRoot_(&any_member, manager_ptr);
+
+        while (current)
+        {
+            if (current->OccupancyAddOrSubAndGetAfterChange(0) > 0)
+            {
+                return false;
+            }
+
+            PackedCellBranchPlugin* plugin = current->GetBranchPlugin();
+            if (!plugin)
+            {
+                break;
+            }
+
+            const uint32_t next_id =
+                plugin->ReadMetaCellValue32(
+                    PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
+
+            if (next_id == NO_VAL || next_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            {
+                break;
+            }
+
+            AdaptivePackedCellContainer* next_ptr =
+                manager_ptr->GetAPCPtrFromBranchId(next_id);
+
+            if (!next_ptr || next_ptr == current)
+            {
+                break;
+            }
+
+            current = next_ptr;
+        }
+
+        return true;
+    }
+
+    static bool TryConsumeFromSharedChain_(
+        AdaptivePackedCellContainer& any_member,
+        size_t& root_scan_cursor,
+        packed64_t& out_cell
+    ) noexcept
+    {
+        PackedCellContainerManager* manager_ptr = any_member.GetAPCManager();
+        if (!manager_ptr)
+        {
+            return any_member.ConsumeAndIdleGenericValueCell(root_scan_cursor, out_cell);
+        }
+
+        AdaptivePackedCellContainer* current = FindSharedRoot_(&any_member, manager_ptr);
+        while (current)
+        {
+            if (current->ConsumeAndIdleGenericValueCell(root_scan_cursor, out_cell))
+            {
+                return true;
+            }
+
+            PackedCellBranchPlugin* plugin = current->GetBranchPlugin();
+            if (!plugin)
+            {
+                break;
+            }
+
+            const uint32_t next_id =
+                plugin->ReadMetaCellValue32(
+                    PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
+
+            if (next_id == NO_VAL || next_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            {
+                break;
+            }
+
+            AdaptivePackedCellContainer* next_ptr =
+                manager_ptr->GetAPCPtrFromBranchId(next_id);
+
+            if (!next_ptr || next_ptr == current)
+            {
+                break;
+            }
+
+            current = next_ptr;
+        }
+
+        return false;
+    }
+}
 
 namespace
 {
@@ -64,6 +210,48 @@ namespace
         std::atomic<uint16_t> LastAcceptedClk16{0};
     };
 
+    static inline uint32_t BitCastFloatToU32(float x) noexcept
+    {
+        uint32_t out = 0u;
+        std::memcpy(&out, &x, sizeof(out));
+        return out;
+    }
+
+    static inline packed64_t MakeStampedU32Cell(
+        PackedCellContainerManager& manager,
+        uint32_t value,
+        tag8_t rel_mask = REL_NONE,
+        tag8_t priority = ZERO_PRIORITY
+    ) noexcept
+    {
+        return manager.GetMasterClockAdaptivePackedCellContainerManager()
+            .ComposeValue32WithCurrentThreadStamp16(
+                static_cast<val32_t>(value),
+                rel_mask,
+                priority,
+                PackedCellLocalityTypes::ST_PUBLISHED,
+                RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
+                PackedCellDataType::UnsignedPCellDataType
+            );
+    }
+
+    static inline packed64_t MakeStampedFloatCell(
+        PackedCellContainerManager& manager,
+        float value,
+        tag8_t rel_mask = REL_NONE,
+        tag8_t priority = ZERO_PRIORITY
+    ) noexcept
+    {
+        return manager.GetMasterClockAdaptivePackedCellContainerManager()
+            .ComposeValue32WithCurrentThreadStamp16(
+                BitCastFloatToU32(value),
+                rel_mask,
+                priority,
+                PackedCellLocalityTypes::ST_PUBLISHED,
+                RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
+                PackedCellDataType::FloatPCellDataType
+            );
+    }
 
     static inline bool AcceptByCausalClockDemo(
         NodeCausalState& state,
@@ -84,7 +272,33 @@ namespace
         return true;
     }
 
+    static bool TryPublishWithSharedGrowthOnce(
+        AdaptivePackedCellContainer& root,
+        packed64_t packed_cell,
+        std::atomic<uint64_t>* growth_counter = nullptr
+    ) noexcept
+    {
+        if (root.WriteGenericValueCellWithCASClaimedManager(packed_cell))
+        {
+            return true;
+        }
 
+        AdaptivePackedCellContainer* grown = root.GrowSharedNodeCheaply(true);
+        if (grown != nullptr)
+        {
+            if (growth_counter)
+            {
+                growth_counter->fetch_add(1, std::memory_order_relaxed);
+            }
+
+            if (root.WriteGenericValueCellWithCASClaimedManager(packed_cell))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     static bool PublishUntilSuccessOrBudgetEnd(
         AdaptivePackedCellContainer& root,
@@ -97,7 +311,7 @@ namespace
     {
         for (uint32_t attempt = 0; attempt < max_attempts; ++attempt)
         {
-            if (root.TryPublishSharedGrowthOnce(packed_cell,growth_counter))
+            if (TryPublishWithSharedGrowthOnce(root, packed_cell, growth_counter))
             {
                 return true;
             }
@@ -231,7 +445,7 @@ int main()
 
             for (uint32_t i = producer_id + 1; i <= VALUE_COUNT; i += PRODUCER_COUNT)
             {
-                packed64_t cell = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(i, REL_NONE, ZERO_PRIORITY);
+                packed64_t cell = MakeStampedU32Cell(manager, i, REL_NODE0, ZERO_PRIORITY);
 
                 if (PublishUntilSuccessOrBudgetEnd(
                         A,
@@ -269,10 +483,10 @@ int main()
                 }
 
                 packed64_t in = 0;
-                if (!A.TryConsumeFromSharedChain(in, scan_cursor))
+                if (!PredictedAdaptedEncoding::TryConsumeFromSharedChain_(A, scan_cursor, in))
                 {
                     if (producers_done.load(std::memory_order_acquire) &&
-                        A.IsAPCSharedChainEmpty() &&
+                        PredictedAdaptedEncoding::SharedChainEmpty_(A) &&
                         total_done_B.load(std::memory_order_acquire) >= VALUE_COUNT)
                     {
                         break;
@@ -306,7 +520,7 @@ int main()
 
                 const uint32_t x = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(in);
                 const uint32_t y = x * x;
-                packed64_t out = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(y, REL_NONE, ZERO_PRIORITY);
+                packed64_t out = MakeStampedU32Cell(manager, y, REL_NODE1, ZERO_PRIORITY);
 
                 if (PublishUntilSuccessOrBudgetEnd(
                         B,
@@ -345,10 +559,10 @@ int main()
                 }
 
                 packed64_t in = 0;
-                if (!B.TryConsumeFromSharedChain(in, scan_cursor))
+                if (!PredictedAdaptedEncoding::TryConsumeFromSharedChain_(B, scan_cursor, in))
                 {
                     if (total_done_B.load(std::memory_order_acquire) >= VALUE_COUNT &&
-                        B.IsAPCSharedChainEmpty() &&
+                        PredictedAdaptedEncoding::SharedChainEmpty_(B) &&
                         total_done_C.load(std::memory_order_acquire) >= VALUE_COUNT)
                     {
                         break;
@@ -382,7 +596,7 @@ int main()
 
                 const uint32_t x = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(in);
                 const uint32_t y = x + 1u;
-                packed64_t out = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(y, REL_PAGE, ZERO_PRIORITY);
+                packed64_t out = MakeStampedU32Cell(manager, y, REL_PAGE, ZERO_PRIORITY);
 
                 if (PublishUntilSuccessOrBudgetEnd(
                         C,
@@ -421,10 +635,10 @@ int main()
                 }
 
                 packed64_t in = 0;
-                if (!C.TryConsumeFromSharedChain(in, scan_cursor))
+                if (!PredictedAdaptedEncoding::TryConsumeFromSharedChain_(C, scan_cursor, in))
                 {
                     if (total_done_C.load(std::memory_order_acquire) >= VALUE_COUNT &&
-                        C.IsAPCSharedChainEmpty() &&
+                        PredictedAdaptedEncoding::SharedChainEmpty_(C) &&
                         total_done_D.load(std::memory_order_acquire) >= VALUE_COUNT)
                     {
                         break;
@@ -458,11 +672,7 @@ int main()
 
                 const uint32_t x = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(in);
                 const float y = static_cast<float>(x) * D_MULTIPLIER;
-                uint32_t unsigned_casted_float_y = BitCastMaybe<uint32_t>(y);
-                packed64_t out = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(
-                    unsigned_casted_float_y, REL_NONE, ZERO_PRIORITY, 
-                    PackedCellLocalityTypes::ST_PUBLISHED, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, PackedCellDataType::FloatPCellDataType
-                );
+                packed64_t out = MakeStampedFloatCell(manager, y, REL_PATTERN, ZERO_PRIORITY);
 
                 if (PublishUntilSuccessOrBudgetEnd(
                         D,
@@ -501,10 +711,10 @@ int main()
                 }
 
                 packed64_t in = 0;
-                if (!D.TryConsumeFromSharedChain(in, scan_cursor))
+                if (!PredictedAdaptedEncoding::TryConsumeFromSharedChain_(D, scan_cursor, in))
                 {
                     if (total_done_D.load(std::memory_order_acquire) >= VALUE_COUNT &&
-                        D.IsAPCSharedChainEmpty() &&
+                        PredictedAdaptedEncoding::SharedChainEmpty_(D) &&
                         total_done_E.load(std::memory_order_acquire) >= VALUE_COUNT)
                     {
                         break;

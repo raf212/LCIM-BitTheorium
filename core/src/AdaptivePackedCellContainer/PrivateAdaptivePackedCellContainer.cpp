@@ -241,4 +241,75 @@ namespace PredictedAdaptedEncoding
             }
         }
     }
+
+    std::optional<APCPagedNodeRegionBounds> AdaptivePackedCellContainer::ReadRegionBounds_(APCPagedNodeRelMaskClasses region_kind) noexcept
+    {
+        if (!IfAPCBranchValid())
+        {
+            return std::nullopt;
+        }
+
+        std::optional<PackedCellBranchPlugin::LayoutBoundsUint32> bounds;
+
+        switch (region_kind)
+        {
+            case APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE:
+                bounds = BranchPluginOfAPC_->ReadLayoutBounds(
+                    PackedCellBranchPlugin::MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN);
+                break;
+
+            case APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE:
+                bounds = BranchPluginOfAPC_->ReadLayoutBounds(
+                    PackedCellBranchPlugin::MetaIndexOfAPCNode::MESSAGE_FEEDBACKWARD_BEGAIN);
+                break;
+
+            case APCPagedNodeRelMaskClasses::STATE_SLOT:
+                bounds = BranchPluginOfAPC_->ReadLayoutBounds(
+                    PackedCellBranchPlugin::MetaIndexOfAPCNode::STATE_BEGAINING);
+                break;
+
+            case APCPagedNodeRelMaskClasses::ERROR_SLOT:
+                bounds = BranchPluginOfAPC_->ReadLayoutBounds(
+                    PackedCellBranchPlugin::MetaIndexOfAPCNode::ERROR_BEGAIN);
+                break;
+
+            case APCPagedNodeRelMaskClasses::EDGE_DESCRIPTOR:
+                bounds = BranchPluginOfAPC_->ReadLayoutBounds(
+                    PackedCellBranchPlugin::MetaIndexOfAPCNode::EDGE_DESCRIPTIOR_BEGAIN);
+                break;
+
+            case APCPagedNodeRelMaskClasses::WEIGHT_SLOT:
+                bounds = BranchPluginOfAPC_->ReadLayoutBounds(
+                    PackedCellBranchPlugin::MetaIndexOfAPCNode::WEIGHT_BEGIN);
+                break;
+
+            case APCPagedNodeRelMaskClasses::AUX_SLOT:
+                bounds = BranchPluginOfAPC_->ReadLayoutBounds(
+                    PackedCellBranchPlugin::MetaIndexOfAPCNode::AUX_BEGAIN);
+                break;
+
+            case APCPagedNodeRelMaskClasses::FREE_SLOT:
+                bounds = BranchPluginOfAPC_->ReadLayoutBounds(
+                    PackedCellBranchPlugin::MetaIndexOfAPCNode::FREE_BEGAIN);
+                break;
+
+            default:
+                return std::nullopt;
+        }
+
+        if (!bounds.has_value())
+        {
+            return std::nullopt;
+        }
+
+        APCPagedNodeRegionBounds out_bounds;
+        out_bounds.BeginIdx = static_cast<size_t>(bounds->BeginIndex);
+        out_bounds.EndIdx = static_cast<size_t>(bounds->EndIndex);
+
+        if (!out_bounds.IsValidRegion() || out_bounds.BeginIdx < PayloadBegin() || out_bounds.EndIdx > GetPayloadEnd())
+        {
+            return std::nullopt;
+        }
+        return out_bounds;
+    }
 }

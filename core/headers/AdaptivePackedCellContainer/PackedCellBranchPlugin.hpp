@@ -27,7 +27,7 @@ struct ContainerConf
     uint32_t NodeGroupSize = 1u;
 };
 
-enum class APCRelMaskClasses : tag8_t
+enum class APCPagedNodeRelMaskClasses : tag8_t
 {
     NONE = 0x0,
     FEEDFORWARD_MESSAGE  = 0x1,

@@ -64,9 +64,7 @@ private:
 
     size_t SuggestedChildCapacity_() const noexcept;
 
-    tag8_t RegionKindToRelMask_(APCRegionKind region_kind) noexcept;
-
-    std::optional<APCRegionBounds> ReadRegionBounds(APCRegionKind region_kind) noexcept;
+    std::optional<APCPagedNodeRegionBounds> ReadRegionBounds_(APCPagedNodeRelMaskClasses region_kind) noexcept;
 
 
     inline bool IfValidPayloadIndex_(size_t idx) const noexcept

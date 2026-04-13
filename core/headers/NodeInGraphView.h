@@ -1,13 +1,9 @@
 #pragma once
-#include "AdaptivePackedCellContainer/MasterClockConf.hpp"
+#include "AdaptivePackedCellContainer/APCHelpers.hpp"
+#include "AdaptivePackedCellContainer.hpp"
 
 namespace PredictedAdaptedEncoding
 {
-class AdaptivePackedCellContainer;
-class PackedCellContainerManager;
-class PackedCellBranchPlugin;
-
-
 struct PageNodeHelper
 {
     enum class APCPortControl : uint8_t
@@ -29,26 +25,9 @@ struct PageNodeHelper
     };
     
 
-    static inline bool IsCellPublishedMode32Generic (packed64_t packed_cell) noexcept
-    {
-        return PackedCell64_t::ExtractModeOfPackedCellFromPacked(packed_cell) == PackedMode::MODE_VALUE32 && 
-            PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
-            static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell)) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
-    }
-    
-    template<typename PCDT>
-    static inline bool IsMode32TypedPublishedCell(packed64_t packed_cell) noexcept
-    {
-        if (!IsCellPublishedMode32Generic(packed_cell))
-        {
-            return false;
-        }
-        return PackedCell64_t::ExtractPCellDataTypeFromPacked(packed_cell)  == PackedCellTypeBridge<PCDT>::DType;
-    }
-
     static inline std::optional<NodeControlMask> ExtractNodeControl(packed64_t packed_cell) noexcept
     {
-        if (!IsCellPublishedMode32Generic(packed_cell))
+        if (!PredictedAdaptedEncoding::APCHelpers::IsCellPublishedMode32Generic(packed_cell))
         {
             return std::nullopt;
         }
@@ -112,6 +91,35 @@ public:
     bool BindFeedBackwardOut(AdaptivePackedCellContainer* target_apc) noexcept;
     // bool AcceptCausalCellForPort(PageNodeHelper::APCPortKind port_kind, packed64_t packed_cell) noexcept;
     
+};
+
+struct BidirectionalNodeStepResult
+{
+    bool ConsumedFeedForward = false;
+    bool ConsumedFeedback = false;
+    bool EmittedForward = false;
+    bool EmittedBackward = false;
+    bool EmittedLateral = false;
+    uint32_t Evidence = 0;
+    uint32_t Prediction = 0;
+    uint32_t Residual = 0;
+    uint32_t Latent = 0;
+};
+
+class BidirectionalAPCNode
+{
+private:
+    AdaptivePackedCellContainer* APCPtr_;
+public:
+    BidirectionalAPCNode(AdaptivePackedCellContainer* adaptive_packed_cell_container = nullptr) noexcept :
+        APCPtr_(adaptive_packed_cell_container)
+    {}
+
+    uint32_t ReadComputeKind() const noexcept;
+    bool SetAUXUint32(uint32_t value) noexcept;
+    uint32_t ReadAUXUint32() const noexcept;
+    bool BindFeedForwardTo(BidirectionalAPCNode& next_apc_node) noexcept;
+    bool BindFeedBackwardTo(BidirectionalAPCNode& previous_apc_node) noexcept;
 };
     
 }

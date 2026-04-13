@@ -1,11 +1,10 @@
 
 #pragma once 
 #include "PackedCell.hpp"
+#include "PackedCellBranchPlugin.hpp"
 
 namespace PredictedAdaptedEncoding
 {
-
-
     struct AcquirePairedPointerStruct
     {
         uint64_t AssembeledPtr = 0;
@@ -30,23 +29,7 @@ namespace PredictedAdaptedEncoding
         size_t Index{SIZE_MAX};
     };
 
-    enum class APCRegionKind : uint8_t
-    {
-        INVALID = 0,
-        FEEDFORWARD_MESSAGE = 1,
-        FEEDBACKWARD_MESSAGE = 2,
-        STATE = 3,
-        ERROR = 4,
-        EDGE_DESCRIPTOR = 5,
-        WEIGHT = 6,
-        AUX_PARAMETER = 7,
-        FREE = 8,
-        COMPLEX_COMPUTE = 9,
-        GENERIC_COMPUTE = 10,
-        GENERIC_STORAGE = 11
-    };
-
-    struct APCRegionBounds
+    struct APCPagedNodeRegionBounds
     {
         size_t BeginIdx = SIZE_MAX;
         size_t EndIdx = SIZE_MAX;
@@ -61,5 +44,28 @@ namespace PredictedAdaptedEncoding
             return (IsValidRegion() ? (EndIdx - BeginIdx) : 0);
         }
     };
+
+    struct APCHelpers
+    {
+        static inline bool IsCellPublishedMode32Generic (packed64_t packed_cell) noexcept
+        {
+            return PackedCell64_t::ExtractModeOfPackedCellFromPacked(packed_cell) == PackedMode::MODE_VALUE32 && 
+                PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
+                static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell)) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
+        }
+        
+        template<typename PCDT>
+        static inline bool IsMode32TypedPublishedCell(packed64_t packed_cell) noexcept
+        {
+            if (!IsCellPublishedMode32Generic(packed_cell))
+            {
+                return false;
+            }
+            return PackedCell64_t::ExtractPCellDataTypeFromPacked(packed_cell)  == PackedCellTypeBridge<PCDT>::DType;
+        }
+    };
+    
+
+
     
 }

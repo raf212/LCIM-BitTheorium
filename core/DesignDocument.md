@@ -6,7 +6,7 @@
 > **Prepared for:** The author of this architecture  
 > **Scope:** Full structural, mechanical, philosophical, novelty, and neural-network conversion analysis  
 > **Word count target:** 10,000 – 20,000 words  
-> **File analyzed:** `f.h` (concatenated multi-file APC source: AdaptivePackedCellContainer.hpp/.cpp, PackedCellContainerManager.hpp/.cpp, PackedCellBranchPlugin.hpp, MasterClockConf.hpp, AtomicAdaptiveBackoff.hpp, PackedCell.hpp, PackedStRel.h, APCSideHelper.hpp, NodeInGraphView.h/.cpp, PointerSymenticsAdaptivePackedCellContainer.cpp)
+> **File analyzed:** `f.h` (concatenated multi-file APC source: AdaptivePackedCellContainer.hpp/.cpp, PackedCellContainerManager.hpp/.cpp, PackedCellBranchPlugin.hpp, MasterClockConf.hpp, AtomicAdaptiveBackoff.hpp, PackedCell.hpp, PackedStRel.h, PageNodeHelper.hpp, NodeInGraphView.h/.cpp, PointerSymenticsAdaptivePackedCellContainer.cpp)
 
 ---
 
@@ -352,7 +352,7 @@ If the incoming cell's compressed clock is **older** than the last accepted cell
 
 This enforces **causal monotonicity**: within a given connection direction, cells are only accepted in non-decreasing clock order. A stale, out-of-order, or replayed cell is silently dropped. This is the same guarantee provided by TCP sequence numbers, by Lamport logical clocks, and by the "happens-before" relation in formal concurrency theory — but implemented here directly in the data structure, without any separate sequencing protocol.
 
-The `APCSideHelper` also introduces **control cells**: special cells with `NodeControlMask::SELF_ORDER` and `CharPCellDataType`, whose value encodes an `APCPortControl` command (`NULL_SEQUENCE`, `START_SEQUENCE`, or `STOP_SEQUENCE`). These allow one node to signal control flow to another — the equivalent of a "flush" or "reset" signal in a dataflow graph.
+The `PageNodeHelper` also introduces **control cells**: special cells with `NodeControlMask::SELF_ORDER` and `CharPCellDataType`, whose value encodes an `APCPortControl` command (`NULL_SEQUENCE`, `START_SEQUENCE`, or `STOP_SEQUENCE`). These allow one node to signal control flow to another — the equivalent of a "flush" or "reset" signal in a dataflow graph.
 
 ### The `NODE_COMPUTE_KIND` and `NODE_AUX_PARAM_U32` Fields
 

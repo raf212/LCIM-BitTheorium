@@ -72,13 +72,13 @@ namespace PredictedAdaptedEncoding
         return bind_ok && bind_ok_2;
     }
 
-    // bool NodeInGraphView::AcceptCausalCellForPort(APCSideHelper::APCPortKind port_kind, packed64_t packed_cell) noexcept
+    // bool NodeInGraphView::AcceptCausalCellForPort(PageNodeHelper::APCPortKind port_kind, packed64_t packed_cell) noexcept
     // {
     //     if (!BranchPluginPtr_)
     //     {
     //         return false;
     //     }
-    //     if (APCSideHelper::IsControlStopCell(packed_cell))
+    //     if (PageNodeHelper::IsControlStopCell(packed_cell))
     //     {
     //         return true;
     //     }
@@ -86,7 +86,7 @@ namespace PredictedAdaptedEncoding
     //     const uint16_t incoming_clock16 = PackedCell64_t::ExtractClk16(packed_cell);
 
     //     PackedCellBranchPlugin::MetaIndexOfAPCNode last_accepted_feed_slot_idx = PackedCellBranchPlugin::MetaIndexOfAPCNode::LAST_ACCEPTED_FEED_FORWARD_CLOCK16;
-    //     if (port_kind == APCSideHelper::APCPortKind::FEED_BACKWARD_IN)
+    //     if (port_kind == PageNodeHelper::APCPortKind::FEED_BACKWARD_IN)
     //     {
     //         last_accepted_feed_slot_idx = PackedCellBranchPlugin::MetaIndexOfAPCNode::LAST_ACCEPTED_FEED_BACKWARD_CLOCK16;
     //     }

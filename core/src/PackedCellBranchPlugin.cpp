@@ -1,6 +1,5 @@
 #include "AdaptivePackedCellContainer.hpp"
 #include "PackedCellContainerManager.hpp"
-#include "PackedCellBranchPlugin.hpp"
 #include <iostream>
 
 namespace PredictedAdaptedEncoding

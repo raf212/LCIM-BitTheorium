@@ -1,6 +1,6 @@
 #pragma once
 #include "AdaptivePackedCellContainer.hpp"
-#include "APCSideHelper.hpp"
+#include "PageNodeHelper.hpp"
 
 namespace PredictedAdaptedEncoding
 {

@@ -5,11 +5,12 @@
 #include <cstdio>
 #include <iostream>
 
-#include "AtomicAdaptiveBackoff.hpp"
-#include "MasterClockConf.hpp"
-#include "PackedCellBranchPlugin.hpp"
+#include "AdaptivePackedCellContainer/AtomicAdaptiveBackoff.hpp"
+#include "AdaptivePackedCellContainer/MasterClockConf.hpp"
+#include "AdaptivePackedCellContainer/PackedCellBranchPlugin.hpp"
 #include "PackedCellContainerManager.hpp"
 #include "NodeInGraphView.h"
+#include "AdaptivePackedCellContainer/APCHelpers.hpp"
 
 namespace PredictedAdaptedEncoding
 {
@@ -36,8 +37,24 @@ enum class PublishStatus : uint8_t
 
 struct PublishResult
 {
-    PublishStatus ResultStatus;
-    size_t Index;
+    PublishStatus ResultStatus{PublishStatus::INVALID};
+    size_t Index{SIZE_MAX};
+};
+
+enum class APCRegionKind : uint8_t
+{
+    INVALID = 0,
+    FEEDFORWARD_MESSAGE = 1,
+    FEEDBACKWARD_MESSAGE = 2,
+    STATE = 3,
+    ERROR = 4,
+    EDGE_DESCRIPTOR = 5,
+    WEIGHT = 6,
+    AUX_PARAMETER = 7,
+    FREE = 8,
+    COMPLEX_COMPUTE = 9,
+    GENERIC_COMPUTE = 10,
+    GENERIC_STORAGE = 11
 };
 
 class PackedCellContainerManager;

@@ -122,10 +122,12 @@ namespace PredictedAdaptedEncoding
         if (is_root_shared)
         {
             TurnOnFlags(static_cast<uint32_t>(APCFlags::IS_GRAPH_NODE) | static_cast<uint32_t>(APCFlags::IS_SHARED_ROOT));
+            ClearFlags(static_cast<uint32_t>(APCFlags::IS_SHARED_MAMBER));
         }
         else
         {
             TurnOnFlags(static_cast<uint32_t>(APCFlags::IS_GRAPH_NODE) | static_cast<uint32_t>(APCFlags::IS_SHARED_MAMBER));
+            ClearFlags(static_cast<uint32_t>(APCFlags::IS_SHARED_ROOT));    
         }
         
     }
@@ -143,7 +145,71 @@ namespace PredictedAdaptedEncoding
         WriteBrenchMeta32_(MetaIndexOfAPCNode::LAST_ACCEPTED_FEED_BACKWARD_CLOCK16, NO_VAL, ZERO_PRIORITY);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::LAST_EMITTED_FEED_FORWARD_CLOCK16, NO_VAL, ZERO_PRIORITY);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::LAST_EMITTED_FEED_BACKWARD_CLOCK16, NO_VAL, ZERO_PRIORITY);
+
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::FEEDFORWARD_IN_TARGET_ID, BRANCH_SENTINAL);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::FEEDFORWARD_OUT_TARGET_ID, BRANCH_SENTINAL);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::FEEDBACKWARD_IN_TARGET_ID, BRANCH_SENTINAL);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::FEEDBACKWARD_OUT_TARGET_ID, BRANCH_SENTINAL);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::LATERAL_0_TARGET_ID, BRANCH_SENTINAL);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::LATERAL_1_TARGET_ID, BRANCH_SENTINAL);
     }
+
+    void PackedCellBranchPlugin::InitDefaultNodeLayout() noexcept
+    {
+        const uint32_t end = PayloadEndRead();
+        if (end <= METACELL_COUNT)
+        {
+            return;
+        }
+
+        const uint32_t span = end - METACELL_COUNT;
+
+        const uint32_t avarage_space = std::max<uint32_t>(TOTAL_LAYOUT_SECTION_IN_APC_CONTAINER_NODE, span / TOTAL_LAYOUT_SECTION_IN_APC_CONTAINER_NODE);
+
+        uint32_t current_begain = METACELL_COUNT;
+
+        const auto alloc_node_region = [&](uint32_t wanted_size) noexcept -> LayoutBoundsUint32
+        {
+            const uint32_t remaining = (end > current_begain) ? (end - current_begain) : NO_VAL;
+            const uint32_t use = std::min<uint32_t>(wanted_size, remaining);
+            const LayoutBoundsUint32 out_layout{current_begain, static_cast<uint32_t>(current_begain + use)};
+            current_begain = current_begain + use;
+            return out_layout;
+        };
+
+        const LayoutBoundsUint32 feed_forward_layout = alloc_node_region(avarage_space);
+        const LayoutBoundsUint32 feed_backward_layout = alloc_node_region(avarage_space);
+        const LayoutBoundsUint32 state_layout = alloc_node_region(avarage_space);
+        const LayoutBoundsUint32 error_layout = alloc_node_region(avarage_space);
+        const LayoutBoundsUint32 edge_layout = alloc_node_region(avarage_space);
+        const LayoutBoundsUint32 weight_layout = alloc_node_region(avarage_space);
+        const LayoutBoundsUint32 aux_layout = alloc_node_region(avarage_space / 2);
+        const LayoutBoundsUint32 free_layout {current_begain, end};
+
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN, feed_forward_layout.BeginIndex);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_END, feed_forward_layout.EndIndex);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::MESSAGE_FEEDBACKWARD_BEGAIN, feed_backward_layout.BeginIndex);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::MESSAGE_FEEDBACKWARD_END, feed_backward_layout.EndIndex);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::STATE_BEGAINING, state_layout.BeginIndex);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::STATE_END, state_layout.EndIndex);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::ERROR_BEGAIN, error_layout.BeginIndex);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::ERROR_END, error_layout.EndIndex);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::EDGE_DESCRIPTIOR_BEGAIN, edge_layout.BeginIndex);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::EDGE_DESCRIPTIOR_END, edge_layout.EndIndex);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::WEIGHT_BEGIN, weight_layout.BeginIndex);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::WEIGHT_END, weight_layout.EndIndex);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::AUX_BEGAIN, aux_layout.BeginIndex);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::AUX_END, aux_layout.EndIndex);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::FREE_BEGAIN, free_layout.BeginIndex);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::FREE_END, free_layout.EndIndex);
+
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::REGION_DIR_COUNT, TOTAL_LAYOUT_SECTION_IN_APC_CONTAINER_NODE);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::EDGE_TABLE_COUNT, NO_VAL);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::WEIGHT_TABLE_COUNT, NO_VAL);
+
+        TurnOnFlags(static_cast<uint32_t>(APCFlags::HAS_LAYOUT_DIR));
+    }
+
 
     void PackedCellBranchPlugin::InitRootOrChildBranch(
         uint32_t branch_id,
@@ -178,11 +244,9 @@ namespace PredictedAdaptedEncoding
         WriteBrenchMeta32_(MetaIndexOfAPCNode::FLAGS, container_configuration.EnableBranching ? static_cast<uint32_t>(APCFlags::ENABLE_BRANCHING) : static_cast<uint32_t>(APCFlags::NONE), write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::CURRENT_ACTIVE_THREADS, NO_VAL, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT, NO_VAL, write_cell_priority);
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::SAFE_POINT, NO_VAL, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::SPLIT_THRESHOLD_PERCENTAGE, container_configuration.BranchSplitThresholdPercentage, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::MAX_DEPTH, container_configuration.BranchMaxDepth, write_cell_priority);
 
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::PAYLOAD_BEGIN, static_cast<uint32_t>(METACELL_COUNT), write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::PAYLOAD_END, static_cast<uint32_t>(std::min<size_t>(total_capacity, BRANCH_SENTINAL)), write_cell_priority);
 
         WriteOrUpdateMetaClock48(write_cell_priority, NO_VAL);
@@ -202,18 +266,10 @@ namespace PredictedAdaptedEncoding
         WriteBrenchMeta32_(MetaIndexOfAPCNode::TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH, NO_VAL, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::NODE_GROUP_SIZE, container_configuration.NodeGroupSize, write_cell_priority);
 
-
-        //node
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::FEEDFORWARD_IN_TARGET_ID, BRANCH_SENTINAL, write_cell_priority);
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::FEEDFORWARD_OUT_TARGET_ID, BRANCH_SENTINAL, write_cell_priority);
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::FEEDBACKWARD_IN_TARGET_ID, BRANCH_SENTINAL, write_cell_priority);
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::FEEDBACKWARD_OUT_TARGET_ID, BRANCH_SENTINAL, write_cell_priority);
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::LATERAL_0_TARGET_ID, BRANCH_SENTINAL, write_cell_priority);
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::LATERAL_1_TARGET_ID, BRANCH_SENTINAL, write_cell_priority);
         ////-----/////
         InitLogicalNodeIdentity(logical_node_id, shared_id, is_root_shared);
         InitNodeSemantics(node_role_flags, node_compute_kind, aux_param_uint32);
-
+        InitDefaultNodeLayout();
         WriteBrenchMeta32_(MetaIndexOfAPCNode::EOF_APC_HEADER, EOF_HEADER, write_cell_priority);
     }
 
@@ -324,5 +380,142 @@ namespace PredictedAdaptedEncoding
             }   
         }
     }
+
+    std::optional<std::pair<PackedCellBranchPlugin::MetaIndexOfAPCNode, PackedCellBranchPlugin::MetaIndexOfAPCNode>>PackedCellBranchPlugin::GetValidBegainAndEndOfLayoutFromBegairOrEnd_(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds) noexcept
+    {
+        MetaIndexOfAPCNode begin_idx;
+        MetaIndexOfAPCNode end_idx;
+        switch (start_or_end_of_desired_meta_bounds)
+        {
+            // ---- Feedforward message ----
+            case MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN:
+            case MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_END:
+            {
+                begin_idx = MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN;
+                end_idx   = MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_END;
+                break;
+            }
+
+            // ---- Feedback message ----
+            case MetaIndexOfAPCNode::MESSAGE_FEEDBACKWARD_BEGAIN:
+            case MetaIndexOfAPCNode::MESSAGE_FEEDBACKWARD_END:
+            {
+                begin_idx = MetaIndexOfAPCNode::MESSAGE_FEEDBACKWARD_BEGAIN;
+                end_idx   = MetaIndexOfAPCNode::MESSAGE_FEEDBACKWARD_END;
+                break;
+            }
+
+            // ---- State ----
+            case MetaIndexOfAPCNode::STATE_BEGAINING:
+            case MetaIndexOfAPCNode::STATE_END:
+            {
+                begin_idx = MetaIndexOfAPCNode::STATE_BEGAINING;
+                end_idx   = MetaIndexOfAPCNode::STATE_END;
+                break;
+            }
+
+            // ---- Edge descriptor ----
+            case MetaIndexOfAPCNode::EDGE_DESCRIPTIOR_BEGAIN:
+            case MetaIndexOfAPCNode::EDGE_DESCRIPTIOR_END:
+            {
+                begin_idx = MetaIndexOfAPCNode::EDGE_DESCRIPTIOR_BEGAIN;
+                end_idx   = MetaIndexOfAPCNode::EDGE_DESCRIPTIOR_END;
+                break;
+            }
+
+            // ---- Weight ----
+            case MetaIndexOfAPCNode::WEIGHT_BEGIN:
+            case MetaIndexOfAPCNode::WEIGHT_END:
+            {
+                begin_idx = MetaIndexOfAPCNode::WEIGHT_BEGIN;
+                end_idx   = MetaIndexOfAPCNode::WEIGHT_END;
+                break;
+            }
+
+            // ---- Aux ----
+            case MetaIndexOfAPCNode::AUX_BEGAIN:
+            case MetaIndexOfAPCNode::AUX_END:
+            {
+                begin_idx = MetaIndexOfAPCNode::AUX_BEGAIN;
+                end_idx   = MetaIndexOfAPCNode::AUX_END;
+                break;
+            }
+
+            // ---- Free ----
+            case MetaIndexOfAPCNode::FREE_BEGAIN:
+            case MetaIndexOfAPCNode::FREE_END:
+            {
+                begin_idx = MetaIndexOfAPCNode::FREE_BEGAIN;
+                end_idx   = MetaIndexOfAPCNode::FREE_END;
+                break;
+            }
+
+            default:
+            {
+                return std::nullopt;
+            }
+        }
+
+        return std::pair {begin_idx, end_idx};
+    }
+
+
+    std::optional<PackedCellBranchPlugin::LayoutBoundsUint32> PackedCellBranchPlugin::ReadLayoutBounds(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds) noexcept
+    {
+        auto maybe_begin_end = GetValidBegainAndEndOfLayoutFromBegairOrEnd_(start_or_end_of_desired_meta_bounds);
+        if (!maybe_begin_end)
+        {
+            return std::nullopt;
+        }
+        std::pair begin_end = *maybe_begin_end;
+        const uint32_t begain = ReadMetaCellValue32(begin_end.first);
+        const uint32_t end = ReadMetaCellValue32(begin_end.second);
+        return LayoutBoundsUint32{begain, end};
+
+    }
+
+    bool PackedCellBranchPlugin::SetLayOutBounds(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds, uint32_t begin, uint32_t end) noexcept
+    {
+        if (begin > end || begin < METACELL_COUNT || end > PayloadEndRead())
+        {
+            return false;
+        }
+
+        auto maybe_begain_end = GetValidBegainAndEndOfLayoutFromBegairOrEnd_(start_or_end_of_desired_meta_bounds);
+        if (!maybe_begain_end)
+        {
+            return false;
+        }
+
+        std::pair begin_end = *maybe_begain_end;
+
+        const uint32_t current_begain = ReadMetaCellValue32(begin_end.first);
+        const uint32_t current_end = ReadMetaCellValue32(begin_end.second);
+
+        return JustUpdateValueOfMeta32(begin_end.first, current_begain, begin) && JustUpdateValueOfMeta32(begin_end.second, current_end, end);
+        
+    }
+
+    size_t PackedCellBranchPlugin::ClampPayloadIndex(size_t index_size) noexcept
+    {
+
+        const size_t payload_begain = METACELL_COUNT;
+        const size_t payload_end = static_cast<size_t>(PayloadEndRead());
+        if (payload_end <= payload_begain)
+        {
+            return SIZE_MAX;
+        }
+        if (index_size < payload_begain)
+        {
+            index_size = payload_begain;
+        }
+
+        if (index_size >= payload_end)
+        {
+            index_size = payload_begain + ((index_size - payload_begain) % (payload_end - payload_begain));
+        }
+        return index_size;
+    }
+
 
 }

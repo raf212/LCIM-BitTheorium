@@ -148,7 +148,7 @@ namespace PredictedAdaptedEncoding
         {
             throw std::invalid_argument("Capacity == 0");
         }
-        if (container_capacity <= PayloadBegin() + 2)
+        if (container_capacity <= MINIMUM_BRANCH_CAPACITY)
         {
             throw std::invalid_argument("Capacity is too small for APC.");
         }

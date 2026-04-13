@@ -4,12 +4,12 @@
 
 namespace PredictedAdaptedEncoding
 {
-#define MIN_PRODUCER_BLOCK_SIZE 64
+#define MIN_PRODUCER_BLOCK_SIZE 96
 #define MIN_REGION_SIZE 64
 #define MIN_RETIRE_BATCH_THRESHOLD 16
 #define MIN_BACKGROUND_EPOCH_MS 50
 #define INITIAL_BRANCH_SPLIT_THRESHOLD_PERCENTAGE 70
-#define MINIMUM_BRANCH_CAPACITY 256
+#define MINIMUM_BRANCH_CAPACITY 128
 #define MAX_BRANCH_DEPTH 10
 
 struct ContainerConf
@@ -27,15 +27,37 @@ struct ContainerConf
     uint32_t NodeGroupSize = 1u;
 };
 
+enum class APCRelMaskClasses : tag8_t
+{
+    NONE = 0x0,
+    FEEDFORWARD_MESSAGE  = 0x1,
+    FEEDBACKWARD_MESSAGE = 0x2,
+    LATERAL_MESAGE = 0x3,
+    STATE_SLOT = 0x4,
+    ERROR_SLOT = 0x5,
+    EDGE_DESCRIPTOR = 0x6,
+    WEIGHT_SLOT = 0x7,
+    CONTROL_SLOT = 0x8,
+    AUX_SLOT = 0x9,
+    FREE_SLOT = 0xA,
+    SELF_REFARANCE = 0xB,
+    STRUCTRUAL = 0xC,
+    ///
+    RESERVED_13     = 0xD,
+    RESERVED_14     = 0xE,
+    RESERVED_15     = 0xF
+};
+
 class PackedCellBranchPlugin final
 {
 public:
-    static constexpr size_t METACELL_COUNT = 64;
+    static constexpr size_t METACELL_COUNT = 96;
     static constexpr uint32_t BRANCH_MAGIC = 0x41504342u;//big-endian
     static constexpr uint32_t EOF_HEADER = 0x72616600;//big-endian
     static constexpr uint32_t BRANCH_VERSION = 1u;
     static constexpr uint32_t BRANCH_SENTINAL = UINT32_MAX;
     static constexpr packed64_t APC_SENTENAL = UINT64_MAX;
+    static constexpr uint8_t TOTAL_LAYOUT_SECTION_IN_APC_CONTAINER_NODE = 8;
     
     enum class APCNodeComputeKind : uint32_t
     {
@@ -71,10 +93,13 @@ public:
         SATURATED = 1u << 2,
         SPLIT_INFLIGHT = 1u << 3,
         IS_GRAPH_NODE = 1u << 4,
-        IS_SHARED_ROOT = 1u << 6,
-        IS_SHARED_MAMBER = 1u << 7,
-        HAS_SHARED_NEXT = 1u << 8,
-        HAS_SHARED_PREVIOUS = 1u << 9
+        IS_SHARED_ROOT = 1u << 5,
+        IS_SHARED_MAMBER = 1u << 6,
+        HAS_SHARED_NEXT = 1u << 7,
+        HAS_SHARED_PREVIOUS = 1u << 8,
+        HAS_LAYOUT_DIR = 1u << 9,
+        HAS_EDGE_TABLE = 1u << 10,
+        HAS_WEIGHT_TABLE = 1u << 11
     };
 
     enum class MetaIndexOfAPCNode : size_t
@@ -97,19 +122,19 @@ public:
         FLAGS = 10,
         CURRENT_ACTIVE_THREADS = 11,
         OCCUPANCY_SNAPSHOT = 12,
-        SAFE_POINT = 13,
-        SPLIT_THRESHOLD_PERCENTAGE = 14,
+        SPLIT_THRESHOLD_PERCENTAGE = 13,
+        SEGMENT_KIND = 14,
         MAX_DEPTH = 15,
 
         //payload-Bounds
-        PAYLOAD_BEGIN = 16,
-        PAYLOAD_END = 17,
+        PAYLOAD_END = 16,
 
         //timing
-        LOCAL_CLOCK48 = 18,
-        LAST_SPLIT_EPOCH = 19,
+        LOCAL_CLOCK48 = 17,
+        LAST_SPLIT_EPOCH = 18,
 
         //region summery
+        REGION_DIR_COUNT = 19,
         REGION_SIZE = 20,
         REGION_COUNT = 21,
         READY_REL_MASK = 22,
@@ -138,9 +163,64 @@ public:
         LAST_EMITTED_FEED_BACKWARD_CLOCK16 = 43,
         NODE_COMPUTE_KIND = 44,
 
-        RESERVED_45 = 45,
-        EOF_APC_HEADER = 63
+        //payload--bounds
+        MESSAGE_FEEDFORWARD_BEGAIN = 45,
+        MESSAGE_FEEDFORWARD_END = 46,
+        MESSAGE_FEEDBACKWARD_BEGAIN = 47,
+        MESSAGE_FEEDBACKWARD_END = 48,
+        STATE_BEGAINING = 49,
+        STATE_END = 50,
+        ERROR_BEGAIN = 51,
+        ERROR_END = 52,
+        EDGE_DESCRIPTIOR_BEGAIN = 53,
+        EDGE_DESCRIPTIOR_END = 54,
+        WEIGHT_BEGIN = 55,
+        WEIGHT_END = 56,
+        AUX_BEGAIN = 57,
+        AUX_END = 58,
+        FREE_BEGAIN = 59,
+        FREE_END = 60,
+        //end
+
+        EDGE_TABLE_COUNT = 61,
+        WEIGHT_TABLE_COUNT = 62,
+
+
+        RESERVED_63 = 63,
+        EOF_APC_HEADER = 95
     };
+
+    enum class APCSegmentKind : uint32_t
+    {
+        MIXED_ROOT = 0,
+        MESSAGE_SEGMENT = 1,
+        EDGE_SEGMENT = 2,
+        WEIGHT_SEGMENT = 3,
+        STATE_SEGMENT = 4,
+        OVERFLOW_SEGMENT = 5
+    };
+
+    static constexpr uint32_t PAYLOAD_BOUND_START = static_cast<uint32_t>(MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN);
+    static constexpr uint32_t PAYLOAD_BOUND_END = static_cast<uint32_t>(MetaIndexOfAPCNode::FREE_END);
+
+
+    struct LayoutBoundsUint32
+    {
+        uint32_t BeginIndex = BRANCH_SENTINAL;
+        uint32_t EndIndex = BRANCH_SENTINAL;
+
+        bool IsValid(uint32_t payload_begain, uint32_t payload_end) const noexcept
+        {
+            return BeginIndex >= payload_begain && EndIndex >= BeginIndex && EndIndex <= payload_end;
+        }
+
+        uint32_t GetPayloadSpan() const noexcept
+        {
+            return (EndIndex > BeginIndex) ? (EndIndex - BeginIndex) : 0u;
+        }
+
+    };
+
 
 
     bool ValidMeteIdx(MetaIndexOfAPCNode idx) const noexcept
@@ -202,10 +282,9 @@ private:
 
     bool UpdateFlagsOfBranch_(uint32_t flags_to_turn_on = NO_VAL, uint32_t flags_to_turn_off = NO_VAL) noexcept;
 
+    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>> GetValidBegainAndEndOfLayoutFromBegairOrEnd_(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds) noexcept;
+    
 public:
-    //checked top
-
-
     packed64_t PackPureClock48AsPackedCell(
         std::optional<uint64_t> clock48 = std::nullopt,
         tag8_t priority = ZERO_PRIORITY,
@@ -255,6 +334,8 @@ public:
         APCNodeComputeKind compute_kind_of_node,
         uint32_t aux_param_uint32 = NO_VAL
     ) noexcept;
+
+    void InitDefaultNodeLayout() noexcept;
 
     void InitRootOrChildBranch(
         uint32_t branch_id,
@@ -343,11 +424,6 @@ public:
         return ReadMetaCellValue32(MetaIndexOfAPCNode::CAPACITY);
     }
 
-    uint32_t PayloadBegainRead() noexcept
-    {
-        return ReadMetaCellValue32(MetaIndexOfAPCNode::PAYLOAD_BEGIN);
-    }
-
     uint32_t PayloadEndRead() noexcept
     {
         return ReadMetaCellValue32(MetaIndexOfAPCNode::PAYLOAD_END);
@@ -380,7 +456,7 @@ public:
 
     size_t PayloadCapacityFromHeader() noexcept
     {
-        const uint32_t payload_begain = PayloadBegainRead();
+        const uint32_t payload_begain = METACELL_COUNT;
         const uint32_t payload_end  = PayloadEndRead();
         if (payload_end > payload_begain)
         {
@@ -417,6 +493,14 @@ public:
     {
         WriteBrenchMeta32_(MetaIndexOfAPCNode::TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH, NO_VAL, priority);
     }
+
+    bool SetLayOutBounds(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds, uint32_t begain, uint32_t end) noexcept;
+
+    std::optional<LayoutBoundsUint32> ReadLayoutBounds(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds) noexcept;
+
+    size_t ClampPayloadIndex(size_t index_size) noexcept;
+
+
 };
 
 }

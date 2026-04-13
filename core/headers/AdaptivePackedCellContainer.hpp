@@ -17,46 +17,6 @@ namespace PredictedAdaptedEncoding
 static_assert(__cpp_lib_atomic_wait, "C++ must suppoet atomic wait/notify");
 #define CURRENT_BRANCHING_CLIENT  3
 
-struct AcquirePairedPointerStruct
-{
-    uint64_t AssembeledPtr = 0;
-    size_t HeadIdx = SIZE_MAX;
-    size_t TailIdx = SIZE_MAX;
-    packed64_t HeadScreenshot = 0;
-    packed64_t TailScreenshot = 0;
-    RelOffsetMode32 Position = RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
-    bool Ownership = false;
-};
-
-enum class PublishStatus : uint8_t
-{
-    OK = 0,
-    FULL = 1,
-    INVALID = 2
-};
-
-struct PublishResult
-{
-    PublishStatus ResultStatus{PublishStatus::INVALID};
-    size_t Index{SIZE_MAX};
-};
-
-enum class APCRegionKind : uint8_t
-{
-    INVALID = 0,
-    FEEDFORWARD_MESSAGE = 1,
-    FEEDBACKWARD_MESSAGE = 2,
-    STATE = 3,
-    ERROR = 4,
-    EDGE_DESCRIPTOR = 5,
-    WEIGHT = 6,
-    AUX_PARAMETER = 7,
-    FREE = 8,
-    COMPLEX_COMPUTE = 9,
-    GENERIC_COMPUTE = 10,
-    GENERIC_STORAGE = 11
-};
-
 class PackedCellContainerManager;
 
 class AdaptivePackedCellContainer
@@ -84,6 +44,7 @@ private:
     std::unique_ptr<PackedCellBranchPlugin> BranchPluginOfAPC_;
     static inline std::atomic<uint32_t> GlobalBranchIdAlloc_{1};
     static inline thread_local PackedCellContainerManager::ThreadHandlePCCM  ThreadHandleAPCTL_ = {};
+    
     //logging hook
     std::function<void(const char*, const char*)> APCLogger_;
     //region/index
@@ -102,6 +63,11 @@ private:
     void RefreshAPCMeta_() noexcept;
 
     size_t SuggestedChildCapacity_() const noexcept;
+
+    tag8_t RegionKindToRelMask_(APCRegionKind region_kind) noexcept;
+
+    std::optional<APCRegionBounds> ReadRegionBounds(APCRegionKind region_kind) noexcept;
+
 
     inline bool IfValidPayloadIndex_(size_t idx) const noexcept
     {
@@ -293,5 +259,38 @@ public:
     bool TryPublishSharedGrowthOnce(packed64_t packed_cell, std::atomic<uint64_t>* growth_counter = nullptr) noexcept;
 };
 
+
+struct AdaptivePackedCellContainer::QSBRGuard
+{
+    bool IsQSBRGuardActive{false};
+    AdaptivePackedCellContainer* ParentContainer{nullptr};
+
+    QSBRGuard(AdaptivePackedCellContainer* apc_ptr = nullptr) noexcept :
+        ParentContainer(apc_ptr)
+    {
+        if (ParentContainer)
+        {
+            ParentContainer ->QSBREnterCritical_();
+            IsQSBRGuardActive = true;
+        }
+        
+    }
+
+    ~QSBRGuard() noexcept 
+    {
+        if (IsQSBRGuardActive)
+        {
+            ParentContainer->QSBRExitCritical_();
+        }
+    }
+    QSBRGuard(const QSBRGuard&) = delete;
+    QSBRGuard& operator = (const QSBRGuard&) = delete;
+    QSBRGuard(QSBRGuard&& oprtr) noexcept :
+        ParentContainer(oprtr.ParentContainer), IsQSBRGuardActive(oprtr.IsQSBRGuardActive)
+    {
+        oprtr.IsQSBRGuardActive = false;//1
+        oprtr.ParentContainer = nullptr;//2
+    }
+};
 
 }  

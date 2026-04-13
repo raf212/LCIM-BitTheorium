@@ -241,7 +241,7 @@ public:
     //
 
     bool PublishToPort(APCPortSlot port_slot, packed64_t packed_cell, uint16_t max_tries = MAX_TRIES) noexcept;
-    AdaptivePackedCellContainer* GrowSharedNodeCheaply(bool enable_recursive_branching = true) noexcept;
+
 
     PackedCellContainerManager* GetAPCManager() noexcept
     {
@@ -266,6 +266,15 @@ public:
     bool IsAPCSharedChainEmpty() noexcept;
     //publish symentics have to remove old
     bool TryPublishSharedGrowthOnce(packed64_t packed_cell, std::atomic<uint64_t>* growth_counter = nullptr) noexcept;
+    PublishResult PublishCellByRegionMAskTraverseStartsFromThisAPC(APCPagedNodeRelMaskClasses region_kind, packed64_t cell_to_publish, uint16_t max_tries = MAX_TRIES) noexcept;
+    // grow symentics have to replace GrowSharedNodeCheaply() with GrowSharedNodeByKind()
+    AdaptivePackedCellContainer* GrowSharedNodeCheaply(bool enable_recursive_branching = true) noexcept;
+    AdaptivePackedCellContainer* GrowSharedNodeByRegionKind(APCPagedNodeRelMaskClasses desired_region_kind, bool enable_branching = true) noexcept
+    {
+        (void)desired_region_kind; (void)enable_branching;
+        return this;
+    }
+
     
 };
 

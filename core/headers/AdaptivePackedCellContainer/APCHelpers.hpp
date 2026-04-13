@@ -74,6 +74,11 @@ namespace PredictedAdaptedEncoding
             return ExtractPagedRelMaskFromPacked(packed_cell) == region_kind;
         }
 
+        static packed64_t SetRelMaskForPagedNode(packed64_t packed_cell, APCPagedNodeRelMaskClasses rel_mask) noexcept
+        {
+            return PackedCell64_t::SetRelMaskInPacked(packed_cell, static_cast<tag8_t>(rel_mask));
+        }
+
     };
     
 

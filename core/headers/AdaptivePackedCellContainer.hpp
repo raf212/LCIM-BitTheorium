@@ -56,8 +56,6 @@ private:
     
     size_t GetHashedRendomizedStep_(size_t sequense_number) noexcept;
 
-    void UpdateRegionRelForIdx_(tag8_t rel_mask) noexcept;
-
     void InitZeroState_() noexcept;
 
     void RefreshAPCMeta_() noexcept;
@@ -68,6 +66,9 @@ private:
 
     std::optional<packed64_t> TryConsumeAndIdleFromRegionLocal_(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept;
 
+    PublishResult TryPublishToRegionLocal_(APCPagedNodeRelMaskClasses region_kind, packed64_t packed_cell, bool force_rel_mask = true, uint16_t max_tries = MAX_TRIES) noexcept;
+
+    void UpdateRegionRelMaskForIdx_(tag8_t rel_mask) noexcept;
 
     inline bool IfValidPayloadIndex_(size_t idx) const noexcept
     {
@@ -233,10 +234,10 @@ public:
 
     bool WriteGenericValueCellWithCASClaimedManager(packed64_t packed_cell, uint16_t max_tries = MAX_TRIES) noexcept;
 
-    //replace ConsumeAndIdleGenericValueCell with ConsumeCellFromSharedAPCRegion
+    //replace ConsumeAndIdleGenericValueCell with ConsumeCellByRegionMaskTraverseStartFromThisAPC
     bool ConsumeAndIdleGenericValueCell(size_t& scan_cursor, packed64_t& out_cell) noexcept;
-
-    std::optional<packed64_t> ConsumeCellFromSharedAPCRegion(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept;
+    bool TryConsumeFromSharedChain(packed64_t& out_cell_easy_return, size_t& root_scan_cursor) noexcept;
+    std::optional<packed64_t> ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept;
     //
 
     bool PublishToPort(APCPortSlot port_slot, packed64_t packed_cell, uint16_t max_tries = MAX_TRIES) noexcept;
@@ -263,8 +264,9 @@ public:
     AdaptivePackedCellContainer* FindSharedRootOrThis() noexcept;
     AdaptivePackedCellContainer* GetNextSharedSegment() noexcept;
     bool IsAPCSharedChainEmpty() noexcept;
-    bool TryConsumeFromSharedChain(packed64_t& out_cell_easy_return, size_t& root_scan_cursor) noexcept;
+    //publish symentics have to remove old
     bool TryPublishSharedGrowthOnce(packed64_t packed_cell, std::atomic<uint64_t>* growth_counter = nullptr) noexcept;
+    
 };
 
 

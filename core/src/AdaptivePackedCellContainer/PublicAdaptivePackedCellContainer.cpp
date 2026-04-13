@@ -783,7 +783,7 @@ namespace PredictedAdaptedEncoding
         return false;
     }
 
-    std::optional<packed64_t> AdaptivePackedCellContainer::ConsumeCellFromSharedAPCRegion(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept
+    std::optional<packed64_t> AdaptivePackedCellContainer::ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept
     {
         auto maybe_packed_cell = TryConsumeAndIdleFromRegionLocal_(region_kind, scan_cursor);
         if (maybe_packed_cell)

@@ -374,4 +374,88 @@ namespace PredictedAdaptedEncoding
         return std::nullopt;
     }
 
+    void AdaptivePackedCellContainer::UpdateRegionRelMaskForIdx_(tag8_t rel_mask) noexcept
+    {
+        if (!IfAPCBranchValid())
+        {
+            return;
+        }
+        while (true)
+        {
+            val32_t current_branch_rel_mask = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::READY_REL_MASK);
+            uint32_t next_mask = current_branch_rel_mask | static_cast<uint32_t>(rel_mask & RELMASK_MASK);
+            if (BranchPluginOfAPC_->JustUpdateValueOfMeta32(PackedCellBranchPlugin::MetaIndexOfAPCNode::READY_REL_MASK, current_branch_rel_mask, next_mask))
+            {
+                return;
+            }
+        }
+    }
+
+
+    PublishResult AdaptivePackedCellContainer::TryPublishToRegionLocal_(APCPagedNodeRelMaskClasses region_kind, packed64_t packed_cell, bool force_rel_mask, uint16_t max_tries) noexcept
+    {
+        PublishResult result{PublishStatus::INVALID, SIZE_MAX};
+        if (!IfAPCBranchValid())
+        {
+            return result;
+        }
+
+        const auto maybe_current_region_bounds = ReadRegionBounds_(region_kind);
+        if (!maybe_current_region_bounds.has_value() || maybe_current_region_bounds->GetRegionSpan() == 0)
+        {
+            return result;
+        }
+        const APCPagedNodeRegionBounds current_region_bounds = * maybe_current_region_bounds;
+        const size_t region_capacity = current_region_bounds.GetRegionSpan();
+        if (force_rel_mask)
+        {
+            packed_cell = APCAndPagedNodeHelpers::SetRelMaskForPagedNode(packed_cell, region_kind);
+        }
+        
+        uint16_t tries = 0;
+        while (tries++ < max_tries)
+        {
+            const size_t next_sequense = NextProducerSequence();
+            if (next_sequense == SIZE_MAX)
+            {
+                result.ResultStatus = PublishStatus::FULL;
+                return result;
+            }
+
+            size_t idx = current_region_bounds.BeginIdx + ((next_sequense - PayloadBegin()) % region_capacity);
+            const size_t step = 1u + ((next_sequense * ID_HASH_GOLDEN_CONST) % ((region_capacity > MIN_REGION_SIZE) ? (region_capacity - 1) : MIN_REGION_SIZE));
+            for (size_t prob = 0; prob < region_capacity; prob++)
+            {
+                packed64_t current_cell = BackingPtr[idx].load(MoLoad_);
+                if (PackedCell64_t::ExtractLocalityFromPacked(current_cell) == PackedCellLocalityTypes::ST_IDLE)
+                {
+                    const packed64_t current_cell_claimed = PackedCell64_t::SetLocalityInPacked(current_cell, PackedCellLocalityTypes::ST_CLAIMED);
+                    packed64_t expected_cell = current_cell;
+                    if (BackingPtr[idx].compare_exchange_strong(expected_cell, current_cell_claimed, OnExchangeSuccess, OnExchangeFailure))
+                    {
+                        BackingPtr[idx].store(PackedCell64_t::SetLocalityInPacked(packed_cell, PackedCellLocalityTypes::ST_PUBLISHED));
+                        BackingPtr[idx].notify_all();
+                        OccupancyAddOrSubAndGetAfterChange(+1);
+                        UpdateRegionRelMaskForIdx_(static_cast<tag8_t>(region_kind));
+                        BranchPluginOfAPC_->TouchLocalMetaClock48();
+                        RefreshAPCMeta_();
+                        result.ResultStatus = PublishStatus::OK;
+                        result.Index = idx;
+                        return result;
+                    }
+                    BranchPluginOfAPC_->TotalCASFailForThisBranchIncreaseAndGet(1);
+                }
+                idx = current_region_bounds.BeginIdx + ((idx - current_region_bounds.BeginIdx + step) % region_capacity);
+            }
+            const size_t observed_idx = current_region_bounds.BeginIdx  + ((next_sequense - PayloadBegin()) % region_capacity);
+            if (APCManagerPtr_)
+            {
+                APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(BackingPtr[observed_idx].load(MoLoad_));
+            }
+        }
+        result.ResultStatus = PublishStatus::FULL;
+        return result;
+    }
+
+
 }

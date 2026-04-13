@@ -10,7 +10,7 @@
 #include "AdaptivePackedCellContainer/PackedCellBranchPlugin.hpp"
 #include "PackedCellContainerManager.hpp"
 #include "NodeInGraphView.h"
-#include "AdaptivePackedCellContainer/APCHelpers.hpp"
+#include "AdaptivePackedCellContainer/APCHElpers.hpp"
 
 namespace PredictedAdaptedEncoding
 {
@@ -65,6 +65,8 @@ private:
     size_t SuggestedChildCapacity_() const noexcept;
 
     std::optional<APCPagedNodeRegionBounds> ReadRegionBounds_(APCPagedNodeRelMaskClasses region_kind) noexcept;
+
+    std::optional<packed64_t> TryConsumeAndIdleFromRegionLocal_(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept;
 
 
     inline bool IfValidPayloadIndex_(size_t idx) const noexcept
@@ -133,7 +135,11 @@ public:
     void InitRegionIdx(size_t region_size) noexcept;
     void TryCreateBranchIfNeeded() noexcept;
     void SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager) noexcept;
-    //Paired Pointer functions
+
+
+
+
+    //Paired Pointer functions-- have to separate into a class or struct for better use and update 
     PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;
     bool PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries = 100);
     std::optional<AcquirePairedPointerStruct> AcquirePairedAtomicPtr(size_t probable_idx, bool claim_ownership = true, int max_claim_attempts = 256) noexcept;
@@ -227,7 +233,11 @@ public:
 
     bool WriteGenericValueCellWithCASClaimedManager(packed64_t packed_cell, uint16_t max_tries = MAX_TRIES) noexcept;
 
+    //replace ConsumeAndIdleGenericValueCell with ConsumeCellFromSharedAPCRegion
     bool ConsumeAndIdleGenericValueCell(size_t& scan_cursor, packed64_t& out_cell) noexcept;
+
+    std::optional<packed64_t> ConsumeCellFromSharedAPCRegion(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept;
+    //
 
     bool PublishToPort(APCPortSlot port_slot, packed64_t packed_cell, uint16_t max_tries = MAX_TRIES) noexcept;
     AdaptivePackedCellContainer* GrowSharedNodeCheaply(bool enable_recursive_branching = true) noexcept;

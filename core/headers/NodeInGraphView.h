@@ -27,7 +27,7 @@ struct PageNodeHelper
 
     static inline std::optional<NodeControlMask> ExtractNodeControl(packed64_t packed_cell) noexcept
     {
-        if (!PredictedAdaptedEncoding::APCHelpers::IsCellPublishedMode32Generic(packed_cell))
+        if (!PredictedAdaptedEncoding::APCAndPagedNodeHelpers::IsCellPublishedMode32Generic(packed_cell))
         {
             return std::nullopt;
         }

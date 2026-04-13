@@ -312,4 +312,66 @@ namespace PredictedAdaptedEncoding
         }
         return out_bounds;
     }
+
+    std::optional<packed64_t> AdaptivePackedCellContainer::TryConsumeAndIdleFromRegionLocal_(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept
+    {
+        if (!IfAPCBranchValid())
+        {
+            return std::nullopt;
+        }
+        const auto maybe_current_region_bounds = ReadRegionBounds_(region_kind);
+        if (!maybe_current_region_bounds.has_value() || maybe_current_region_bounds->GetRegionSpan() == 0)
+        {
+            return std::nullopt;
+        }
+
+        const APCPagedNodeRegionBounds current_region_bounds = *maybe_current_region_bounds;
+        const size_t region_capacity = current_region_bounds.GetRegionSpan();
+
+        if (scan_cursor < current_region_bounds.BeginIdx || scan_cursor >= current_region_bounds.EndIdx)
+        {
+            scan_cursor = current_region_bounds.BeginIdx;
+        }
+
+        for (size_t prob = 0; prob < region_capacity; prob++)
+        {
+            const size_t idx = current_region_bounds.BeginIdx + ((scan_cursor - current_region_bounds.BeginIdx + prob) % region_capacity);
+            packed64_t current_cell = BackingPtr[idx].load(MoLoad_);
+            if (PackedCell64_t::ExtractLocalityFromPacked(current_cell) != PackedCellLocalityTypes::ST_PUBLISHED)
+            {
+                continue;
+            }
+            if (!APCAndPagedNodeHelpers::DoseCellBelongsToThisPagedRegion(current_cell, region_kind))
+            {
+                continue;
+            }
+
+            const packed64_t current_cell_claimed_local = PackedCell64_t::SetLocalityInPacked(current_cell, PackedCellLocalityTypes::ST_CLAIMED);
+            packed64_t expected_cell = current_cell;
+            if (!BackingPtr[idx].compare_exchange_strong(expected_cell, current_cell_claimed_local, OnExchangeSuccess, OnExchangeFailure))
+            {
+                if (APCManagerPtr_)
+                {
+                    APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(expected_cell);
+                }
+                BranchPluginOfAPC_->TotalCASFailForThisBranchIncreaseAndGet(1);
+                continue;
+            }
+            const PackedMode old_mode = PackedCell64_t::ExtractModeOfPackedCellFromPacked(current_cell);
+            const PackedCellDataType old_dtype = PackedCell64_t::ExtractPCellDataTypeFromPacked(current_cell);
+
+            BackingPtr[idx].store(PackedCell64_t::MakeInitialPacked(old_mode, old_dtype, static_cast<tag8_t>(region_kind)));
+            BackingPtr[idx].notify_all();
+            OccupancyAddOrSubAndGetAfterChange(-1);
+            RefreshAPCMeta_();
+            scan_cursor = idx + 1;
+            if (scan_cursor >= current_region_bounds.EndIdx)
+            {
+                scan_cursor = current_region_bounds.BeginIdx;
+            }
+            return current_cell;
+        }
+        return std::nullopt;
+    }
+
 }

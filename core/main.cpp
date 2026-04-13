@@ -299,7 +299,7 @@ int main()
                     continue;
                 }
 
-                if (!APCHelpers::IsCellPublishedMode32Generic(in))
+                if (!APCAndPagedNodeHelpers::IsCellPublishedMode32Generic(in))
                 {
                     std::cerr << "B received non-unsigned payload cell\n";
                     continue;
@@ -375,7 +375,7 @@ int main()
                     continue;
                 }
 
-                if (!APCHelpers::IsCellPublishedMode32Generic(in))
+                if (!APCAndPagedNodeHelpers::IsCellPublishedMode32Generic(in))
                 {
                     std::cerr << "C received non-unsigned payload cell\n";
                     continue;
@@ -451,7 +451,7 @@ int main()
                     continue;
                 }
 
-                if (!APCHelpers::IsCellPublishedMode32Generic(in))
+                if (!APCAndPagedNodeHelpers::IsCellPublishedMode32Generic(in))
                 {
                     std::cerr << "D received non-unsigned payload cell\n";
                     continue;
@@ -531,7 +531,7 @@ int main()
                     continue;
                 }
 
-                if (!APCHelpers::IsMode32TypedPublishedCell<float>(in))
+                if (!APCAndPagedNodeHelpers::IsMode32TypedPublishedCell<float>(in))
                 {
                     std::cerr << "E received non-float payload cell\n";
                     continue;

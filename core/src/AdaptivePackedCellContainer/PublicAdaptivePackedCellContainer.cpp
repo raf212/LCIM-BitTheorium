@@ -137,11 +137,6 @@ namespace PredictedAdaptedEncoding
             container_capacity,
             container_cfg
         );
-        BranchPluginOfAPC_->InitLogicalNodeIdentity(
-            logical_node_id,
-            shared_id,
-            true
-        );
         InitZeroState_();
         if (container_cfg.RegionSize > 0)
         {
@@ -173,15 +168,7 @@ namespace PredictedAdaptedEncoding
 
     void AdaptivePackedCellContainer::InitRegionIdx(size_t region_size) noexcept
     {
-        if (!IfAPCBranchValid())
-        {
-            return;
-        }
-        if (region_size == 0)
-        {
-            return;
-        }
-        if (!BranchPluginOfAPC_)
+        if (!IfAPCBranchValid() || region_size == 0)
         {
             return;
         }
@@ -795,4 +782,27 @@ namespace PredictedAdaptedEncoding
         }
         return false;
     }
+
+    std::optional<packed64_t> AdaptivePackedCellContainer::ConsumeCellFromSharedAPCRegion(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept
+    {
+        auto maybe_packed_cell = TryConsumeAndIdleFromRegionLocal_(region_kind, scan_cursor);
+        if (maybe_packed_cell)
+        {
+            return *maybe_packed_cell;
+        }
+
+        AdaptivePackedCellContainer* current_apc = GetNextSharedSegment();
+        while (current_apc)
+        {
+            size_t sibling_cursor = PayloadBegin();
+            auto maybe_shared_packed_cell = current_apc->TryConsumeAndIdleFromRegionLocal_(region_kind, sibling_cursor);
+            if (maybe_shared_packed_cell)
+            {
+                return *maybe_shared_packed_cell;
+            }
+            current_apc = current_apc->GetNextSharedSegment();
+        }
+        return std::nullopt;
+    }
+
 }

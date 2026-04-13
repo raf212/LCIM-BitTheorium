@@ -45,8 +45,13 @@ namespace PredictedAdaptedEncoding
         }
     };
 
-    struct APCHelpers
+    struct APCAndPagedNodeHelpers
     {
+        static APCPagedNodeRelMaskClasses ExtractPagedRelMaskFromPacked (packed64_t packed_cell) noexcept
+        {
+            return static_cast<APCPagedNodeRelMaskClasses>(PackedCell64_t::ExtractRelMaskFromPacked(packed_cell));
+        }
+
         static inline bool IsCellPublishedMode32Generic (packed64_t packed_cell) noexcept
         {
             return PackedCell64_t::ExtractModeOfPackedCellFromPacked(packed_cell) == PackedMode::MODE_VALUE32 && 
@@ -63,6 +68,12 @@ namespace PredictedAdaptedEncoding
             }
             return PackedCell64_t::ExtractPCellDataTypeFromPacked(packed_cell)  == PackedCellTypeBridge<PCDT>::DType;
         }
+
+        static bool DoseCellBelongsToThisPagedRegion(packed64_t packed_cell, APCPagedNodeRelMaskClasses region_kind) noexcept
+        {
+            return ExtractPagedRelMaskFromPacked(packed_cell) == region_kind;
+        }
+
     };
     
 

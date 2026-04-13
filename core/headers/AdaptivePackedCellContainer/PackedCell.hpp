@@ -40,16 +40,16 @@ namespace PredictedAdaptedEncoding
             return p;
         }
         public:
-        static inline packed64_t MakeInitialPacked(PackedMode mode, PackedCellDataType pcdata_type = PackedCellDataType::UnsignedPCellDataType) noexcept
+        static inline packed64_t MakeInitialPacked(PackedMode mode, PackedCellDataType pcdata_type = PackedCellDataType::UnsignedPCellDataType, tag8_t rel_mask = NO_VAL, tag8_t priority = ZERO_PRIORITY) noexcept
         {
             packed64_t p = 0;
             if (mode == PackedMode::MODE_VALUE32)
             {
-                p = static_cast<packed64_t>(ComposeValue32u_64(0u, 0u, MakeSTRLMode32_t(ZERO_PRIORITY, PackedCellLocalityTypes::ST_IDLE, 0u, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, pcdata_type)));
+                p = static_cast<packed64_t>(ComposeValue32u_64(0u, 0u, MakeSTRLMode32_t(priority, PackedCellLocalityTypes::ST_IDLE, rel_mask, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, pcdata_type)));
             }
             else if (mode == PackedMode::MODE_CLKVAL48)
             {
-                p = static_cast<packed64_t>(ComposeCLK48u_64(0u, MakeStrl4ForMode48_t(ZERO_PRIORITY, PackedCellLocalityTypes::ST_IDLE, 0u, RelOffsetMode48::RELOFFSET_GENERIC_VALUE, pcdata_type)));
+                p = static_cast<packed64_t>(ComposeCLK48u_64(0u, MakeStrl4ForMode48_t(priority, PackedCellLocalityTypes::ST_IDLE, rel_mask, RelOffsetMode48::RELOFFSET_GENERIC_VALUE, pcdata_type)));
             }
             return p;
         }

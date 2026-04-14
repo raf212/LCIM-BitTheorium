@@ -249,7 +249,7 @@ namespace PredictedAdaptedEncoding
             return std::nullopt;
         }
 
-        std::optional<PackedCellBranchPlugin::LayoutBoundsUint32> bounds;
+        std::optional<LayoutBoundsUint32> bounds;
 
         switch (region_kind)
         {
@@ -456,6 +456,7 @@ namespace PredictedAdaptedEncoding
         result.ResultStatus = PublishStatus::FULL;
         return result;
     }
+
 
 
 }

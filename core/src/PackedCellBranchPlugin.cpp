@@ -459,7 +459,7 @@ namespace PredictedAdaptedEncoding
     }
 
 
-    std::optional<PackedCellBranchPlugin::LayoutBoundsUint32> PackedCellBranchPlugin::ReadLayoutBounds(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds) noexcept
+    std::optional<LayoutBoundsUint32> PackedCellBranchPlugin::ReadLayoutBounds(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds) noexcept
     {
         auto maybe_begin_end = GetValidBegainAndEndOfLayoutFromBegairOrEnd_(start_or_end_of_desired_meta_bounds);
         if (!maybe_begin_end)

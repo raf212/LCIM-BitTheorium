@@ -1,61 +1,20 @@
 #pragma once
 #include "PackedCell.hpp"
 #include "MasterClockConf.hpp"
+#include "APCHelpers.hpp"
 
 namespace PredictedAdaptedEncoding
 {
-#define MIN_PRODUCER_BLOCK_SIZE 96
-#define MIN_REGION_SIZE 4
-#define MIN_RETIRE_BATCH_THRESHOLD 16
-#define MIN_BACKGROUND_EPOCH_MS 50
-#define INITIAL_BRANCH_SPLIT_THRESHOLD_PERCENTAGE 70
-#define MINIMUM_BRANCH_CAPACITY 128
-#define MAX_BRANCH_DEPTH 10
 
-struct ContainerConf
-{
-
-    PackedMode InitialMode = PackedMode::MODE_VALUE32;
-    size_t ProducerBlockSize = MIN_PRODUCER_BLOCK_SIZE;
-    size_t RegionSize = MIN_REGION_SIZE;
-    uint32_t RetireBatchThreshold = MIN_RETIRE_BATCH_THRESHOLD;
-    uint32_t BackgroundEpochAdvanceMS = MIN_BACKGROUND_EPOCH_MS;
-    bool EnableBranching = true;
-    uint32_t BranchSplitThresholdPercentage = INITIAL_BRANCH_SPLIT_THRESHOLD_PERCENTAGE;
-    uint32_t BranchMaxDepth = MAX_BRANCH_DEPTH;
-    size_t BranchMinChildCapacity = MINIMUM_BRANCH_CAPACITY;
-    uint32_t NodeGroupSize = 1u;
-};
-
-enum class APCPagedNodeRelMaskClasses : tag8_t
-{
-    NONE = 0x0,
-    FEEDFORWARD_MESSAGE  = 0x1,
-    FEEDBACKWARD_MESSAGE = 0x2,
-    LATERAL_MESAGE = 0x3,
-    STATE_SLOT = 0x4,
-    ERROR_SLOT = 0x5,
-    EDGE_DESCRIPTOR = 0x6,
-    WEIGHT_SLOT = 0x7,
-    CONTROL_SLOT = 0x8,
-    AUX_SLOT = 0x9,
-    FREE_SLOT = 0xA,
-    SELF_REFARANCE = 0xB,
-    STRUCTRUAL = 0xC,
-    ///
-    COMPLEX_STORAGE = 0xD,
-    RESERVED_14     = 0xE,
-    RESERVED_15     = 0xF
-};
 
 class PackedCellBranchPlugin final
 {
 public:
-    static constexpr size_t METACELL_COUNT = 96;
+    static constexpr size_t METACELL_COUNT = PackedCell64_t::METACELL_COUNT_FIRST;
     static constexpr uint32_t BRANCH_MAGIC = 0x41504342u;//big-endian
     static constexpr uint32_t EOF_HEADER = 0x72616600;//big-endian
     static constexpr uint32_t BRANCH_VERSION = 1u;
-    static constexpr uint32_t BRANCH_SENTINAL = UINT32_MAX;
+    static constexpr uint32_t BRANCH_SENTINAL = LayoutBoundsUint32::BRANCH_SENTINAL;
     static constexpr packed64_t APC_SENTENAL = UINT64_MAX;
     static constexpr uint8_t TOTAL_LAYOUT_SECTION_IN_APC_CONTAINER_NODE = 8;
     
@@ -192,25 +151,6 @@ public:
 
     static constexpr uint32_t PAYLOAD_BOUND_START = static_cast<uint32_t>(MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN);
     static constexpr uint32_t PAYLOAD_BOUND_END = static_cast<uint32_t>(MetaIndexOfAPCNode::FREE_END);
-
-
-    struct LayoutBoundsUint32
-    {
-        uint32_t BeginIndex = BRANCH_SENTINAL;
-        uint32_t EndIndex = BRANCH_SENTINAL;
-
-        bool IsValid(uint32_t payload_begain, uint32_t payload_end) const noexcept
-        {
-            return BeginIndex >= payload_begain && EndIndex >= BeginIndex && EndIndex <= payload_end;
-        }
-
-        uint32_t GetPayloadSpan() const noexcept
-        {
-            return (EndIndex > BeginIndex) ? (EndIndex - BeginIndex) : 0u;
-        }
-
-    };
-
 
 
     bool ValidMeteIdx(MetaIndexOfAPCNode idx) const noexcept

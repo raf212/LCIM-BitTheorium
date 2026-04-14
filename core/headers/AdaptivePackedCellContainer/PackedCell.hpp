@@ -17,7 +17,6 @@ namespace PredictedAdaptedEncoding
 
     struct PackedCell64_t 
     {
-
         private:
         template <typename pcdt32>
         static inline packed64_t ComposeValue32M_64_(pcdt32 value32, clk16_t clk, strl16_t strl) noexcept
@@ -40,6 +39,7 @@ namespace PredictedAdaptedEncoding
             return p;
         }
         public:
+        static constexpr size_t METACELL_COUNT_FIRST = 96;
         static inline packed64_t MakeInitialPacked(PackedMode mode, PackedCellDataType pcdata_type = PackedCellDataType::UnsignedPCellDataType, tag8_t rel_mask = NO_VAL, tag8_t priority = ZERO_PRIORITY) noexcept
         {
             packed64_t p = 0;

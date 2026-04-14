@@ -43,7 +43,7 @@ enum class APCPagedNodeRelMaskClasses : tag8_t
     SELF_REFARANCE = 0xB,
     STRUCTRUAL = 0xC,
     ///
-    RESERVED_13     = 0xD,
+    COMPLEX_STORAGE = 0xD,
     RESERVED_14     = 0xE,
     RESERVED_15     = 0xF
 };
@@ -188,16 +188,6 @@ public:
 
         RESERVED_63 = 63,
         EOF_APC_HEADER = 95
-    };
-
-    enum class APCSegmentKind : uint32_t
-    {
-        MIXED_ROOT = 0,
-        MESSAGE_SEGMENT = 1,
-        EDGE_SEGMENT = 2,
-        WEIGHT_SEGMENT = 3,
-        STATE_SEGMENT = 4,
-        OVERFLOW_SEGMENT = 5
     };
 
     static constexpr uint32_t PAYLOAD_BOUND_START = static_cast<uint32_t>(MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN);
@@ -394,7 +384,7 @@ public:
         return TryBindPortTarget(MetaIndexOfAPCNode::SHARED_NEXT_ID, shared_next_id);
     }
 
-    bool TryBindSgaredPrevious(uint32_t shared_previous_id) noexcept
+    bool TryBindSharedPrevious(uint32_t shared_previous_id) noexcept
     {
         return TryBindPortTarget(MetaIndexOfAPCNode::SHARED_PREVIOUS_ID, shared_previous_id);
     }
@@ -499,6 +489,12 @@ public:
     std::optional<LayoutBoundsUint32> ReadLayoutBounds(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds) noexcept;
 
     size_t ClampPayloadIndex(size_t index_size) noexcept;
+
+    bool SetSegmentRegionKind(APCPagedNodeRelMaskClasses region_kind) noexcept
+    {
+        const uint32_t current_segment_kind = ReadMetaCellValue32(MetaIndexOfAPCNode::SEGMENT_KIND);
+        return JustUpdateValueOfMeta32(MetaIndexOfAPCNode::SEGMENT_KIND, current_segment_kind, static_cast<uint32_t>(region_kind));
+    }
 
 
 };

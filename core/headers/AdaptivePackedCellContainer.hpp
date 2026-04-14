@@ -269,11 +269,7 @@ public:
     PublishResult PublishCellByRegionMAskTraverseStartsFromThisAPC(APCPagedNodeRelMaskClasses region_kind, packed64_t cell_to_publish, uint16_t max_tries = MAX_TRIES) noexcept;
     // grow symentics have to replace GrowSharedNodeCheaply() with GrowSharedNodeByKind()
     AdaptivePackedCellContainer* GrowSharedNodeCheaply(bool enable_recursive_branching = true) noexcept;
-    AdaptivePackedCellContainer* GrowSharedNodeByRegionKind(APCPagedNodeRelMaskClasses desired_region_kind, bool enable_branching = true) noexcept
-    {
-        (void)desired_region_kind; (void)enable_branching;
-        return this;
-    }
+    AdaptivePackedCellContainer* GrowSharedNodeByRegionKind(APCPagedNodeRelMaskClasses desired_region_kind, bool enable_branching = true) noexcept;
 
     
 };

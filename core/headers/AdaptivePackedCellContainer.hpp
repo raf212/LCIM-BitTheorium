@@ -232,11 +232,9 @@ public:
         return will_return;
     }
 
-    bool WriteGenericValueCellWithCASClaimedManager(packed64_t packed_cell, uint16_t max_tries = MAX_TRIES) noexcept;
 
     //replace ConsumeAndIdleGenericValueCell with ConsumeCellByRegionMaskTraverseStartFromThisAPC
     bool ConsumeAndIdleGenericValueCell(size_t& scan_cursor, packed64_t& out_cell) noexcept;
-    bool TryConsumeFromSharedChain(packed64_t& out_cell_easy_return, size_t& root_scan_cursor) noexcept;
     std::optional<packed64_t> ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept;
     //
 

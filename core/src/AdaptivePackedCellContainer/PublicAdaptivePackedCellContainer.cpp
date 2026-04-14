@@ -351,91 +351,7 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    bool AdaptivePackedCellContainer::WriteGenericValueCellWithCASClaimedManager(packed64_t packed_cell, uint16_t max_tries) noexcept
-    {
-        if (!IfAPCBranchValid() || !APCManagerPtr_)
-        {
-            return false;
-        }
 
-        auto try_write_into_one = [&](AdaptivePackedCellContainer& target_apc) noexcept->bool
-        {
-            const size_t payload_capacity = target_apc.GetPayloadCapacity();
-            if (payload_capacity == 0)
-            {
-                return false;
-            }
-            uint16_t tries = 0;
-            while (tries++ < max_tries)
-            {
-                const size_t next_sequense = target_apc.NextProducerSequence();
-                if (next_sequense == SIZE_MAX)
-                {
-                    return false;
-                }
-
-                size_t idx = PayloadBegin() + ((next_sequense - PayloadBegin()) % payload_capacity);
-                size_t step = 1u + ((next_sequense * ID_HASH_GOLDEN_CONST) % ((payload_capacity > 1) ? (payload_capacity - 1) : 1));
-                for (size_t prob = 0; prob < payload_capacity; prob++)
-                {
-                    packed64_t current_cell = target_apc.BackingPtr[idx].load(MoLoad_);
-                    if (PackedCell64_t::ExtractLocalityFromPacked(current_cell) == PackedCellLocalityTypes::ST_IDLE)
-                    {
-                        packed64_t local_claimed = PackedCell64_t::SetLocalityInPacked(current_cell, PackedCellLocalityTypes::ST_CLAIMED);
-                        packed64_t expected_cell = current_cell;
-                        if (target_apc.BackingPtr[idx].compare_exchange_strong(expected_cell, local_claimed, OnExchangeSuccess, OnExchangeFailure))
-                        { 
-                            target_apc.BackingPtr[idx].store(packed_cell, MoStoreSeq_);
-                            target_apc.BackingPtr[idx].notify_all();
-                            target_apc.OccupancyAddOrSubAndGetAfterChange(+1);
-                            target_apc.BranchPluginOfAPC_->TouchLocalMetaClock48();
-                            target_apc.RefreshAPCMeta_();
-                            return true;
-                        }
-                        else
-                        {
-                            target_apc.GetBranchPlugin()->TotalCASFailForThisBranchIncreaseAndGet(1u);
-                        }
-                    }
-                    idx = PayloadBegin() + ((idx - PayloadBegin() + step) % payload_capacity);
-                }
-                const size_t observed_idx = PayloadBegin() + (next_sequense % payload_capacity);
-                APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(target_apc.BackingPtr[observed_idx].load(MoLoad_));
-            }
-            return false;
-        };
-
-        if (try_write_into_one(*this))
-        {
-            return true;
-        }
-
-        if (BranchPluginOfAPC_->ShouldSplitNow())
-        {
-            APCManagerPtr_->RequestBranchCreationForTheAdaptivePackedCellContainer(this);
-            AdaptivePackedCellContainer* grown_this_apc = GrowSharedNodeByRegionKind(APCPagedNodeRelMaskClasses::FREE_SLOT);
-            if (grown_this_apc && try_write_into_one(*grown_this_apc))
-            {
-                return true;
-            }
-        }
-        uint32_t next_branch_shared_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
-
-        while (next_branch_shared_id != NO_VAL && next_branch_shared_id != PackedCellBranchPlugin::BRANCH_SENTINAL)
-        {
-            AdaptivePackedCellContainer* sibling_apc_ptr = APCManagerPtr_->GetAPCPtrFromBranchId(next_branch_shared_id);
-            if (!sibling_apc_ptr)
-            {
-                break;
-            }
-            if (try_write_into_one(*sibling_apc_ptr))
-            {
-                return true;
-            }
-            next_branch_shared_id = sibling_apc_ptr->GetBranchPlugin()->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
-        }
-        return false;
-    }
 
     bool AdaptivePackedCellContainer::ConsumeAndIdleGenericValueCell(size_t& scan_cursor, packed64_t& out_cell) noexcept
     {
@@ -587,41 +503,6 @@ namespace PredictedAdaptedEncoding
         }
         return true;
     }
-
-    bool AdaptivePackedCellContainer::TryConsumeFromSharedChain(packed64_t& out_cell_easy_return, size_t& root_scan_cursor) noexcept
-    {
-        if (!APCManagerPtr_ || !IfAPCBranchValid())
-        {
-            return false;
-        }
-
-        AdaptivePackedCellContainer* current_apc_ptr = FindSharedRootOrThis();
-        while (current_apc_ptr)
-        {
-            if (current_apc_ptr->ConsumeAndIdleGenericValueCell(root_scan_cursor, out_cell_easy_return))
-            {
-                return true;
-            }
-            PackedCellBranchPlugin* current_branch_plugin = current_apc_ptr->GetBranchPlugin();
-            if (!current_branch_plugin)
-            {
-                break;
-            }
-            const uint32_t next_apc_id = current_branch_plugin->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
-            if (next_apc_id == NO_VAL || next_apc_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
-            {
-                break;
-            }
-            AdaptivePackedCellContainer* next_apc_ptr = APCManagerPtr_->GetAPCPtrFromBranchId(next_apc_id);
-            if (!next_apc_ptr || next_apc_ptr == current_apc_ptr)
-            {
-                break;
-            }
-            current_apc_ptr = next_apc_ptr;
-        }
-        return false;
-    }
-
 
     bool AdaptivePackedCellContainer::TryPublishRegionalSharedGrowthOnce(APCPagedNodeRelMaskClasses region_kind, packed64_t packed_cell, std::atomic<uint64_t>* growth_counter) noexcept
     {

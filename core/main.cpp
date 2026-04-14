@@ -270,7 +270,9 @@ int main()
                 }
 
                 packed64_t in = 0;
-                if (!A.TryConsumeFromSharedChain(in, scan_cursor))
+                auto maybe_in = A.ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses::FREE_SLOT, scan_cursor);
+                
+                if (!maybe_in)
                 {
                     if (producers_done.load(std::memory_order_acquire) &&
                         A.IsAPCSharedChainEmpty() &&
@@ -290,6 +292,7 @@ int main()
                     std::this_thread::sleep_for(std::chrono::microseconds(20));
                     continue;
                 }
+                in = *maybe_in;
 
                 idle_loops = 0;
 
@@ -346,7 +349,9 @@ int main()
                 }
 
                 packed64_t in = 0;
-                if (!B.TryConsumeFromSharedChain(in, scan_cursor))
+                auto maybe_in = B.ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses::FREE_SLOT, scan_cursor);
+
+                if (!maybe_in)
                 {
                     if (total_done_B.load(std::memory_order_acquire) >= VALUE_COUNT &&
                         B.IsAPCSharedChainEmpty() &&
@@ -366,6 +371,7 @@ int main()
                     std::this_thread::sleep_for(std::chrono::microseconds(20));
                     continue;
                 }
+                in = *maybe_in;
 
                 idle_loops = 0;
 
@@ -422,7 +428,8 @@ int main()
                 }
 
                 packed64_t in = 0;
-                if (!C.TryConsumeFromSharedChain(in, scan_cursor))
+                auto maybe_in = C.ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses::FREE_SLOT, scan_cursor);
+                if (!maybe_in)
                 {
                     if (total_done_C.load(std::memory_order_acquire) >= VALUE_COUNT &&
                         C.IsAPCSharedChainEmpty() &&
@@ -442,6 +449,7 @@ int main()
                     std::this_thread::sleep_for(std::chrono::microseconds(20));
                     continue;
                 }
+                in = *maybe_in;
 
                 idle_loops = 0;
 
@@ -502,7 +510,9 @@ int main()
                 }
 
                 packed64_t in = 0;
-                if (!D.TryConsumeFromSharedChain(in, scan_cursor))
+                auto maybe_in = D.ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses::FREE_SLOT, scan_cursor);
+
+                if (!maybe_in)
                 {
                     if (total_done_D.load(std::memory_order_acquire) >= VALUE_COUNT &&
                         D.IsAPCSharedChainEmpty() &&
@@ -522,6 +532,7 @@ int main()
                     std::this_thread::sleep_for(std::chrono::microseconds(20));
                     continue;
                 }
+                in = *maybe_in;
 
                 idle_loops = 0;
 

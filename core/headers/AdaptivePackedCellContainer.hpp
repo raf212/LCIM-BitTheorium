@@ -115,13 +115,6 @@ public:
     AdaptivePackedCellContainer(const AdaptivePackedCellContainer&) = delete;
     AdaptivePackedCellContainer& operator = (const AdaptivePackedCellContainer&) = delete;
 
-    uint32_t GetBranchId() const noexcept;
-    uint32_t GetLogicalId() const noexcept;
-    uint32_t GetSharedId() const noexcept;
-
-    size_t ReserveProducerSlots(size_t number_of_slots) noexcept;
-    size_t NextProducerSequence() noexcept;
-
     void InitOwned(size_t cpacity, ContainerConf container_cfg = {});
     void InitAPCAsNode(
         size_t capacity,
@@ -136,20 +129,20 @@ public:
     void InitRegionIdx(size_t region_size) noexcept;
     void TryCreateBranchIfNeeded(APCPagedNodeRelMaskClasses rel_mask_hint = APCPagedNodeRelMaskClasses::FREE_SLOT) noexcept;
     void SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager) noexcept;
+    bool TryPublishRegionalSharedGrowthOnce(APCPagedNodeRelMaskClasses region_kind, packed64_t packed_cell, std::atomic<uint64_t>* growth_counter = nullptr) noexcept;
+    PublishResult PublishCellByRegionMAskTraverseStartsFromThisAPC(APCPagedNodeRelMaskClasses region_kind, packed64_t cell_to_publish, uint16_t max_tries = MAX_TRIES) noexcept;
+    AdaptivePackedCellContainer* GrowSharedNodeByRegionKind(APCPagedNodeRelMaskClasses desired_region_kind, bool enable_branching = true) noexcept;
+    std::optional<packed64_t> ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept;
+    AdaptivePackedCellContainer* FindSharedRootOrThis() noexcept;
+    AdaptivePackedCellContainer* GetNextSharedSegment() noexcept;
+    bool IsAPCSharedChainEmpty() noexcept;
+    uint32_t GetBranchId() const noexcept;
+    uint32_t GetLogicalId() const noexcept;
+    uint32_t GetSharedId() const noexcept;
+    size_t ReserveProducerSlots(size_t number_of_slots) noexcept;
+    size_t NextProducerSequence() noexcept;
 
-
-
-
-    //Paired Pointer functions-- have to separate into a class or struct for better use and update 
-    PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;
-    bool PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries = 100);
-    std::optional<AcquirePairedPointerStruct> AcquirePairedAtomicPtr(size_t probable_idx, bool claim_ownership = true, int max_claim_attempts = 256) noexcept;
-    bool ReleaseAcquiredPairedPtr(const AcquirePairedPointerStruct& acquired_pair_struct, PackedCellLocalityTypes desired_locality = PackedCellLocalityTypes::ST_IDLE) noexcept;
-    void RetireAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_pair_struct) noexcept;
-    template<typename TypePtr>
-    std::optional<TypePtr> ViewPointerMemoryIfAssembeled(size_t probable_idx) noexcept;
-    //
-
+    bool PublishToPort(APCPortSlot port_slot, packed64_t packed_cell, uint16_t max_tries = MAX_TRIES) noexcept;
 
     size_t OccupancyAddOrSubAndGetAfterChange(int delta = 0) noexcept;
 
@@ -180,14 +173,6 @@ public:
     inline bool IfAPCBranchValid() const noexcept
     {
         return (BackingPtr && GetPayloadCapacity() >= MINIMUM_BRANCH_CAPACITY - PayloadBegin());
-    }
-
-    inline void DirectStoreCellToAPCIdx(size_t idx, packed64_t cell) noexcept
-    {
-        if (IfValidPayloadIndex_(idx))
-        {
-            BackingPtr[idx].store(cell, MoStoreSeq_);
-        }
     }
 
     uint32_t ProducerORConsumerCursorSetAndGet_(std::optional<uint32_t> cursor_placement = std::nullopt, int32_t increment_or_decrement_of_cursor = 0, 
@@ -232,15 +217,6 @@ public:
         return will_return;
     }
 
-
-    //replace ConsumeAndIdleGenericValueCell with ConsumeCellByRegionMaskTraverseStartFromThisAPC
-    bool ConsumeAndIdleGenericValueCell(size_t& scan_cursor, packed64_t& out_cell) noexcept;
-    std::optional<packed64_t> ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept;
-    //
-
-    bool PublishToPort(APCPortSlot port_slot, packed64_t packed_cell, uint16_t max_tries = MAX_TRIES) noexcept;
-
-
     PackedCellContainerManager* GetAPCManager() noexcept
     {
         if (!APCManagerPtr_)
@@ -259,15 +235,15 @@ public:
         return (APCManagerPtr_->GetMasterClockAdaptivePackedCellContainerManager().GetMasterClockPtr());
     }
 
-    AdaptivePackedCellContainer* FindSharedRootOrThis() noexcept;
-    AdaptivePackedCellContainer* GetNextSharedSegment() noexcept;
-    bool IsAPCSharedChainEmpty() noexcept;
-    //publish symentics have to remove old
-    bool TryPublishRegionalSharedGrowthOnce(APCPagedNodeRelMaskClasses region_kind, packed64_t packed_cell, std::atomic<uint64_t>* growth_counter = nullptr) noexcept;
-    PublishResult PublishCellByRegionMAskTraverseStartsFromThisAPC(APCPagedNodeRelMaskClasses region_kind, packed64_t cell_to_publish, uint16_t max_tries = MAX_TRIES) noexcept;
-    AdaptivePackedCellContainer* GrowSharedNodeByRegionKind(APCPagedNodeRelMaskClasses desired_region_kind, bool enable_branching = true) noexcept;
-
-    
+    //Paired Pointer functions-- have to separate into a class or struct for better use and update 
+    PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;
+    bool PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries = 100);
+    std::optional<AcquirePairedPointerStruct> AcquirePairedAtomicPtr(size_t probable_idx, bool claim_ownership = true, int max_claim_attempts = 256) noexcept;
+    bool ReleaseAcquiredPairedPtr(const AcquirePairedPointerStruct& acquired_pair_struct, PackedCellLocalityTypes desired_locality = PackedCellLocalityTypes::ST_IDLE) noexcept;
+    void RetireAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_pair_struct) noexcept;
+    template<typename TypePtr>
+    std::optional<TypePtr> ViewPointerMemoryIfAssembeled(size_t probable_idx) noexcept;
+    //
 };
 
 

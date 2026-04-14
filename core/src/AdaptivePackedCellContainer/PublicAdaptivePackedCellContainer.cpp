@@ -96,10 +96,6 @@ namespace PredictedAdaptedEncoding
     {
         
         FreeAll();
-        if (container_capacity == 0)
-        {
-            throw std::invalid_argument("Capacity == 0");
-        }
         if (container_capacity <= MINIMUM_BRANCH_CAPACITY)
         {
             throw std::invalid_argument("Capacity is too small for APC.");
@@ -353,82 +349,6 @@ namespace PredictedAdaptedEncoding
 
 
 
-    bool AdaptivePackedCellContainer::ConsumeAndIdleGenericValueCell(size_t& scan_cursor, packed64_t& out_cell) noexcept
-    {
-        if (!IfAPCBranchValid() || !APCManagerPtr_)
-        {
-            return false;
-        }
-
-        auto try_consume_one_apc = [&](AdaptivePackedCellContainer& target_apc, size_t& scan_cursor) noexcept->bool
-        {
-            const size_t payload_capacity = target_apc.GetPayloadCapacity();
-            if (payload_capacity == 0)
-            {
-                return false;
-            }
-            for (size_t prob = 0; prob < payload_capacity; prob++)
-            {
-                const size_t idx = PayloadBegin() + ((scan_cursor - PayloadBegin() + prob) % payload_capacity);
-                packed64_t current_cell = target_apc.BackingPtr[idx].load(MoLoad_);
-                if (PackedCell64_t::ExtractLocalityFromPacked(current_cell) != PackedCellLocalityTypes::ST_PUBLISHED)
-                {
-                    continue;
-                }
-                if (static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(current_cell)) != RelOffsetMode32::RELOFFSET_GENERIC_VALUE)
-                {
-                    continue;
-                }
-                
-                packed64_t local_claimed = PackedCell64_t::SetLocalityInPacked(current_cell, PackedCellLocalityTypes::ST_CLAIMED);
-                packed64_t expected_cell = current_cell;
-                if (!target_apc.BackingPtr[idx].compare_exchange_strong(expected_cell, local_claimed, OnExchangeSuccess, OnExchangeFailure))
-                {
-                    APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(expected_cell);
-                    target_apc.GetBranchPlugin()->TotalCASFailForThisBranchIncreaseAndGet(1u);
-                    continue;
-                }
-                out_cell = current_cell;
-
-                const PackedMode old_mode = PackedCell64_t::ExtractModeOfPackedCellFromPacked(current_cell);
-                const PackedCellDataType old_dtype = PackedCell64_t::ExtractPCellDataTypeFromPacked(current_cell);
-
-                target_apc.BackingPtr[idx].store(PackedCell64_t::MakeInitialPacked(old_mode, old_dtype), MoStoreSeq_);
-                target_apc.BackingPtr[idx].notify_all();
-                target_apc.OccupancyAddOrSubAndGetAfterChange(-1);
-                target_apc.RefreshAPCMeta_();
-                scan_cursor = idx + 1;
-                if (scan_cursor >= (PayloadBegin() + payload_capacity))
-                {
-                    scan_cursor = PayloadBegin();
-                }
-                return true;
-            }
-            return false;
-        };
-        if (try_consume_one_apc(*this, scan_cursor))
-        {
-            return true;
-        }
-
-        uint32_t next_apc_shared_id = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
-
-        while (next_apc_shared_id != NO_VAL && next_apc_shared_id != PackedCellBranchPlugin::BRANCH_SENTINAL)
-        {
-            AdaptivePackedCellContainer* sibling_apc_ptr = APCManagerPtr_->GetAPCPtrFromBranchId(next_apc_shared_id);
-            if (!sibling_apc_ptr)
-            {
-                break;
-            }
-            size_t sibling_cursor = PayloadBegin();
-            if (try_consume_one_apc(*sibling_apc_ptr, sibling_cursor))
-            {
-                return true;
-            }
-            next_apc_shared_id = sibling_apc_ptr->GetBranchPlugin()->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
-        }
-        return false;
-    }
 
     AdaptivePackedCellContainer* AdaptivePackedCellContainer::FindSharedRootOrThis() noexcept
     {

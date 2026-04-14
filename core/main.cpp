@@ -98,7 +98,7 @@ namespace
     {
         for (uint32_t attempt = 0; attempt < max_attempts; ++attempt)
         {
-            if (root.TryPublishSharedGrowthOnce(packed_cell,growth_counter))
+            if (root.TryPublishRegionalSharedGrowthOnce(APCPagedNodeRelMaskClasses::FREE_SLOT, packed_cell,growth_counter))
             {
                 return true;
             }

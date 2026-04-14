@@ -134,7 +134,7 @@ public:
 
     void FreeAll() noexcept;
     void InitRegionIdx(size_t region_size) noexcept;
-    void TryCreateBranchIfNeeded() noexcept;
+    void TryCreateBranchIfNeeded(APCPagedNodeRelMaskClasses rel_mask_hint = APCPagedNodeRelMaskClasses::FREE_SLOT) noexcept;
     void SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager) noexcept;
 
 
@@ -265,10 +265,8 @@ public:
     AdaptivePackedCellContainer* GetNextSharedSegment() noexcept;
     bool IsAPCSharedChainEmpty() noexcept;
     //publish symentics have to remove old
-    bool TryPublishSharedGrowthOnce(packed64_t packed_cell, std::atomic<uint64_t>* growth_counter = nullptr) noexcept;
+    bool TryPublishRegionalSharedGrowthOnce(APCPagedNodeRelMaskClasses region_kind, packed64_t packed_cell, std::atomic<uint64_t>* growth_counter = nullptr) noexcept;
     PublishResult PublishCellByRegionMAskTraverseStartsFromThisAPC(APCPagedNodeRelMaskClasses region_kind, packed64_t cell_to_publish, uint16_t max_tries = MAX_TRIES) noexcept;
-    // grow symentics have to replace GrowSharedNodeCheaply() with GrowSharedNodeByKind()
-    AdaptivePackedCellContainer* GrowSharedNodeCheaply(bool enable_recursive_branching = true) noexcept;
     AdaptivePackedCellContainer* GrowSharedNodeByRegionKind(APCPagedNodeRelMaskClasses desired_region_kind, bool enable_branching = true) noexcept;
 
     

@@ -380,15 +380,14 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>>PackedCellBranchPlugin::GetMetaBoundsPairForRegionMAsk_(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds) noexcept
+    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>>PackedCellBranchPlugin::GetMetaBoundsPairForRegionMAsk_(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
     {
         MetaIndexOfAPCNode begin_idx;
         MetaIndexOfAPCNode end_idx;
-        switch (start_or_end_of_desired_meta_bounds)
+        switch (desired_rel_mask)
         {
             // ---- Feedforward message ----
-            case MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN:
-            case MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_END:
+            case APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE:
             {
                 begin_idx = MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN;
                 end_idx   = MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_END;
@@ -396,8 +395,7 @@ namespace PredictedAdaptedEncoding
             }
 
             // ---- Feedback message ----
-            case MetaIndexOfAPCNode::MESSAGE_FEEDBACKWARD_BEGAIN:
-            case MetaIndexOfAPCNode::MESSAGE_FEEDBACKWARD_END:
+            case APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE:
             {
                 begin_idx = MetaIndexOfAPCNode::MESSAGE_FEEDBACKWARD_BEGAIN;
                 end_idx   = MetaIndexOfAPCNode::MESSAGE_FEEDBACKWARD_END;
@@ -405,8 +403,7 @@ namespace PredictedAdaptedEncoding
             }
 
             // ---- State ----
-            case MetaIndexOfAPCNode::STATE_BEGAINING:
-            case MetaIndexOfAPCNode::STATE_END:
+            case APCPagedNodeRelMaskClasses::STATE_SLOT:
             {
                 begin_idx = MetaIndexOfAPCNode::STATE_BEGAINING;
                 end_idx   = MetaIndexOfAPCNode::STATE_END;
@@ -414,8 +411,7 @@ namespace PredictedAdaptedEncoding
             }
 
             // ---- Edge descriptor ----
-            case MetaIndexOfAPCNode::EDGE_DESCRIPTIOR_BEGAIN:
-            case MetaIndexOfAPCNode::EDGE_DESCRIPTIOR_END:
+            case APCPagedNodeRelMaskClasses::EDGE_DESCRIPTOR:
             {
                 begin_idx = MetaIndexOfAPCNode::EDGE_DESCRIPTIOR_BEGAIN;
                 end_idx   = MetaIndexOfAPCNode::EDGE_DESCRIPTIOR_END;
@@ -423,8 +419,7 @@ namespace PredictedAdaptedEncoding
             }
 
             // ---- Weight ----
-            case MetaIndexOfAPCNode::WEIGHT_BEGIN:
-            case MetaIndexOfAPCNode::WEIGHT_END:
+            case APCPagedNodeRelMaskClasses::WEIGHT_SLOT:
             {
                 begin_idx = MetaIndexOfAPCNode::WEIGHT_BEGIN;
                 end_idx   = MetaIndexOfAPCNode::WEIGHT_END;
@@ -432,8 +427,7 @@ namespace PredictedAdaptedEncoding
             }
 
             // ---- Aux ----
-            case MetaIndexOfAPCNode::AUX_BEGAIN:
-            case MetaIndexOfAPCNode::AUX_END:
+            case APCPagedNodeRelMaskClasses::AUX_SLOT:
             {
                 begin_idx = MetaIndexOfAPCNode::AUX_BEGAIN;
                 end_idx   = MetaIndexOfAPCNode::AUX_END;
@@ -441,8 +435,7 @@ namespace PredictedAdaptedEncoding
             }
 
             // ---- Free ----
-            case MetaIndexOfAPCNode::FREE_BEGAIN:
-            case MetaIndexOfAPCNode::FREE_END:
+            case APCPagedNodeRelMaskClasses::FREE_SLOT:
             {
                 begin_idx = MetaIndexOfAPCNode::FREE_BEGAIN;
                 end_idx   = MetaIndexOfAPCNode::FREE_END;
@@ -459,9 +452,9 @@ namespace PredictedAdaptedEncoding
     }
 
 
-    std::optional<LayoutBoundsUint32> PackedCellBranchPlugin::ReadLayoutBounds(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds) noexcept
+    std::optional<LayoutBoundsUint32> PackedCellBranchPlugin::ReadLayoutBounds(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
     {
-        auto maybe_begin_end = GetMetaBoundsPairForRegionMAsk_(start_or_end_of_desired_meta_bounds);
+        auto maybe_begin_end = GetMetaBoundsPairForRegionMAsk_(desired_rel_mask);
         if (!maybe_begin_end)
         {
             return std::nullopt;
@@ -473,14 +466,14 @@ namespace PredictedAdaptedEncoding
 
     }
 
-    bool PackedCellBranchPlugin::SetLayOutBounds(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds, uint32_t begin, uint32_t end) noexcept
+    bool PackedCellBranchPlugin::SetLayOutBounds(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t begin, uint32_t end) noexcept
     {
         if (begin > end || begin < METACELL_COUNT || end > PayloadEndRead())
         {
             return false;
         }
 
-        auto maybe_begain_end = GetMetaBoundsPairForRegionMAsk_(start_or_end_of_desired_meta_bounds);
+        auto maybe_begain_end = GetMetaBoundsPairForRegionMAsk_(desired_rel_mask);
         if (!maybe_begain_end)
         {
             return false;

@@ -249,53 +249,7 @@ namespace PredictedAdaptedEncoding
             return std::nullopt;
         }
 
-        std::optional<LayoutBoundsUint32> bounds;
-
-        switch (region_kind)
-        {
-            case APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE:
-                bounds = BranchPluginOfAPC_->ReadLayoutBounds(
-                    MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN);
-                break;
-
-            case APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE:
-                bounds = BranchPluginOfAPC_->ReadLayoutBounds(
-                    MetaIndexOfAPCNode::MESSAGE_FEEDBACKWARD_BEGAIN);
-                break;
-
-            case APCPagedNodeRelMaskClasses::STATE_SLOT:
-                bounds = BranchPluginOfAPC_->ReadLayoutBounds(
-                    MetaIndexOfAPCNode::STATE_BEGAINING);
-                break;
-
-            case APCPagedNodeRelMaskClasses::ERROR_SLOT:
-                bounds = BranchPluginOfAPC_->ReadLayoutBounds(
-                    MetaIndexOfAPCNode::ERROR_BEGAIN);
-                break;
-
-            case APCPagedNodeRelMaskClasses::EDGE_DESCRIPTOR:
-                bounds = BranchPluginOfAPC_->ReadLayoutBounds(
-                    MetaIndexOfAPCNode::EDGE_DESCRIPTIOR_BEGAIN);
-                break;
-
-            case APCPagedNodeRelMaskClasses::WEIGHT_SLOT:
-                bounds = BranchPluginOfAPC_->ReadLayoutBounds(
-                    MetaIndexOfAPCNode::WEIGHT_BEGIN);
-                break;
-
-            case APCPagedNodeRelMaskClasses::AUX_SLOT:
-                bounds = BranchPluginOfAPC_->ReadLayoutBounds(
-                    MetaIndexOfAPCNode::AUX_BEGAIN);
-                break;
-
-            case APCPagedNodeRelMaskClasses::FREE_SLOT:
-                bounds = BranchPluginOfAPC_->ReadLayoutBounds(
-                    MetaIndexOfAPCNode::FREE_BEGAIN);
-                break;
-
-            default:
-                return std::nullopt;
-        }
+        auto bounds = BranchPluginOfAPC_->ReadLayoutBounds(region_kind);
 
         if (!bounds.has_value())
         {

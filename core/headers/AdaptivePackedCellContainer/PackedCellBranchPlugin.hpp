@@ -124,11 +124,9 @@ private:
 
     bool UpdateFlagsOfBranch_(uint32_t flags_to_turn_on = NO_VAL, uint32_t flags_to_turn_off = NO_VAL) noexcept;
 
-    //will be replaced
-    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>> GetMetaBoundsPairForRegionMAsk_(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds) noexcept;
+    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>> GetMetaBoundsPairForRegionMAsk_(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
 
 
-    
 public:
     packed64_t PackPureClock48AsPackedCell(
         std::optional<uint64_t> clock48 = std::nullopt,
@@ -339,9 +337,9 @@ public:
         WriteBrenchMeta32_(MetaIndexOfAPCNode::TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH, NO_VAL, priority);
     }
 
-    bool SetLayOutBounds(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds, uint32_t begain, uint32_t end) noexcept;
+    bool SetLayOutBounds(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t begain, uint32_t end) noexcept;
 
-    std::optional<LayoutBoundsUint32> ReadLayoutBounds(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds) noexcept;
+    std::optional<LayoutBoundsUint32> ReadLayoutBounds(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
 
     size_t ClampPayloadIndex(size_t index_size) noexcept;
 

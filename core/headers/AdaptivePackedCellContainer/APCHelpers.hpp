@@ -1,5 +1,7 @@
 
 #pragma once 
+#include <array>
+#include <utility>
 #include "PackedCell.hpp"
 
 namespace PredictedAdaptedEncoding
@@ -13,20 +15,7 @@ namespace PredictedAdaptedEncoding
     #define MINIMUM_BRANCH_CAPACITY 128
     #define MAX_BRANCH_DEPTH 10
 
-    struct ContainerConf
-    {
 
-        PackedMode InitialMode = PackedMode::MODE_VALUE32;
-        size_t ProducerBlockSize = MIN_PRODUCER_BLOCK_SIZE;
-        size_t RegionSize = MIN_REGION_SIZE;
-        uint32_t RetireBatchThreshold = MIN_RETIRE_BATCH_THRESHOLD;
-        uint32_t BackgroundEpochAdvanceMS = MIN_BACKGROUND_EPOCH_MS;
-        bool EnableBranching = true;
-        uint32_t BranchSplitThresholdPercentage = INITIAL_BRANCH_SPLIT_THRESHOLD_PERCENTAGE;
-        uint32_t BranchMaxDepth = MAX_BRANCH_DEPTH;
-        size_t BranchMinChildCapacity = MINIMUM_BRANCH_CAPACITY;
-        uint32_t NodeGroupSize = 1u;
-    };
 
     enum class APCPagedNodeRelMaskClasses : tag8_t
     {
@@ -49,6 +38,70 @@ namespace PredictedAdaptedEncoding
         RESERVED_15     = 0xF
     };
 
+
+
+    struct ContainerConf
+    {
+
+
+        PackedMode InitialMode = PackedMode::MODE_VALUE32;
+        size_t ProducerBlockSize = MIN_PRODUCER_BLOCK_SIZE;
+        size_t RegionSize = MIN_REGION_SIZE;
+        uint32_t RetireBatchThreshold = MIN_RETIRE_BATCH_THRESHOLD;
+        uint32_t BackgroundEpochAdvanceMS = MIN_BACKGROUND_EPOCH_MS;
+        bool EnableBranching = true;
+        uint32_t BranchSplitThresholdPercentage = INITIAL_BRANCH_SPLIT_THRESHOLD_PERCENTAGE;
+        uint32_t BranchMaxDepth = MAX_BRANCH_DEPTH;
+        size_t BranchMinChildCapacity = MINIMUM_BRANCH_CAPACITY;
+        uint32_t NodeGroupSize = 1u;
+
+        //region conf
+        uint32_t DefaultFreePercentage = 55;
+        static constexpr uint8_t DEFAULT_INITIAL_REGION_PAIR_COUNT = 4;
+
+    private:
+        std::array<std::pair<APCPagedNodeRelMaskClasses, uint8_t>, DEFAULT_INITIAL_REGION_PAIR_COUNT> PrefaredDefaultPairsWithPercentage{
+            std::pair<APCPagedNodeRelMaskClasses, uint8_t>{APCPagedNodeRelMaskClasses::FREE_SLOT, uint8_t{0}},
+            std::pair<APCPagedNodeRelMaskClasses, uint8_t>{APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE, uint8_t{0}},
+            std::pair<APCPagedNodeRelMaskClasses, uint8_t>{APCPagedNodeRelMaskClasses::STATE_SLOT, uint8_t{0}},
+            std::pair<APCPagedNodeRelMaskClasses, uint8_t>{APCPagedNodeRelMaskClasses::WEIGHT_SLOT, uint8_t{0}}
+        };
+    public:
+    
+        bool HasManualHintPercentageAll() const noexcept
+        {
+            return (
+                PrefaredDefaultPairsWithPercentage[0].second != 0 &&
+                PrefaredDefaultPairsWithPercentage[1].second != 0 &&
+                PrefaredDefaultPairsWithPercentage[2].second != 0 &&
+                PrefaredDefaultPairsWithPercentage[3].second != 0 
+            );
+        }
+
+        bool SetDefaultPercentage(size_t idx, APCPagedNodeRelMaskClasses region_kind, uint8_t accomodation_percentage)
+        {
+            if (idx >= DEFAULT_INITIAL_REGION_PAIR_COUNT)
+            {
+                return false;
+            }
+            PrefaredDefaultPairsWithPercentage[idx].first = region_kind;
+            PrefaredDefaultPairsWithPercentage[idx].second = accomodation_percentage;
+            return true;
+        }
+        
+        void SetPercentageCompleatePairedArrayFromUser(std::array<std::pair<APCPagedNodeRelMaskClasses, uint8_t>, DEFAULT_INITIAL_REGION_PAIR_COUNT>& compleate_paired_array) noexcept
+        {
+            PrefaredDefaultPairsWithPercentage = compleate_paired_array;
+        }
+
+        std::array<std::pair<APCPagedNodeRelMaskClasses, uint8_t>, DEFAULT_INITIAL_REGION_PAIR_COUNT> GetPrefaredDefaultPairsWithPercentage() noexcept
+        {
+            return PrefaredDefaultPairsWithPercentage;
+        }
+
+    };
+
+    
     struct LayoutBoundsUint32
     {
         static constexpr uint32_t BRANCH_SENTINAL = UINT32_MAX;
@@ -59,12 +112,60 @@ namespace PredictedAdaptedEncoding
         {
             return BeginIndex >= payload_begain && EndIndex >= BeginIndex && EndIndex <= payload_end;
         }
+        bool IsEmpty() const noexcept
+        {
+            return EndIndex <= BeginIndex;
+        }
 
         uint32_t GetPayloadSpan() const noexcept
         {
             return (EndIndex > BeginIndex) ? (EndIndex - BeginIndex) : 0u;
         }
 
+        bool CanBorrowRightFrom(const LayoutBoundsUint32& right) const noexcept
+        {
+            return EndIndex == right.BeginIndex && right.GetPayloadSpan() > 0u;
+        }
+
+        bool CanBorrowLeftFrom(const LayoutBoundsUint32& left) const noexcept
+        {
+            return BeginIndex == left.EndIndex && left.GetPayloadSpan() > 0u;
+        }
+
+        bool TryGrowRight(uint32_t amount, LayoutBoundsUint32& right) noexcept
+        {
+            if (!CanBorrowRightFrom(right) || amount == 0u || right.GetPayloadSpan() < amount)
+            {
+                return false;
+            }
+            EndIndex +=amount;
+            right.BeginIndex +=amount;
+            return true;            
+        }
+
+        bool TryGrowLeft(uint32_t amount, LayoutBoundsUint32& left) noexcept
+        {
+            if (!CanBorrowLeftFrom(left) || amount == 0u || left.GetPayloadSpan() < amount)
+            {
+                return false;
+            }
+            BeginIndex -= amount;
+            left.EndIndex -= amount;
+            return true;
+        }
+
+        uint32_t ClampOrNormalize(uint32_t idx) const noexcept
+        {
+            if (IsEmpty())
+            {
+                return BeginIndex;
+            }
+            if (idx < BeginIndex || idx >= EndIndex)
+            {
+                return BeginIndex;
+            }
+            return BeginIndex + ((idx - BeginIndex) % GetPayloadSpan());
+        }
     };
 
 

@@ -14,7 +14,7 @@ public:
     static constexpr uint32_t BRANCH_MAGIC = 0x41504342u;//big-endian
     static constexpr uint32_t EOF_HEADER = 0x72616600;//big-endian
     static constexpr uint32_t BRANCH_VERSION = 1u;
-    static constexpr uint32_t BRANCH_SENTINAL = LayoutBoundsUint32::BRANCH_SENTINAL;
+    static constexpr uint32_t BRANCH_SENTINAL = LayoutBoundsOfSingleRelNodeClass::BRANCH_SENTINAL;
     static constexpr packed64_t APC_SENTENAL = UINT64_MAX;
     static constexpr uint8_t TOTAL_LAYOUT_SECTION_IN_APC_CONTAINER_NODE = 8;
     
@@ -124,9 +124,9 @@ private:
 
     bool UpdateAPCModeFlagsInHeader_(uint32_t flags_to_turn_on = NO_VAL, uint32_t flags_to_turn_off = NO_VAL) noexcept;
 
-    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>> GetMetaBoundsPairForRegionMAsk_(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
+    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>> GetMetaBoundsPairForRegionMask_(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
 
-    bool WriteBoundsPairToHeader_(const LayoutBoundsUint32& layout_bound) noexcept;
+    bool WriteBoundsPairToHeader_(const LayoutBoundsOfSingleRelNodeClass layout_bound) noexcept;
 
 
 public:
@@ -341,7 +341,7 @@ public:
 
     bool SetLayOutBounds(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t begain, uint32_t end) noexcept;
 
-    std::optional<LayoutBoundsUint32> ReadLayoutBounds(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
+    std::optional<LayoutBoundsOfSingleRelNodeClass> ReadLayoutBounds(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
 
     size_t ClampPayloadIndex(size_t index_size) noexcept;
 

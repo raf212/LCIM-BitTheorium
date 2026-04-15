@@ -255,7 +255,7 @@ namespace PredictedAdaptedEncoding
             return std::nullopt;
         }
 
-        const LayoutBoundsUint32 current_region_bounds = *maybe_current_region_bounds;
+        const LayoutBoundsOfSingleRelNodeClass current_region_bounds = *maybe_current_region_bounds;
         const size_t region_capacity = current_region_bounds.GetPayloadSpan();
 
         if (scan_cursor < current_region_bounds.BeginIndex || scan_cursor >= current_region_bounds.EndIndex)
@@ -335,7 +335,7 @@ namespace PredictedAdaptedEncoding
         {
             return result;
         }
-        const LayoutBoundsUint32 current_region_bounds = * maybe_current_region_bounds;
+        const LayoutBoundsOfSingleRelNodeClass current_region_bounds = * maybe_current_region_bounds;
         const size_t region_capacity = current_region_bounds.GetPayloadSpan();
         if (force_rel_mask)
         {

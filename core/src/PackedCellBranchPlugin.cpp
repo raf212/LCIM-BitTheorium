@@ -167,23 +167,23 @@ namespace PredictedAdaptedEncoding
 
         uint32_t current_begain = METACELL_COUNT;
 
-        const auto alloc_node_region = [&](uint32_t wanted_size) noexcept -> LayoutBoundsUint32
+        const auto alloc_node_region = [&](uint32_t wanted_size) noexcept -> LayoutBoundsOfSingleRelNodeClass
         {
             const uint32_t remaining = (end > current_begain) ? (end - current_begain) : NO_VAL;
             const uint32_t use = std::min<uint32_t>(wanted_size, remaining);
-            const LayoutBoundsUint32 out_layout{current_begain, static_cast<uint32_t>(current_begain + use)};
+            const LayoutBoundsOfSingleRelNodeClass out_layout{current_begain, static_cast<uint32_t>(current_begain + use)};
             current_begain = current_begain + use;
             return out_layout;
         };
 
-        const LayoutBoundsUint32 feed_forward_layout = alloc_node_region(avarage_space);
-        const LayoutBoundsUint32 feed_backward_layout = alloc_node_region(avarage_space);
-        const LayoutBoundsUint32 state_layout = alloc_node_region(avarage_space);
-        const LayoutBoundsUint32 error_layout = alloc_node_region(avarage_space);
-        const LayoutBoundsUint32 edge_layout = alloc_node_region(avarage_space);
-        const LayoutBoundsUint32 weight_layout = alloc_node_region(avarage_space);
-        const LayoutBoundsUint32 aux_layout = alloc_node_region(avarage_space / 2);
-        const LayoutBoundsUint32 free_layout {current_begain, end};
+        const LayoutBoundsOfSingleRelNodeClass feed_forward_layout = alloc_node_region(avarage_space);
+        const LayoutBoundsOfSingleRelNodeClass feed_backward_layout = alloc_node_region(avarage_space);
+        const LayoutBoundsOfSingleRelNodeClass state_layout = alloc_node_region(avarage_space);
+        const LayoutBoundsOfSingleRelNodeClass error_layout = alloc_node_region(avarage_space);
+        const LayoutBoundsOfSingleRelNodeClass edge_layout = alloc_node_region(avarage_space);
+        const LayoutBoundsOfSingleRelNodeClass weight_layout = alloc_node_region(avarage_space);
+        const LayoutBoundsOfSingleRelNodeClass aux_layout = alloc_node_region(avarage_space / 2);
+        const LayoutBoundsOfSingleRelNodeClass free_layout {current_begain, end};
 
         WriteBrenchMeta32_(MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN, feed_forward_layout.BeginIndex);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_END, feed_forward_layout.EndIndex);
@@ -380,7 +380,7 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>>PackedCellBranchPlugin::GetMetaBoundsPairForRegionMAsk_(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
+    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>>PackedCellBranchPlugin::GetMetaBoundsPairForRegionMask_(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
     {
         MetaIndexOfAPCNode begin_idx;
         MetaIndexOfAPCNode end_idx;
@@ -452,9 +452,9 @@ namespace PredictedAdaptedEncoding
     }
 
 
-    std::optional<LayoutBoundsUint32> PackedCellBranchPlugin::ReadLayoutBounds(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
+    std::optional<LayoutBoundsOfSingleRelNodeClass> PackedCellBranchPlugin::ReadLayoutBounds(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
     {
-        auto maybe_begin_end = GetMetaBoundsPairForRegionMAsk_(desired_rel_mask);
+        auto maybe_begin_end = GetMetaBoundsPairForRegionMask_(desired_rel_mask);
         if (!maybe_begin_end)
         {
             return std::nullopt;
@@ -462,7 +462,7 @@ namespace PredictedAdaptedEncoding
         std::pair begin_end = *maybe_begin_end;
         const uint32_t begain = ReadMetaCellValue32(begin_end.first);
         const uint32_t end = ReadMetaCellValue32(begin_end.second);
-        LayoutBoundsUint32 current_bounds{};
+        LayoutBoundsOfSingleRelNodeClass current_bounds{};
         current_bounds.BeginIndex = begain;
         current_bounds.EndIndex = end;
         current_bounds.LAYOUT_CLASS = desired_rel_mask;
@@ -476,7 +476,7 @@ namespace PredictedAdaptedEncoding
             return false;
         }
 
-        auto maybe_begain_end = GetMetaBoundsPairForRegionMAsk_(desired_rel_mask);
+        auto maybe_begain_end = GetMetaBoundsPairForRegionMask_(desired_rel_mask);
         if (!maybe_begain_end)
         {
             return false;
@@ -510,6 +510,20 @@ namespace PredictedAdaptedEncoding
             index_size = payload_begain + ((index_size - payload_begain) % (payload_end - payload_begain));
         }
         return index_size;
+    }
+
+    bool PackedCellBranchPlugin::WriteBoundsPairToHeader_(const LayoutBoundsOfSingleRelNodeClass layout_bound) noexcept
+    {
+        auto maybe_region_bounds_pair = GetMetaBoundsPairForRegionMask_(layout_bound.LAYOUT_CLASS);
+        if (!maybe_region_bounds_pair || layout_bound.IsEmpty() == true)
+        {
+            return false;
+        }
+        std::pair begin_end = *maybe_region_bounds_pair;
+        const uint32_t current_begin = ReadMetaCellValue32(begin_end.first);
+        const uint32_t current_end = ReadMetaCellValue32(begin_end.second);
+        return JustUpdateValueOfMeta32(begin_end.first, current_begin, layout_bound.BeginIndex) &&
+                JustUpdateValueOfMeta32(begin_end.second, current_end, layout_bound.EndIndex);
     }
 
 

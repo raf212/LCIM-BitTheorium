@@ -188,7 +188,7 @@ namespace PredictedAdaptedEncoding
     };
 
     
-    struct LayoutBoundsUint32
+    struct LayoutBoundsOfSingleRelNodeClass
     {
         static constexpr uint32_t BRANCH_SENTINAL = UINT32_MAX;
         uint32_t BeginIndex = BRANCH_SENTINAL;
@@ -201,7 +201,7 @@ namespace PredictedAdaptedEncoding
         }
         bool IsEmpty() const noexcept
         {
-            return EndIndex <= BeginIndex;
+            return EndIndex <= BeginIndex || LAYOUT_CLASS == APCPagedNodeRelMaskClasses::NONE;
         }
 
         uint32_t GetPayloadSpan() const noexcept
@@ -209,17 +209,17 @@ namespace PredictedAdaptedEncoding
             return (EndIndex > BeginIndex) ? (EndIndex - BeginIndex) : 0u;
         }
 
-        bool CanBorrowRightFrom(const LayoutBoundsUint32& right) const noexcept
+        bool CanBorrowRightFrom(const LayoutBoundsOfSingleRelNodeClass& right) const noexcept
         {
             return EndIndex == right.BeginIndex && right.GetPayloadSpan() > 0u;
         }
 
-        bool CanBorrowLeftFrom(const LayoutBoundsUint32& left) const noexcept
+        bool CanBorrowLeftFrom(const LayoutBoundsOfSingleRelNodeClass& left) const noexcept
         {
             return BeginIndex == left.EndIndex && left.GetPayloadSpan() > 0u;
         }
 
-        bool TryGrowRight(uint32_t amount, LayoutBoundsUint32& right) noexcept
+        bool TryGrowRight(uint32_t amount, LayoutBoundsOfSingleRelNodeClass& right) noexcept
         {
             if (!CanBorrowRightFrom(right) || amount == 0u || right.GetPayloadSpan() < amount)
             {
@@ -230,7 +230,7 @@ namespace PredictedAdaptedEncoding
             return true;            
         }
 
-        bool TryGrowLeft(uint32_t amount, LayoutBoundsUint32& left) noexcept
+        bool TryGrowLeft(uint32_t amount, LayoutBoundsOfSingleRelNodeClass& left) noexcept
         {
             if (!CanBorrowLeftFrom(left) || amount == 0u || left.GetPayloadSpan() < amount)
             {
@@ -254,6 +254,22 @@ namespace PredictedAdaptedEncoding
             return BeginIndex + ((idx - BeginIndex) % GetPayloadSpan());
         }
     };
+
+    struct CompleteAPCNodeRegionsLayout
+    {
+    private :
+        LayoutBoundsOfSingleRelNodeClass DEFAULT_LAYOUT{};
+        LayoutBoundsOfSingleRelNodeClass InitDefaultLayoutClasses_(APCPagedNodeRelMaskClasses desired_layout_class) noexcept
+        {
+            DEFAULT_LAYOUT.LAYOUT_CLASS = desired_layout_class;
+            return DEFAULT_LAYOUT;
+        }
+    public :
+
+        LayoutBoundsOfSingleRelNodeClass FeedForwardLayout = InitDefaultLayoutClasses_(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE);
+
+    };
+
 
 
     struct AcquirePairedPointerStruct

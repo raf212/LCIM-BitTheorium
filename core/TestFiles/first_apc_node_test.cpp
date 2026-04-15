@@ -37,7 +37,7 @@ namespace PredictedAdaptedEncoding
 
             const uint32_t prev_id =
                 plugin->ReadMetaCellValue32(
-                    PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_PREVIOUS_ID);
+                    MetaIndexOfAPCNode::SHARED_PREVIOUS_ID);
 
             if (prev_id == NO_VAL || prev_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
             {
@@ -90,7 +90,7 @@ namespace PredictedAdaptedEncoding
 
             const uint32_t next_id =
                 plugin->ReadMetaCellValue32(
-                    PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
+                    MetaIndexOfAPCNode::SHARED_NEXT_ID);
 
             if (next_id == NO_VAL || next_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
             {
@@ -139,7 +139,7 @@ namespace PredictedAdaptedEncoding
 
             const uint32_t next_id =
                 plugin->ReadMetaCellValue32(
-                    PackedCellBranchPlugin::MetaIndexOfAPCNode::SHARED_NEXT_ID);
+                    MetaIndexOfAPCNode::SHARED_NEXT_ID);
 
             if (next_id == NO_VAL || next_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
             {

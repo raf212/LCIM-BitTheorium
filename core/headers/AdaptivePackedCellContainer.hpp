@@ -176,44 +176,44 @@ public:
     }
 
     uint32_t ProducerORConsumerCursorSetAndGet_(std::optional<uint32_t> cursor_placement = std::nullopt, int32_t increment_or_decrement_of_cursor = 0, 
-        bool* did_changed_easy_return = nullptr, const PackedCellBranchPlugin::MetaIndexOfAPCNode cursors_meta_idx = PackedCellBranchPlugin::MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT
+        bool* did_changed_easy_return = nullptr, const MetaIndexOfAPCNode cursors_meta_idx = MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT
     ) noexcept;
 
     uint32_t GetProducerCursorPlacement() noexcept
     {
-        return BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
+        return BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
     }
 
     bool UpdateProducerCursorPlacement(uint32_t new_cursor_placement_idx) noexcept
     {
         bool will_return = false;
-        ProducerORConsumerCursorSetAndGet_(new_cursor_placement_idx, 0, &will_return, PackedCellBranchPlugin::MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
+        ProducerORConsumerCursorSetAndGet_(new_cursor_placement_idx, 0, &will_return, MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
         return will_return;
     }
 
     bool ProducerCursorIncrementOrdecrement(int32_t increment_decrement_value)  noexcept
     {
         bool will_retuen = false;
-        ProducerORConsumerCursorSetAndGet_(std::nullopt, increment_decrement_value, &will_retuen, PackedCellBranchPlugin::MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
+        ProducerORConsumerCursorSetAndGet_(std::nullopt, increment_decrement_value, &will_retuen, MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
         return will_retuen;
     }
 
     uint32_t GetConsumerCursorPlacement() noexcept
     {
-        return BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
+        return BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
     }
 
     bool UpdateConsumerCursorPlacement(uint32_t new_cursor_value) noexcept
     {
         bool will_return = false;
-        ProducerORConsumerCursorSetAndGet_(new_cursor_value, 0, &will_return, PackedCellBranchPlugin::MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
+        ProducerORConsumerCursorSetAndGet_(new_cursor_value, 0, &will_return, MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
         return will_return;
     }
 
     bool ConsumerCursorIncrementOrDecrement(int32_t increment_decrement_value) noexcept
     {
         bool will_return = false;
-        ProducerORConsumerCursorSetAndGet_(std::nullopt, increment_decrement_value, &will_return, PackedCellBranchPlugin::MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
+        ProducerORConsumerCursorSetAndGet_(std::nullopt, increment_decrement_value, &will_return, MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
         return will_return;
     }
 

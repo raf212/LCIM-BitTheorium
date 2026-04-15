@@ -118,11 +118,11 @@ namespace PredictedAdaptedEncoding
             BranchPluginOfAPC_->TouchLocalMetaClock48();
         }
 
-        uint32_t current_group_size = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::NODE_GROUP_SIZE);
+        uint32_t current_group_size = BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::NODE_GROUP_SIZE);
         if (current_group_size == NO_VAL)
         {
             BranchPluginOfAPC_->JustUpdateValueOfMeta32(
-                PackedCellBranchPlugin::MetaIndexOfAPCNode::NODE_GROUP_SIZE,
+                MetaIndexOfAPCNode::NODE_GROUP_SIZE,
                 current_group_size,
                 1u
             );
@@ -138,7 +138,7 @@ namespace PredictedAdaptedEncoding
     }
 
     uint32_t AdaptivePackedCellContainer::ProducerORConsumerCursorSetAndGet_(std::optional<uint32_t> cursor_placement, int32_t increment_or_decrement_of_cursor, 
-        bool* did_changed_easy_return, const PackedCellBranchPlugin::MetaIndexOfAPCNode cursors_meta_idx
+        bool* did_changed_easy_return, const MetaIndexOfAPCNode cursors_meta_idx
     ) noexcept
     {
         if (!BranchPluginOfAPC_)
@@ -255,42 +255,42 @@ namespace PredictedAdaptedEncoding
         {
             case APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE:
                 bounds = BranchPluginOfAPC_->ReadLayoutBounds(
-                    PackedCellBranchPlugin::MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN);
+                    MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN);
                 break;
 
             case APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE:
                 bounds = BranchPluginOfAPC_->ReadLayoutBounds(
-                    PackedCellBranchPlugin::MetaIndexOfAPCNode::MESSAGE_FEEDBACKWARD_BEGAIN);
+                    MetaIndexOfAPCNode::MESSAGE_FEEDBACKWARD_BEGAIN);
                 break;
 
             case APCPagedNodeRelMaskClasses::STATE_SLOT:
                 bounds = BranchPluginOfAPC_->ReadLayoutBounds(
-                    PackedCellBranchPlugin::MetaIndexOfAPCNode::STATE_BEGAINING);
+                    MetaIndexOfAPCNode::STATE_BEGAINING);
                 break;
 
             case APCPagedNodeRelMaskClasses::ERROR_SLOT:
                 bounds = BranchPluginOfAPC_->ReadLayoutBounds(
-                    PackedCellBranchPlugin::MetaIndexOfAPCNode::ERROR_BEGAIN);
+                    MetaIndexOfAPCNode::ERROR_BEGAIN);
                 break;
 
             case APCPagedNodeRelMaskClasses::EDGE_DESCRIPTOR:
                 bounds = BranchPluginOfAPC_->ReadLayoutBounds(
-                    PackedCellBranchPlugin::MetaIndexOfAPCNode::EDGE_DESCRIPTIOR_BEGAIN);
+                    MetaIndexOfAPCNode::EDGE_DESCRIPTIOR_BEGAIN);
                 break;
 
             case APCPagedNodeRelMaskClasses::WEIGHT_SLOT:
                 bounds = BranchPluginOfAPC_->ReadLayoutBounds(
-                    PackedCellBranchPlugin::MetaIndexOfAPCNode::WEIGHT_BEGIN);
+                    MetaIndexOfAPCNode::WEIGHT_BEGIN);
                 break;
 
             case APCPagedNodeRelMaskClasses::AUX_SLOT:
                 bounds = BranchPluginOfAPC_->ReadLayoutBounds(
-                    PackedCellBranchPlugin::MetaIndexOfAPCNode::AUX_BEGAIN);
+                    MetaIndexOfAPCNode::AUX_BEGAIN);
                 break;
 
             case APCPagedNodeRelMaskClasses::FREE_SLOT:
                 bounds = BranchPluginOfAPC_->ReadLayoutBounds(
-                    PackedCellBranchPlugin::MetaIndexOfAPCNode::FREE_BEGAIN);
+                    MetaIndexOfAPCNode::FREE_BEGAIN);
                 break;
 
             default:
@@ -382,9 +382,9 @@ namespace PredictedAdaptedEncoding
         }
         while (true)
         {
-            val32_t current_branch_rel_mask = BranchPluginOfAPC_->ReadMetaCellValue32(PackedCellBranchPlugin::MetaIndexOfAPCNode::READY_REL_MASK);
+            val32_t current_branch_rel_mask = BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::READY_REL_MASK);
             uint32_t next_mask = current_branch_rel_mask | static_cast<uint32_t>(rel_mask & RELMASK_MASK);
-            if (BranchPluginOfAPC_->JustUpdateValueOfMeta32(PackedCellBranchPlugin::MetaIndexOfAPCNode::READY_REL_MASK, current_branch_rel_mask, next_mask))
+            if (BranchPluginOfAPC_->JustUpdateValueOfMeta32(MetaIndexOfAPCNode::READY_REL_MASK, current_branch_rel_mask, next_mask))
             {
                 return;
             }

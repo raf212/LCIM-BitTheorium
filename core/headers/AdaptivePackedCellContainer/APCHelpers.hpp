@@ -15,7 +15,93 @@ namespace PredictedAdaptedEncoding
     #define MINIMUM_BRANCH_CAPACITY 128
     #define MAX_BRANCH_DEPTH 10
 
+    enum class MetaIndexOfAPCNode : size_t
+    {
+        //identity
+        MAGIC_ID = 0,
+        VERSION = 1,
+        CAPACITY = 2,
+        BRANCH_ID = 3,
 
+        //logical-node Identity
+        LOGICAL_NODE_ID = 4,
+        SHARED_ID = 5,
+        SHARED_PREVIOUS_ID = 6,
+        SHARED_NEXT_ID = 7,
+
+        //runtime-controle
+        BRANCH_DEPTH = 8,
+        BRANCH_PRIORITY = 9,
+        FLAGS = 10,
+        CURRENT_ACTIVE_THREADS = 11,
+        OCCUPANCY_SNAPSHOT = 12,
+        SPLIT_THRESHOLD_PERCENTAGE = 13,
+        SEGMENT_KIND = 14,
+        MAX_DEPTH = 15,
+
+        //payload-Bounds
+        PAYLOAD_END = 16,
+
+        //timing
+        LOCAL_CLOCK48 = 17,
+        LAST_SPLIT_EPOCH = 18,
+
+        //region summery
+        REGION_DIR_COUNT = 19,
+        REGION_SIZE = 20,
+        REGION_COUNT = 21,
+        READY_REL_MASK = 22,
+        PRODUCER_BLOCK_SIZE = 23,
+        BACKGROUND_EPOCH_ADVANCE_MS =  24,
+        DEFINED_MODE_OF_CURRENT_APC = 25,
+        RETIRE_BRANCH_THRASHOLD = 26,
+        PRODUCER_CURSOR_PLACEMENT = 27,
+        CONSUMER_CURSORE_PLACEMENT = 28,
+        CURRENTLY_OWNED = 29,
+        TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH = 30,
+        NODE_GROUP_SIZE = 31,
+        NODE_AUX_PARAM_U32 = 32,
+
+        //graph ports 
+        FEEDFORWARD_IN_TARGET_ID = 33,
+        FEEDFORWARD_OUT_TARGET_ID = 34,
+        FEEDBACKWARD_IN_TARGET_ID = 35,
+        FEEDBACKWARD_OUT_TARGET_ID = 36,
+        LATERAL_0_TARGET_ID = 37,
+        LATERAL_1_TARGET_ID = 38,
+        NODE_ROLE_FLAGS = 39,
+        LAST_ACCEPTED_FEED_FORWARD_CLOCK16 = 40,
+        LAST_EMITTED_FEED_FORWARD_CLOCK16 = 41,
+        LAST_ACCEPTED_FEED_BACKWARD_CLOCK16 = 42,
+        LAST_EMITTED_FEED_BACKWARD_CLOCK16 = 43,
+        NODE_COMPUTE_KIND = 44,
+
+        //payload--bounds
+        MESSAGE_FEEDFORWARD_BEGAIN = 45,
+        MESSAGE_FEEDFORWARD_END = 46,
+        MESSAGE_FEEDBACKWARD_BEGAIN = 47,
+        MESSAGE_FEEDBACKWARD_END = 48,
+        STATE_BEGAINING = 49,
+        STATE_END = 50,
+        ERROR_BEGAIN = 51,
+        ERROR_END = 52,
+        EDGE_DESCRIPTIOR_BEGAIN = 53,
+        EDGE_DESCRIPTIOR_END = 54,
+        WEIGHT_BEGIN = 55,
+        WEIGHT_END = 56,
+        AUX_BEGAIN = 57,
+        AUX_END = 58,
+        FREE_BEGAIN = 59,
+        FREE_END = 60,
+        //end
+
+        EDGE_TABLE_COUNT = 61,
+        WEIGHT_TABLE_COUNT = 62,
+
+
+        RESERVED_63 = 63,
+        EOF_APC_HEADER = 95
+    };
 
     enum class APCPagedNodeRelMaskClasses : tag8_t
     {
@@ -67,7 +153,7 @@ namespace PredictedAdaptedEncoding
             std::pair<APCPagedNodeRelMaskClasses, uint8_t>{APCPagedNodeRelMaskClasses::WEIGHT_SLOT, uint8_t{0}}
         };
     public:
-    
+
         bool HasManualHintPercentageAll() const noexcept
         {
             return (
@@ -107,6 +193,7 @@ namespace PredictedAdaptedEncoding
         static constexpr uint32_t BRANCH_SENTINAL = UINT32_MAX;
         uint32_t BeginIndex = BRANCH_SENTINAL;
         uint32_t EndIndex = BRANCH_SENTINAL;
+        MetaIndexOfAPCNode CURRENT_META_INDEX = MetaIndexOfAPCNode::VERSION;
 
         bool IsValid(uint32_t payload_begain, uint32_t payload_end) const noexcept
         {

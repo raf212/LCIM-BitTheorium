@@ -380,7 +380,7 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    std::optional<std::pair<PackedCellBranchPlugin::MetaIndexOfAPCNode, PackedCellBranchPlugin::MetaIndexOfAPCNode>>PackedCellBranchPlugin::GetValidBegainAndEndOfLayoutFromBegairOrEnd_(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds) noexcept
+    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>>PackedCellBranchPlugin::GetMetaBoundsPairForRegionMAsk_(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds) noexcept
     {
         MetaIndexOfAPCNode begin_idx;
         MetaIndexOfAPCNode end_idx;
@@ -461,7 +461,7 @@ namespace PredictedAdaptedEncoding
 
     std::optional<LayoutBoundsUint32> PackedCellBranchPlugin::ReadLayoutBounds(MetaIndexOfAPCNode start_or_end_of_desired_meta_bounds) noexcept
     {
-        auto maybe_begin_end = GetValidBegainAndEndOfLayoutFromBegairOrEnd_(start_or_end_of_desired_meta_bounds);
+        auto maybe_begin_end = GetMetaBoundsPairForRegionMAsk_(start_or_end_of_desired_meta_bounds);
         if (!maybe_begin_end)
         {
             return std::nullopt;
@@ -480,7 +480,7 @@ namespace PredictedAdaptedEncoding
             return false;
         }
 
-        auto maybe_begain_end = GetValidBegainAndEndOfLayoutFromBegairOrEnd_(start_or_end_of_desired_meta_bounds);
+        auto maybe_begain_end = GetMetaBoundsPairForRegionMAsk_(start_or_end_of_desired_meta_bounds);
         if (!maybe_begain_end)
         {
             return false;

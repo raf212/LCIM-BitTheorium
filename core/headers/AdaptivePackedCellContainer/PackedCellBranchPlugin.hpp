@@ -276,7 +276,7 @@ public:
 
     uint32_t RegionCountRead() noexcept
     {
-        return ReadMetaCellValue32(MetaIndexOfAPCNode::REGION_SIZE);
+        return ReadMetaCellValue32(MetaIndexOfAPCNode::REGION_COUNT);
     }
 
     uint32_t SplitThresholdRead() noexcept

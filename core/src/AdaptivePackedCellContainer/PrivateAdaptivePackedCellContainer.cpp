@@ -242,30 +242,6 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    std::optional<APCPagedNodeRegionBounds> AdaptivePackedCellContainer::ReadRegionBounds_(APCPagedNodeRelMaskClasses region_kind) noexcept
-    {
-        if (!IfAPCBranchValid())
-        {
-            return std::nullopt;
-        }
-
-        auto bounds = BranchPluginOfAPC_->ReadLayoutBounds(region_kind);
-
-        if (!bounds.has_value())
-        {
-            return std::nullopt;
-        }
-
-        APCPagedNodeRegionBounds out_bounds;
-        out_bounds.BeginIdx = static_cast<size_t>(bounds->BeginIndex);
-        out_bounds.EndIdx = static_cast<size_t>(bounds->EndIndex);
-
-        if (!out_bounds.IsValidRegion() || out_bounds.BeginIdx < PayloadBegin() || out_bounds.EndIdx > GetPayloadEnd())
-        {
-            return std::nullopt;
-        }
-        return out_bounds;
-    }
 
     std::optional<packed64_t> AdaptivePackedCellContainer::TryConsumeAndIdleFromRegionLocal_(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept
     {
@@ -273,23 +249,23 @@ namespace PredictedAdaptedEncoding
         {
             return std::nullopt;
         }
-        const auto maybe_current_region_bounds = ReadRegionBounds_(region_kind);
-        if (!maybe_current_region_bounds.has_value() || maybe_current_region_bounds->GetRegionSpan() == 0)
+        const auto maybe_current_region_bounds = BranchPluginOfAPC_->ReadLayoutBounds(region_kind);
+        if (!maybe_current_region_bounds.has_value() || maybe_current_region_bounds->GetPayloadSpan() == 0)
         {
             return std::nullopt;
         }
 
-        const APCPagedNodeRegionBounds current_region_bounds = *maybe_current_region_bounds;
-        const size_t region_capacity = current_region_bounds.GetRegionSpan();
+        const LayoutBoundsUint32 current_region_bounds = *maybe_current_region_bounds;
+        const size_t region_capacity = current_region_bounds.GetPayloadSpan();
 
-        if (scan_cursor < current_region_bounds.BeginIdx || scan_cursor >= current_region_bounds.EndIdx)
+        if (scan_cursor < current_region_bounds.BeginIndex || scan_cursor >= current_region_bounds.EndIndex)
         {
-            scan_cursor = current_region_bounds.BeginIdx;
+            scan_cursor = current_region_bounds.BeginIndex;
         }
 
         for (size_t prob = 0; prob < region_capacity; prob++)
         {
-            const size_t idx = current_region_bounds.BeginIdx + ((scan_cursor - current_region_bounds.BeginIdx + prob) % region_capacity);
+            const size_t idx = current_region_bounds.BeginIndex + ((scan_cursor - current_region_bounds.BeginIndex + prob) % region_capacity);
             packed64_t current_cell = BackingPtr[idx].load(MoLoad_);
             if (PackedCell64_t::ExtractLocalityFromPacked(current_cell) != PackedCellLocalityTypes::ST_PUBLISHED)
             {
@@ -319,9 +295,9 @@ namespace PredictedAdaptedEncoding
             OccupancyAddOrSubAndGetAfterChange(-1);
             RefreshAPCMeta_();
             scan_cursor = idx + 1;
-            if (scan_cursor >= current_region_bounds.EndIdx)
+            if (scan_cursor >= current_region_bounds.BeginIndex)
             {
-                scan_cursor = current_region_bounds.BeginIdx;
+                scan_cursor = current_region_bounds.BeginIndex;
             }
             return current_cell;
         }
@@ -354,13 +330,13 @@ namespace PredictedAdaptedEncoding
             return result;
         }
 
-        const auto maybe_current_region_bounds = ReadRegionBounds_(region_kind);
-        if (!maybe_current_region_bounds.has_value() || maybe_current_region_bounds->GetRegionSpan() == 0)
+        const auto maybe_current_region_bounds = BranchPluginOfAPC_->ReadLayoutBounds(region_kind);
+        if (!maybe_current_region_bounds.has_value() || maybe_current_region_bounds->GetPayloadSpan() == 0)
         {
             return result;
         }
-        const APCPagedNodeRegionBounds current_region_bounds = * maybe_current_region_bounds;
-        const size_t region_capacity = current_region_bounds.GetRegionSpan();
+        const LayoutBoundsUint32 current_region_bounds = * maybe_current_region_bounds;
+        const size_t region_capacity = current_region_bounds.GetPayloadSpan();
         if (force_rel_mask)
         {
             packed_cell = APCAndPagedNodeHelpers::SetRelMaskForPagedNode(packed_cell, region_kind);
@@ -376,7 +352,7 @@ namespace PredictedAdaptedEncoding
                 return result;
             }
 
-            size_t idx = current_region_bounds.BeginIdx + ((next_sequense - PayloadBegin()) % region_capacity);
+            size_t idx = current_region_bounds.BeginIndex + ((next_sequense - PayloadBegin()) % region_capacity);
             const size_t step = 1u + ((next_sequense * ID_HASH_GOLDEN_CONST) % ((region_capacity > MIN_REGION_SIZE) ? (region_capacity - 1) : MIN_REGION_SIZE));
             for (size_t prob = 0; prob < region_capacity; prob++)
             {
@@ -399,9 +375,9 @@ namespace PredictedAdaptedEncoding
                     }
                     BranchPluginOfAPC_->TotalCASFailForThisBranchIncreaseAndGet(1);
                 }
-                idx = current_region_bounds.BeginIdx + ((idx - current_region_bounds.BeginIdx + step) % region_capacity);
+                idx = current_region_bounds.BeginIndex + ((idx - current_region_bounds.BeginIndex + step) % region_capacity);
             }
-            const size_t observed_idx = current_region_bounds.BeginIdx  + ((next_sequense - PayloadBegin()) % region_capacity);
+            const size_t observed_idx = current_region_bounds.BeginIndex  + ((next_sequense - PayloadBegin()) % region_capacity);
             if (APCManagerPtr_)
             {
                 APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(BackingPtr[observed_idx].load(MoLoad_));

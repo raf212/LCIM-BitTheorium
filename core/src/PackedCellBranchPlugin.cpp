@@ -462,8 +462,11 @@ namespace PredictedAdaptedEncoding
         std::pair begin_end = *maybe_begin_end;
         const uint32_t begain = ReadMetaCellValue32(begin_end.first);
         const uint32_t end = ReadMetaCellValue32(begin_end.second);
-        return LayoutBoundsUint32{begain, end};
-
+        LayoutBoundsUint32 current_bounds{};
+        current_bounds.BeginIndex = begain;
+        current_bounds.EndIndex = end;
+        current_bounds.LAYOUT_CLASS = desired_rel_mask;
+        return current_bounds;
     }
 
     bool PackedCellBranchPlugin::SetLayOutBounds(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t begin, uint32_t end) noexcept

@@ -62,8 +62,6 @@ private:
 
     size_t SuggestedChildCapacity_() const noexcept;
 
-    std::optional<APCPagedNodeRegionBounds> ReadRegionBounds_(APCPagedNodeRelMaskClasses region_kind) noexcept;
-
     std::optional<packed64_t> TryConsumeAndIdleFromRegionLocal_(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept;
 
     PublishResult TryPublishToRegionLocal_(APCPagedNodeRelMaskClasses region_kind, packed64_t packed_cell, bool force_rel_mask = true, uint16_t max_tries = MAX_TRIES) noexcept;

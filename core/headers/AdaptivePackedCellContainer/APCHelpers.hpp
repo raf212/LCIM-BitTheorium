@@ -280,43 +280,6 @@ namespace PredictedAdaptedEncoding
         size_t Index{SIZE_MAX};
     };
 
-    struct APCPagedNodeRegionBounds
-    {
-        size_t BeginIdx = SIZE_MAX;
-        size_t EndIdx = SIZE_MAX;
-
-        bool IsValidRegion() const noexcept
-        {
-            return BeginIdx != SIZE_MAX && EndIdx != SIZE_MAX && EndIdx > BeginIdx;
-        }
-
-        size_t GetRegionSpan() const noexcept
-        {
-            return (IsValidRegion() ? (EndIdx - BeginIdx) : 0);
-        }
-
-        uint32_t NormalizeIdxToRegion(uint32_t idx) const noexcept
-        {
-            if (!IsValidRegion())
-            {
-                return PackedCell64_t::METACELL_COUNT_FIRST;
-            }
-
-            const uint32_t begin = static_cast<uint32_t>(BeginIdx);
-            const uint32_t end = static_cast<uint32_t>(EndIdx);
-            const uint32_t span = end - begin;
-            if (span == 0)
-            {
-                return begin;
-            }
-            if (idx < begin || idx >= end)
-            {
-                return begin;
-            }
-            
-            return static_cast<uint32_t>(begin + ((idx - begin) % span));
-        }
-    };
 
     struct APCAndPagedNodeHelpers
     {

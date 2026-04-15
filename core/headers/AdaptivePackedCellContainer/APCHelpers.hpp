@@ -193,7 +193,7 @@ namespace PredictedAdaptedEncoding
         static constexpr uint32_t BRANCH_SENTINAL = UINT32_MAX;
         uint32_t BeginIndex = BRANCH_SENTINAL;
         uint32_t EndIndex = BRANCH_SENTINAL;
-        MetaIndexOfAPCNode CURRENT_META_INDEX = MetaIndexOfAPCNode::VERSION;
+        APCPagedNodeRelMaskClasses LAYOUT_CLASS = APCPagedNodeRelMaskClasses::NONE;
 
         bool IsValid(uint32_t payload_begain, uint32_t payload_end) const noexcept
         {

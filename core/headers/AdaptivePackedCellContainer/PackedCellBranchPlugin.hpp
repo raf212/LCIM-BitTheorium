@@ -117,14 +117,16 @@ private:
         PackedCellContainerPtr_[index].notify_all();
     }
 
-    uint32_t ReadAPCFlags_() noexcept
+    uint32_t ReadAPCModeFlags_() noexcept
     {
         return (ReadMetaCellValue32(MetaIndexOfAPCNode::FLAGS));
     }
 
-    bool UpdateFlagsOfBranch_(uint32_t flags_to_turn_on = NO_VAL, uint32_t flags_to_turn_off = NO_VAL) noexcept;
+    bool UpdateAPCModeFlagsInHeader_(uint32_t flags_to_turn_on = NO_VAL, uint32_t flags_to_turn_off = NO_VAL) noexcept;
 
     std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>> GetMetaBoundsPairForRegionMAsk_(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
+
+    bool WriteBoundsPairToHeader_(const LayoutBoundsUint32& layout_bound) noexcept;
 
 
 public:
@@ -148,7 +150,7 @@ public:
 
     PackedCellBranchPlugin() noexcept = default;
 
-    void Bind(std::atomic<packed64_t>* packed_cells, size_t capacity, MasterClockConf* master_clock_ptr) noexcept
+    void BindBranchPluginToAPC(std::atomic<packed64_t>* packed_cells, size_t capacity, MasterClockConf* master_clock_ptr) noexcept
     {
         PackedCellContainerPtr_ = packed_cells;
         BranchCapacity_ = capacity;
@@ -244,12 +246,12 @@ public:
 
     bool TurnOnFlags(uint32_t use_or_between_flags = NO_VAL) noexcept
     {
-        return UpdateFlagsOfBranch_(use_or_between_flags);
+        return UpdateAPCModeFlagsInHeader_(use_or_between_flags);
     }
 
     bool HasThisFlag(APCFlags flag) noexcept
     {
-        return (ReadAPCFlags_() & static_cast<uint32_t>(flag)) != 0u;
+        return (ReadAPCModeFlags_() & static_cast<uint32_t>(flag)) != 0u;
     }
 
     void SetGraphNodeFlag() noexcept
@@ -294,7 +296,7 @@ public:
 
     bool ClearFlags(uint32_t use_or_between_flags = NO_VAL) noexcept
     {
-        return UpdateFlagsOfBranch_(NO_VAL, use_or_between_flags);
+        return UpdateAPCModeFlagsInHeader_(NO_VAL, use_or_between_flags);
     }
 
     size_t PayloadCapacityFromHeader() noexcept

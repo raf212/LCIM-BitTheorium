@@ -122,7 +122,7 @@ namespace PredictedAdaptedEncoding
             if (APCLogger_) APCLogger_("InitOwned", "Attach masterclock/backoff failed (non-fatal)");
         }
         BranchPluginOfAPC_ = std::make_unique<PackedCellBranchPlugin>();
-        BranchPluginOfAPC_->Bind(BackingPtr, container_capacity, MasterClockConfPtr_);
+        BranchPluginOfAPC_->BindBranchPluginToAPC(BackingPtr, container_capacity, MasterClockConfPtr_);
         const uint32_t new_branch_id = GlobalBranchIdAlloc_.fetch_add(1, std::memory_order_acq_rel);
         const uint32_t logical_node_id = new_branch_id;
         const uint32_t shared_id = NO_VAL;

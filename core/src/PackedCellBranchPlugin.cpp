@@ -4,11 +4,11 @@
 
 namespace PredictedAdaptedEncoding
 {
-    bool PackedCellBranchPlugin::UpdateFlagsOfBranch_(uint32_t flags_to_turn_on, uint32_t flags_to_turn_off) noexcept
+    bool PackedCellBranchPlugin::UpdateAPCModeFlagsInHeader_(uint32_t flags_to_turn_on, uint32_t flags_to_turn_off) noexcept
     {
         while (true)
         {
-            const uint32_t current_flags = ReadAPCFlags_();
+            const uint32_t current_flags = ReadAPCModeFlags_();
             uint32_t next_flags = current_flags;
             next_flags |= flags_to_turn_on;
             next_flags &= ~flags_to_turn_off;

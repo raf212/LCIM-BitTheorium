@@ -127,10 +127,10 @@ private:
     std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>> GetMetaBoundsPairForRegionMask_(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
 
     bool WriteBoundsPairToHeader_(const LayoutBoundsOfSingleRelNodeClass layout_bound) noexcept;
-    void InitDefaultNodeLayout() noexcept;
 
-    void BuidDefaultLayoutPlan_() noexcept;
+    void BuidDefaultLayoutPlan_(CompleteAPCNodeRegionsLayout& full_layout) noexcept;
 
+    void InitDefaultAPCSegmentedNodeLayout_() noexcept;
 
 public:
     packed64_t PackPureClock48AsPackedCell(
@@ -345,7 +345,6 @@ public:
 
     std::optional<LayoutBoundsOfSingleRelNodeClass> ReadLayoutBounds(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
 
-    size_t ClampPayloadIndex(size_t index_size) noexcept;
 
     bool SetSegmentRegionKind(APCPagedNodeRelMaskClasses region_kind) noexcept
     {

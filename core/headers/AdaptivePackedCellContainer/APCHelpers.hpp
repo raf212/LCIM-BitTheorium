@@ -250,12 +250,13 @@ namespace PredictedAdaptedEncoding
         LayoutBoundsOfSingleRelNodeClass WeightLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::WEIGHT_SLOT, WEIGHTSLOT_PERCENTAGE)};
         LayoutBoundsOfSingleRelNodeClass AUXLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::AUX_SLOT, AUXSLOT_PERCENTAGE)};
         LayoutBoundsOfSingleRelNodeClass FreeLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::FREE_SLOT, FREE_PERCENTAGE)};
+        //we can add 8 more threrritically rel_mask = 4 bit ->16 classes 
 
         constexpr float SumOfPercentage() const noexcept
         {
             return FeedForwardLayout.InitialOrCurrentPercentage + FeeDBackwardLAyout.InitialOrCurrentPercentage + StateLayout.InitialOrCurrentPercentage +
                     ErrorLayout.InitialOrCurrentPercentage + EdgeDescriptorLayout.InitialOrCurrentPercentage + WeightLayout.InitialOrCurrentPercentage +
-                    AUXLayout.InitialOrCurrentPercentage + FreeLayout.InitialOrCurrentPercentage;
+                    AUXLayout.InitialOrCurrentPercentage + FreeLayout.InitialOrCurrentPercentage;//+8more if
         }
 
         bool NormalizePercentagesIfNeeded() noexcept
@@ -283,6 +284,7 @@ namespace PredictedAdaptedEncoding
             NormalizeOne(WeightLayout);
             NormalizeOne(AUXLayout);
             NormalizeOne(FreeLayout);
+            //noramalize 8 morfe if
 
             float repaired_sum = SumOfPercentage();
             if (repaired_sum < 100)

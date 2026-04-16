@@ -127,6 +127,9 @@ private:
     std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>> GetMetaBoundsPairForRegionMask_(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
 
     bool WriteBoundsPairToHeader_(const LayoutBoundsOfSingleRelNodeClass layout_bound) noexcept;
+    void InitDefaultNodeLayout() noexcept;
+
+    void BuidDefaultLayoutPlan_() noexcept;
 
 
 public:
@@ -180,7 +183,6 @@ public:
         uint32_t aux_param_uint32 = NO_VAL
     ) noexcept;
 
-    void InitDefaultNodeLayout() noexcept;
 
     void InitRootOrChildBranch(
         uint32_t branch_id,

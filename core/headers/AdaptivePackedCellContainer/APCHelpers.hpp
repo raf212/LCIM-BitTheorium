@@ -14,6 +14,15 @@ namespace PredictedAdaptedEncoding
     #define INITIAL_BRANCH_SPLIT_THRESHOLD_PERCENTAGE 70
     #define MINIMUM_BRANCH_CAPACITY 128
     #define MAX_BRANCH_DEPTH 10
+    //default Rel Class percentage
+    #define FEEDFOEWARD_PERCENTAGE 8u
+    #define FEEDBACKWARD_PERCENTAGE 6u
+    #define STATESLOT_PERCENTAGE 8u
+    #define ERRORSLOT_PERCENTAGE 6u
+    #define EDGEDESCRIPTOR_PERCENTAGE 7u
+    #define WEIGHTSLOT_PERCENTAGE 7u
+    #define AUXSLOT_PERCENTAGE 3u
+    #define FREE_PERCENTAGE 55u
 
     enum class MetaIndexOfAPCNode : size_t
     {
@@ -121,7 +130,7 @@ namespace PredictedAdaptedEncoding
         ///
         COMPLEX_STORAGE = 0xD,
         RESERVED_14     = 0xE,
-        RESERVED_15     = 0xF
+        NANNULL     = 0xF
     };
 
 
@@ -140,51 +149,6 @@ namespace PredictedAdaptedEncoding
         uint32_t BranchMaxDepth = MAX_BRANCH_DEPTH;
         size_t BranchMinChildCapacity = MINIMUM_BRANCH_CAPACITY;
         uint32_t NodeGroupSize = 1u;
-
-        //region conf
-        uint32_t DefaultFreePercentage = 55;
-        static constexpr uint8_t DEFAULT_INITIAL_REGION_PAIR_COUNT = 4;
-
-    private:
-        std::array<std::pair<APCPagedNodeRelMaskClasses, uint8_t>, DEFAULT_INITIAL_REGION_PAIR_COUNT> PrefaredDefaultPairsWithPercentage{
-            std::pair<APCPagedNodeRelMaskClasses, uint8_t>{APCPagedNodeRelMaskClasses::FREE_SLOT, uint8_t{0}},
-            std::pair<APCPagedNodeRelMaskClasses, uint8_t>{APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE, uint8_t{0}},
-            std::pair<APCPagedNodeRelMaskClasses, uint8_t>{APCPagedNodeRelMaskClasses::STATE_SLOT, uint8_t{0}},
-            std::pair<APCPagedNodeRelMaskClasses, uint8_t>{APCPagedNodeRelMaskClasses::WEIGHT_SLOT, uint8_t{0}}
-        };
-    public:
-
-        bool HasManualHintPercentageAll() const noexcept
-        {
-            return (
-                PrefaredDefaultPairsWithPercentage[0].second != 0 &&
-                PrefaredDefaultPairsWithPercentage[1].second != 0 &&
-                PrefaredDefaultPairsWithPercentage[2].second != 0 &&
-                PrefaredDefaultPairsWithPercentage[3].second != 0 
-            );
-        }
-
-        bool SetDefaultPercentage(size_t idx, APCPagedNodeRelMaskClasses region_kind, uint8_t accomodation_percentage)
-        {
-            if (idx >= DEFAULT_INITIAL_REGION_PAIR_COUNT)
-            {
-                return false;
-            }
-            PrefaredDefaultPairsWithPercentage[idx].first = region_kind;
-            PrefaredDefaultPairsWithPercentage[idx].second = accomodation_percentage;
-            return true;
-        }
-        
-        void SetPercentageCompleatePairedArrayFromUser(std::array<std::pair<APCPagedNodeRelMaskClasses, uint8_t>, DEFAULT_INITIAL_REGION_PAIR_COUNT>& compleate_paired_array) noexcept
-        {
-            PrefaredDefaultPairsWithPercentage = compleate_paired_array;
-        }
-
-        std::array<std::pair<APCPagedNodeRelMaskClasses, uint8_t>, DEFAULT_INITIAL_REGION_PAIR_COUNT> GetPrefaredDefaultPairsWithPercentage() noexcept
-        {
-            return PrefaredDefaultPairsWithPercentage;
-        }
-
     };
 
     
@@ -193,15 +157,17 @@ namespace PredictedAdaptedEncoding
         static constexpr uint32_t BRANCH_SENTINAL = UINT32_MAX;
         uint32_t BeginIndex = BRANCH_SENTINAL;
         uint32_t EndIndex = BRANCH_SENTINAL;
-        APCPagedNodeRelMaskClasses LAYOUT_CLASS = APCPagedNodeRelMaskClasses::NONE;
+        APCPagedNodeRelMaskClasses LAYOUT_CLASS = APCPagedNodeRelMaskClasses::NANNULL;
+        float InitialOrCurrentPercentage = 0u;
 
-        bool IsValid(uint32_t payload_begain, uint32_t payload_end) const noexcept
+        constexpr bool IsValid(uint32_t payload_begain, uint32_t payload_end) const noexcept
         {
-            return BeginIndex >= payload_begain && EndIndex >= BeginIndex && EndIndex <= payload_end;
+            return BeginIndex >= payload_begain && EndIndex >= BeginIndex && EndIndex <= payload_end && LAYOUT_CLASS!= APCPagedNodeRelMaskClasses::NANNULL;
         }
+
         bool IsEmpty() const noexcept
         {
-            return EndIndex <= BeginIndex || LAYOUT_CLASS == APCPagedNodeRelMaskClasses::NONE;
+            return EndIndex <= BeginIndex || LAYOUT_CLASS == APCPagedNodeRelMaskClasses::NANNULL;
         }
 
         uint32_t GetPayloadSpan() const noexcept
@@ -209,14 +175,14 @@ namespace PredictedAdaptedEncoding
             return (EndIndex > BeginIndex) ? (EndIndex - BeginIndex) : 0u;
         }
 
-        bool CanBorrowRightFrom(const LayoutBoundsOfSingleRelNodeClass& right) const noexcept
+        constexpr bool CanBorrowRightFrom(const LayoutBoundsOfSingleRelNodeClass& right) const noexcept
         {
-            return EndIndex == right.BeginIndex && right.GetPayloadSpan() > 0u;
+            return EndIndex == right.BeginIndex && right.GetPayloadSpan() > 0u && right.LAYOUT_CLASS != APCPagedNodeRelMaskClasses::NANNULL;
         }
 
-        bool CanBorrowLeftFrom(const LayoutBoundsOfSingleRelNodeClass& left) const noexcept
+        constexpr bool CanBorrowLeftFrom(const LayoutBoundsOfSingleRelNodeClass& left) const noexcept
         {
-            return BeginIndex == left.EndIndex && left.GetPayloadSpan() > 0u;
+            return BeginIndex == left.EndIndex && left.GetPayloadSpan() > 0u && left.LAYOUT_CLASS != APCPagedNodeRelMaskClasses::NANNULL;
         }
 
         bool TryGrowRight(uint32_t amount, LayoutBoundsOfSingleRelNodeClass& right) noexcept
@@ -253,21 +219,78 @@ namespace PredictedAdaptedEncoding
             }
             return BeginIndex + ((idx - BeginIndex) % GetPayloadSpan());
         }
+
+        constexpr uint32_t ComputeWantedSpanFromTotal(uint32_t total_payload_span) const noexcept
+        {
+            return (static_cast<uint32_t>(InitialOrCurrentPercentage) * total_payload_span) / 100u;
+        }
+
     };
 
     struct CompleteAPCNodeRegionsLayout
     {
-    private :
-        LayoutBoundsOfSingleRelNodeClass DEFAULT_LAYOUT{};
-        LayoutBoundsOfSingleRelNodeClass InitDefaultLayoutClasses_(APCPagedNodeRelMaskClasses desired_layout_class) noexcept
+        static constexpr LayoutBoundsOfSingleRelNodeClass MakeDefaultDesiredLayout(
+            APCPagedNodeRelMaskClasses desired_layout_class,
+            uint8_t initial_percentage
+        ) noexcept
         {
-            DEFAULT_LAYOUT.LAYOUT_CLASS = desired_layout_class;
-            return DEFAULT_LAYOUT;
+            return LayoutBoundsOfSingleRelNodeClass{
+                LayoutBoundsOfSingleRelNodeClass::BRANCH_SENTINAL,
+                LayoutBoundsOfSingleRelNodeClass::BRANCH_SENTINAL,
+                desired_layout_class,
+                static_cast<float>(initial_percentage)
+            };
         }
-    public :
 
-        LayoutBoundsOfSingleRelNodeClass FeedForwardLayout = InitDefaultLayoutClasses_(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE);
+        LayoutBoundsOfSingleRelNodeClass FeedForwardLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE, FEEDFOEWARD_PERCENTAGE)};
+        LayoutBoundsOfSingleRelNodeClass FeeDBackwardLAyout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE, FEEDBACKWARD_PERCENTAGE)};
+        LayoutBoundsOfSingleRelNodeClass StateLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::STATE_SLOT, STATESLOT_PERCENTAGE)};
+        LayoutBoundsOfSingleRelNodeClass ErrorLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::ERROR_SLOT, ERRORSLOT_PERCENTAGE)};
+        LayoutBoundsOfSingleRelNodeClass EdgeDescriptorLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::EDGE_DESCRIPTOR, EDGEDESCRIPTOR_PERCENTAGE)};
+        LayoutBoundsOfSingleRelNodeClass WeightLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::WEIGHT_SLOT, WEIGHTSLOT_PERCENTAGE)};
+        LayoutBoundsOfSingleRelNodeClass AUXLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::AUX_SLOT, AUXSLOT_PERCENTAGE)};
+        LayoutBoundsOfSingleRelNodeClass FreeLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::FREE_SLOT, FREE_PERCENTAGE)};
 
+        constexpr float SumOfPercentage() const noexcept
+        {
+            return FeedForwardLayout.InitialOrCurrentPercentage + FeeDBackwardLAyout.InitialOrCurrentPercentage + StateLayout.InitialOrCurrentPercentage +
+                    ErrorLayout.InitialOrCurrentPercentage + EdgeDescriptorLayout.InitialOrCurrentPercentage + WeightLayout.InitialOrCurrentPercentage +
+                    AUXLayout.InitialOrCurrentPercentage + FreeLayout.InitialOrCurrentPercentage;
+        }
+
+        bool NormalizePercentagesIfNeeded() noexcept
+        {
+            const float sum_of_default = SumOfPercentage();
+            if (sum_of_default == 100.00)
+            {
+                return true;
+            }
+            if (sum_of_default == 0.00)
+            {
+                FreeLayout.InitialOrCurrentPercentage = 100.00;
+                return true;
+            }
+            auto NormalizeOne = [sum_of_default](LayoutBoundsOfSingleRelNodeClass& one) noexcept
+            {
+                one.InitialOrCurrentPercentage = (one.InitialOrCurrentPercentage * 100) / sum_of_default;
+            };
+            
+            NormalizeOne(FeedForwardLayout);
+            NormalizeOne(FeeDBackwardLAyout);
+            NormalizeOne(StateLayout);
+            NormalizeOne(ErrorLayout);
+            NormalizeOne(EdgeDescriptorLayout);
+            NormalizeOne(WeightLayout);
+            NormalizeOne(AUXLayout);
+            NormalizeOne(FreeLayout);
+
+            float repaired_sum = SumOfPercentage();
+            if (repaired_sum < 100)
+            {
+                FreeLayout.InitialOrCurrentPercentage = FreeLayout.InitialOrCurrentPercentage + (100 - repaired_sum);
+            }
+            return true;
+        }
     };
 
 

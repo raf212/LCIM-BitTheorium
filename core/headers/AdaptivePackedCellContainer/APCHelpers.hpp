@@ -137,8 +137,6 @@ namespace PredictedAdaptedEncoding
 
     struct ContainerConf
     {
-
-
         PackedMode InitialMode = PackedMode::MODE_VALUE32;
         size_t ProducerBlockSize = MIN_PRODUCER_BLOCK_SIZE;
         size_t RegionSize = MIN_REGION_SIZE;
@@ -149,6 +147,13 @@ namespace PredictedAdaptedEncoding
         uint32_t BranchMaxDepth = MAX_BRANCH_DEPTH;
         size_t BranchMinChildCapacity = MINIMUM_BRANCH_CAPACITY;
         uint32_t NodeGroupSize = 1u;
+
+        enum class APCSegmentExtendOrder : uint8_t
+        {
+            FIFO = 0,
+            PRIORITY = 1,
+            RANDOM = 2
+        };
     };
 
     
@@ -159,6 +164,11 @@ namespace PredictedAdaptedEncoding
         uint32_t EndIndex = BRANCH_SENTINAL;
         APCPagedNodeRelMaskClasses LAYOUT_CLASS = APCPagedNodeRelMaskClasses::NANNULL;
         float InitialOrCurrentPercentage = 0u;
+
+        void SetOrResetPercentage(uint32_t total_capacity_of_apc) noexcept
+        {
+            InitialOrCurrentPercentage = static_cast<float>((static_cast<float>(GetPayloadSpan()) / static_cast<float>(total_capacity_of_apc)) * 100.00);
+        }
 
         constexpr bool IsValid(uint32_t payload_begain, uint32_t payload_end) const noexcept
         {
@@ -251,6 +261,7 @@ namespace PredictedAdaptedEncoding
         LayoutBoundsOfSingleRelNodeClass AUXLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::AUX_SLOT, AUXSLOT_PERCENTAGE)};
         LayoutBoundsOfSingleRelNodeClass FreeLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::FREE_SLOT, FREE_PERCENTAGE)};
         //we can add 8 more threrritically rel_mask = 4 bit ->16 classes 
+        static constexpr uint8_t CURRENT_TOTAL_APC_REL_NODE_CLASSES = 8u;
 
         constexpr float SumOfPercentage() const noexcept
         {
@@ -292,6 +303,45 @@ namespace PredictedAdaptedEncoding
                 FreeLayout.InitialOrCurrentPercentage = FreeLayout.InitialOrCurrentPercentage + (100 - repaired_sum);
             }
             return true;
+        }
+
+        LayoutBoundsOfSingleRelNodeClass* GetByRelMask(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
+        {
+            switch (desired_rel_mask)
+            {
+                case APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE:  return &FeedForwardLayout;
+                case APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE: return &FeeDBackwardLAyout;
+                case APCPagedNodeRelMaskClasses::STATE_SLOT:           return &StateLayout;
+                case APCPagedNodeRelMaskClasses::ERROR_SLOT:           return &ErrorLayout;
+                case APCPagedNodeRelMaskClasses::EDGE_DESCRIPTOR:      return &EdgeDescriptorLayout;
+                case APCPagedNodeRelMaskClasses::WEIGHT_SLOT:          return &WeightLayout;
+                case APCPagedNodeRelMaskClasses::AUX_SLOT:             return &AUXLayout;
+                case APCPagedNodeRelMaskClasses::FREE_SLOT:            return &FreeLayout;
+                default:                                               return nullptr;
+            }
+        }
+        const LayoutBoundsOfSingleRelNodeClass* GetByRelMask(APCPagedNodeRelMaskClasses desired_rel_mask) const noexcept
+        {
+            switch (desired_rel_mask)
+            {
+                case APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE:  return &FeedForwardLayout;
+                case APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE: return &FeeDBackwardLAyout;
+                case APCPagedNodeRelMaskClasses::STATE_SLOT:           return &StateLayout;
+                case APCPagedNodeRelMaskClasses::ERROR_SLOT:           return &ErrorLayout;
+                case APCPagedNodeRelMaskClasses::EDGE_DESCRIPTOR:      return &EdgeDescriptorLayout;
+                case APCPagedNodeRelMaskClasses::WEIGHT_SLOT:          return &WeightLayout;
+                case APCPagedNodeRelMaskClasses::AUX_SLOT:             return &AUXLayout;
+                case APCPagedNodeRelMaskClasses::FREE_SLOT:            return &FreeLayout;
+                default:                                               return nullptr;
+            }
+        }
+
+        std::array<LayoutBoundsOfSingleRelNodeClass*, CURRENT_TOTAL_APC_REL_NODE_CLASSES> OrderedViewsFIFO() noexcept
+        {
+            return {
+                &FeedForwardLayout, &FeeDBackwardLAyout, &StateLayout, 
+                &ErrorLayout, &EdgeDescriptorLayout, &WeightLayout, &AUXLayout, &FreeLayout
+            };
         }
     };
 

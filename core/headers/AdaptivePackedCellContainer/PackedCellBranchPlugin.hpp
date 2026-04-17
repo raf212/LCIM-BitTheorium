@@ -58,7 +58,8 @@ public:
         HAS_SHARED_PREVIOUS = 1u << 8,
         HAS_LAYOUT_DIR = 1u << 9,
         HAS_EDGE_TABLE = 1u << 10,
-        HAS_WEIGHT_TABLE = 1u << 11
+        HAS_WEIGHT_TABLE = 1u << 11,
+        LAYOUT_MUTATION_INFLIGHT = 1u << 12
     };
 
     static constexpr uint32_t PAYLOAD_BOUND_START = static_cast<uint32_t>(MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN);
@@ -352,6 +353,7 @@ public:
         return JustUpdateValueOfMeta32(MetaIndexOfAPCNode::SEGMENT_KIND, current_segment_kind, static_cast<uint32_t>(region_kind));
     }
 
+    bool TryExtendASegment() noexcept;
 
 };
 

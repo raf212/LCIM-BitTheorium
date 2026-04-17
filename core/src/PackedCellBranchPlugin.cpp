@@ -404,13 +404,12 @@ namespace PredictedAdaptedEncoding
         {
             return std::nullopt;
         }
-        std::pair begin_end = *maybe_begin_end;
-        const uint32_t begain = ReadMetaCellValue32(begin_end.first);
-        const uint32_t end = ReadMetaCellValue32(begin_end.second);
+        const auto [begin_meta, end_meta] = *maybe_begin_end;
         LayoutBoundsOfSingleRelNodeClass current_bounds{};
-        current_bounds.BeginIndex = begain;
-        current_bounds.EndIndex = end;
+        current_bounds.BeginIndex = ReadMetaCellValue32(begin_meta);
+        current_bounds.EndIndex = ReadMetaCellValue32(end_meta);
         current_bounds.LAYOUT_CLASS = desired_rel_mask;
+        current_bounds.SetOrResetPercentage(ReadMetaCellValue32(MetaIndexOfAPCNode::CAPACITY));
         return current_bounds;
     }
 
@@ -427,12 +426,14 @@ namespace PredictedAdaptedEncoding
             return false;
         }
 
-        std::pair begin_end = *maybe_begain_end;
+        // std::pair begin_end = *maybe_begain_end; kept for learning
 
-        const uint32_t current_begain = ReadMetaCellValue32(begin_end.first);
-        const uint32_t current_end = ReadMetaCellValue32(begin_end.second);
+        const auto [begin_meta, end_meta] = *maybe_begain_end;
 
-        return JustUpdateValueOfMeta32(begin_end.first, current_begain, begin) && JustUpdateValueOfMeta32(begin_end.second, current_end, end);
+        const uint32_t current_begain = ReadMetaCellValue32(begin_meta);
+        const uint32_t current_end = ReadMetaCellValue32(end_meta);
+
+        return JustUpdateValueOfMeta32(begin_meta, current_begain, begin) && JustUpdateValueOfMeta32(end_meta, current_end, end);
         
     }
 
@@ -445,11 +446,11 @@ namespace PredictedAdaptedEncoding
         {
             return false;
         }
-        std::pair begin_end = *maybe_region_bounds_pair;
-        const uint32_t current_begin = ReadMetaCellValue32(begin_end.first);
-        const uint32_t current_end = ReadMetaCellValue32(begin_end.second);
-        return JustUpdateValueOfMeta32(begin_end.first, current_begin, layout_bound.BeginIndex) &&
-                JustUpdateValueOfMeta32(begin_end.second, current_end, layout_bound.EndIndex);
+        const auto [begin_meta, end_meta] = *maybe_region_bounds_pair;
+        const uint32_t current_begin = ReadMetaCellValue32(begin_meta);
+        const uint32_t current_end = ReadMetaCellValue32(end_meta);
+        return JustUpdateValueOfMeta32(begin_meta, current_begin, layout_bound.BeginIndex) &&
+                JustUpdateValueOfMeta32(end_meta, current_end, layout_bound.EndIndex);
     }
 
     void PackedCellBranchPlugin::BuidDefaultLayoutPlan_(CompleteAPCNodeRegionsLayout& full_layout) noexcept
@@ -485,7 +486,7 @@ namespace PredictedAdaptedEncoding
                 initial_cursor = payload_end;
                 return;
             }
-            const uint32_t remaining_span = (payload_begain > initial_cursor) ? (payload_end - initial_cursor) : NO_VAL;
+            const uint32_t remaining_span = (payload_end > initial_cursor) ? (payload_end - initial_cursor) : NO_VAL;
             wanted_span = std::min<uint32_t>(wanted_span, remaining_span);
             one.EndIndex = initial_cursor + wanted_span;
             initial_cursor = one.EndIndex;

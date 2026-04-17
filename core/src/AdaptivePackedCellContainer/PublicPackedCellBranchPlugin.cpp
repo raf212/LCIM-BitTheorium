@@ -340,7 +340,7 @@ namespace PredictedAdaptedEncoding
         current_bounds.BeginIndex = ReadMetaCellValue32(begin_meta);
         current_bounds.EndIndex = ReadMetaCellValue32(end_meta);
         current_bounds.LAYOUT_CLASS = desired_rel_mask;
-        current_bounds.SetOrResetPercentage(ReadMetaCellValue32(MetaIndexOfAPCNode::CAPACITY));
+        current_bounds.SetOrResetPercentage(ReadMetaCellValue32(MetaIndexOfAPCNode::PAYLOAD_END) - METACELL_COUNT);        
         return current_bounds;
     }
 

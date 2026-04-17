@@ -16,7 +16,7 @@ namespace PredictedAdaptedEncoding
         CompleteAPCNodeRegionsLayout full_paged_node_layout{};
         BuidDefaultLayoutPlan_(full_paged_node_layout);
         WriteBoundsPairToHeader_(full_paged_node_layout.FeedForwardLayout);
-        WriteBoundsPairToHeader_(full_paged_node_layout.FeeDBackwardLAyout);
+        WriteBoundsPairToHeader_(full_paged_node_layout.FeedBackwardLayout);
         WriteBoundsPairToHeader_(full_paged_node_layout.StateLayout);
         WriteBoundsPairToHeader_(full_paged_node_layout.ErrorLayout);
         WriteBoundsPairToHeader_(full_paged_node_layout.EdgeDescriptorLayout);
@@ -72,7 +72,7 @@ namespace PredictedAdaptedEncoding
             initial_cursor = one.EndIndex;
         };
         AssignOne(full_layout.FeedForwardLayout);
-        AssignOne(full_layout.FeeDBackwardLAyout);
+        AssignOne(full_layout.FeedBackwardLayout);
         AssignOne(full_layout.StateLayout);
         AssignOne(full_layout.ErrorLayout);
         AssignOne(full_layout.EdgeDescriptorLayout);
@@ -186,4 +186,44 @@ namespace PredictedAdaptedEncoding
             }
         }
     }
+
+    std::optional<CompleteAPCNodeRegionsLayout> PackedCellBranchPlugin::ReadAndGetFullRegionLayout_() noexcept
+    {
+        auto LoadOne = [&](APCPagedNodeRelMaskClasses desired_rel_mask, LayoutBoundsOfSingleRelNodeClass& out_one) noexcept->bool
+        {
+            auto maybe_one = ReadLayoutBounds(desired_rel_mask);
+            if (!maybe_one)
+            {
+                return false;
+            }
+            out_one = *maybe_one;
+            return true;
+        };
+
+        CompleteAPCNodeRegionsLayout out_layout{};
+        LoadOne(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE, out_layout.FeedForwardLayout);
+        LoadOne(APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE, out_layout.FeedBackwardLayout);
+        LoadOne(APCPagedNodeRelMaskClasses::STATE_SLOT, out_layout.StateLayout);
+        LoadOne(APCPagedNodeRelMaskClasses::ERROR_SLOT, out_layout.ErrorLayout);
+        LoadOne(APCPagedNodeRelMaskClasses::EDGE_DESCRIPTOR, out_layout.EdgeDescriptorLayout);
+        LoadOne(APCPagedNodeRelMaskClasses::WEIGHT_SLOT, out_layout.WeightLayout);
+        LoadOne(APCPagedNodeRelMaskClasses::AUX_SLOT, out_layout.AUXLayout);
+        LoadOne(APCPagedNodeRelMaskClasses::FREE_SLOT, out_layout.FreeLayout);
+        return out_layout;
+    }
+
+    bool PackedCellBranchPlugin::WriteAllRegionsLayoutToHeader_(const CompleteAPCNodeRegionsLayout& full_layout) noexcept
+    {
+        return 
+            WriteBoundsPairToHeader_(full_layout.FeedForwardLayout) &&
+            WriteBoundsPairToHeader_(full_layout.FeedBackwardLayout) &&
+            WriteBoundsPairToHeader_(full_layout.StateLayout) &&
+            WriteBoundsPairToHeader_(full_layout.ErrorLayout) && 
+            WriteBoundsPairToHeader_(full_layout.EdgeDescriptorLayout) &&
+            WriteBoundsPairToHeader_(full_layout.WeightLayout) && 
+            WriteBoundsPairToHeader_(full_layout.AUXLayout) &&
+            WriteBoundsPairToHeader_(full_layout.FreeLayout);
+    }
+
+
 }

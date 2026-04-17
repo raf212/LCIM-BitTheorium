@@ -124,6 +124,10 @@ private:
 
     void InitDefaultAPCSegmentedNodeLayout_() noexcept;
 
+    std::optional<CompleteAPCNodeRegionsLayout> ReadAndGetFullRegionLayout_() noexcept;
+
+    bool WriteAllRegionsLayoutToHeader_(const CompleteAPCNodeRegionsLayout& full_layout) noexcept;
+    
 public:
     packed64_t PackPureClock48AsPackedCell(
         std::optional<uint64_t> clock48 = std::nullopt,
@@ -220,7 +224,7 @@ public:
         return updated_occupancy;
         
     }
-    
+
     bool  TryBindShareNext(uint32_t shared_next_id) noexcept
     {
         return TryBindPortTarget(MetaIndexOfAPCNode::SHARED_NEXT_ID, shared_next_id);

@@ -253,7 +253,7 @@ namespace PredictedAdaptedEncoding
         }
 
         LayoutBoundsOfSingleRelNodeClass FeedForwardLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE, FEEDFOEWARD_PERCENTAGE)};
-        LayoutBoundsOfSingleRelNodeClass FeeDBackwardLAyout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE, FEEDBACKWARD_PERCENTAGE)};
+        LayoutBoundsOfSingleRelNodeClass FeedBackwardLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE, FEEDBACKWARD_PERCENTAGE)};
         LayoutBoundsOfSingleRelNodeClass StateLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::STATE_SLOT, STATESLOT_PERCENTAGE)};
         LayoutBoundsOfSingleRelNodeClass ErrorLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::ERROR_SLOT, ERRORSLOT_PERCENTAGE)};
         LayoutBoundsOfSingleRelNodeClass EdgeDescriptorLayout{MakeDefaultDesiredLayout(APCPagedNodeRelMaskClasses::EDGE_DESCRIPTOR, EDGEDESCRIPTOR_PERCENTAGE)};
@@ -265,7 +265,7 @@ namespace PredictedAdaptedEncoding
 
         constexpr float SumOfPercentage() const noexcept
         {
-            return FeedForwardLayout.InitialOrCurrentPercentage + FeeDBackwardLAyout.InitialOrCurrentPercentage + StateLayout.InitialOrCurrentPercentage +
+            return FeedForwardLayout.InitialOrCurrentPercentage + FeedBackwardLayout.InitialOrCurrentPercentage + StateLayout.InitialOrCurrentPercentage +
                     ErrorLayout.InitialOrCurrentPercentage + EdgeDescriptorLayout.InitialOrCurrentPercentage + WeightLayout.InitialOrCurrentPercentage +
                     AUXLayout.InitialOrCurrentPercentage + FreeLayout.InitialOrCurrentPercentage;//+8more if
         }
@@ -288,7 +288,7 @@ namespace PredictedAdaptedEncoding
             };
             
             NormalizeOne(FeedForwardLayout);
-            NormalizeOne(FeeDBackwardLAyout);
+            NormalizeOne(FeedBackwardLayout);
             NormalizeOne(StateLayout);
             NormalizeOne(ErrorLayout);
             NormalizeOne(EdgeDescriptorLayout);
@@ -310,7 +310,7 @@ namespace PredictedAdaptedEncoding
             switch (desired_rel_mask)
             {
                 case APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE:  return &FeedForwardLayout;
-                case APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE: return &FeeDBackwardLAyout;
+                case APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE: return &FeedBackwardLayout;
                 case APCPagedNodeRelMaskClasses::STATE_SLOT:           return &StateLayout;
                 case APCPagedNodeRelMaskClasses::ERROR_SLOT:           return &ErrorLayout;
                 case APCPagedNodeRelMaskClasses::EDGE_DESCRIPTOR:      return &EdgeDescriptorLayout;
@@ -325,7 +325,7 @@ namespace PredictedAdaptedEncoding
             switch (desired_rel_mask)
             {
                 case APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE:  return &FeedForwardLayout;
-                case APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE: return &FeeDBackwardLAyout;
+                case APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE: return &FeedBackwardLayout;
                 case APCPagedNodeRelMaskClasses::STATE_SLOT:           return &StateLayout;
                 case APCPagedNodeRelMaskClasses::ERROR_SLOT:           return &ErrorLayout;
                 case APCPagedNodeRelMaskClasses::EDGE_DESCRIPTOR:      return &EdgeDescriptorLayout;
@@ -339,7 +339,7 @@ namespace PredictedAdaptedEncoding
         std::array<LayoutBoundsOfSingleRelNodeClass*, CURRENT_TOTAL_APC_REL_NODE_CLASSES> OrderedViewsFIFO() noexcept
         {
             return {
-                &FeedForwardLayout, &FeeDBackwardLAyout, &StateLayout, 
+                &FeedForwardLayout, &FeedBackwardLayout, &StateLayout, 
                 &ErrorLayout, &EdgeDescriptorLayout, &WeightLayout, &AUXLayout, &FreeLayout
             };
         }

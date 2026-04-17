@@ -303,7 +303,7 @@ namespace PredictedAdaptedEncoding
                 backoff.AdaptiveBackOffPacked(observed);
             }
             if (BranchPluginOfAPC_ && 
-                BranchPluginOfAPC_->HasThisFlag(PackedCellBranchPlugin::APCFlags::ENABLE_BRANCHING) && 
+                BranchPluginOfAPC_->HasThisFlag(PackedCellBranchPlugin::ControlEnumOfAPCSegment::ENABLE_BRANCHING) && 
                 BranchPluginOfAPC_->ShouldSplitNow() && APCManagerPtr_
             )
             {

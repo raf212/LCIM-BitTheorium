@@ -123,13 +123,13 @@ namespace PredictedAdaptedEncoding
         WriteBrenchMeta32_(MetaIndexOfAPCNode::SHARED_NEXT_ID, BRANCH_SENTINAL, ZERO_PRIORITY);
         if (is_root_shared)
         {
-            TurnOnMultipleSegmentFlagsAtOnce_(static_cast<uint32_t>(APCFlags::IS_GRAPH_NODE) | static_cast<uint32_t>(APCFlags::IS_SHARED_ROOT));
-            ClearFlags(static_cast<uint32_t>(APCFlags::IS_SHARED_MAMBER));
+            TurnOnMultipleSegmentFlagsAtOnce_(static_cast<uint32_t>(ControlEnumOfAPCSegment::IS_GRAPH_NODE) | static_cast<uint32_t>(ControlEnumOfAPCSegment::IS_SHARED_ROOT));
+            ClearOneControlEnumFlagOfAPC(ControlEnumOfAPCSegment::IS_SHARED_MAMBER);
         }
         else
         {
-            TurnOnMultipleSegmentFlagsAtOnce_(static_cast<uint32_t>(APCFlags::IS_GRAPH_NODE) | static_cast<uint32_t>(APCFlags::IS_SHARED_MAMBER));
-            ClearFlags(static_cast<uint32_t>(APCFlags::IS_SHARED_ROOT));    
+            TurnOnMultipleSegmentFlagsAtOnce_(static_cast<uint32_t>(ControlEnumOfAPCSegment::IS_GRAPH_NODE) | static_cast<uint32_t>(ControlEnumOfAPCSegment::IS_SHARED_MAMBER));
+            ClearOneControlEnumFlagOfAPC(ControlEnumOfAPCSegment::IS_SHARED_ROOT);    
         }
         
     }
@@ -185,7 +185,7 @@ namespace PredictedAdaptedEncoding
 
         WriteBrenchMeta32_(MetaIndexOfAPCNode::BRANCH_DEPTH, branch_depth, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::BRANCH_PRIORITY, branch_priority, write_cell_priority);
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS, container_configuration.EnableBranching ? static_cast<uint32_t>(APCFlags::ENABLE_BRANCHING) : static_cast<uint32_t>(APCFlags::NONE), write_cell_priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS, container_configuration.EnableBranching ? static_cast<uint32_t>(ControlEnumOfAPCSegment::ENABLE_BRANCHING) : static_cast<uint32_t>(ControlEnumOfAPCSegment::NONE), write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::CURRENT_ACTIVE_THREADS, NO_VAL, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT, NO_VAL, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::SPLIT_THRESHOLD_PERCENTAGE, container_configuration.BranchSplitThresholdPercentage, write_cell_priority);
@@ -299,12 +299,12 @@ namespace PredictedAdaptedEncoding
                 return false;
             }
 
-            bool is_already_in_flight = HasThisFlag(APCFlags::SPLIT_INFLIGHT);
+            bool is_already_in_flight = HasThisFlag(ControlEnumOfAPCSegment::SPLIT_INFLIGHT);
             if (is_already_in_flight)
             {
                 return false;
             }
-            return TurnOnASegmentFlag(APCFlags::SPLIT_INFLIGHT);
+            return TurnOnASegmentFlag(ControlEnumOfAPCSegment::SPLIT_INFLIGHT);
         }
     }
 
@@ -368,7 +368,7 @@ namespace PredictedAdaptedEncoding
         
     }
 
-    bool PackedCellBranchPlugin::TryExtendASegment() noexcept
+    bool PackedCellBranchPlugin::TrySetLayoutMutationInFlight() noexcept
     {
         while (true)
         {
@@ -378,15 +378,32 @@ namespace PredictedAdaptedEncoding
                 return false;
             }
 
-            if (HasThisFlag(APCFlags::LAYOUT_MUTATION_INFLIGHT))
+            if (HasThisFlag(ControlEnumOfAPCSegment::LAYOUT_MUTATION_INFLIGHT))
             {
                 return false;
             }
-            return TurnOnASegmentFlag(APCFlags::LAYOUT_MUTATION_INFLIGHT);            
+            return TurnOnASegmentFlag(ControlEnumOfAPCSegment::LAYOUT_MUTATION_INFLIGHT);            
         }
-        
     }
 
+    // bool PackedCellBranchPlugin::TryExtendASegmentInOwnAPC(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t wanted_amount, ContainerConf::APCSegmentExtendOrder desired_apc_order) noexcept
+    // {
+    //     if (wanted_amount == 0)
+    //     {
+    //         return true;
+    //     }
+    //     if (!IsBound() || desired_rel_mask == APCPagedNodeRelMaskClasses::NANNULL)
+    //     {
+    //         return false;
+    //     }
+    //     if (!TrySetLayoutMutationInFlight())
+    //     {
+    //         return false;
+    //     }
+        
+        
+        
+    // }
 
 
 }

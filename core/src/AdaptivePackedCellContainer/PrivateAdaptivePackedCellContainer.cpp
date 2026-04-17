@@ -107,11 +107,11 @@ namespace PredictedAdaptedEncoding
         }
         if (BranchPluginOfAPC_->ShouldSplitNow())
         {
-            BranchPluginOfAPC_->TurnOnASegmentFlag(PackedCellBranchPlugin::APCFlags::SATURATED);
+            BranchPluginOfAPC_->TurnOnASegmentFlag(PackedCellBranchPlugin::ControlEnumOfAPCSegment::SATURATED);
         }
         else
         {
-            BranchPluginOfAPC_->ClearFlags(static_cast<uint32_t>(PackedCellBranchPlugin::APCFlags::SATURATED));
+            BranchPluginOfAPC_->ClearOneControlEnumFlagOfAPC(PackedCellBranchPlugin::ControlEnumOfAPCSegment::SATURATED);
         }
         if (MasterClockConfPtr_)
         {

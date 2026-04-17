@@ -256,7 +256,7 @@ namespace PredictedAdaptedEncoding
         }
         
         if (!BranchPluginOfAPC_->HasThisFlag(
-            PackedCellBranchPlugin::APCFlags::ENABLE_BRANCHING
+            PackedCellBranchPlugin::ControlEnumOfAPCSegment::ENABLE_BRANCHING
         ))
         {
             return;
@@ -509,7 +509,7 @@ namespace PredictedAdaptedEncoding
             return nullptr;
         }
 
-        if (!BranchPluginOfAPC_->HasThisFlag(PackedCellBranchPlugin::APCFlags::ENABLE_BRANCHING))
+        if (!BranchPluginOfAPC_->HasThisFlag(PackedCellBranchPlugin::ControlEnumOfAPCSegment::ENABLE_BRANCHING))
         {
             return nullptr;
         }
@@ -521,8 +521,8 @@ namespace PredictedAdaptedEncoding
 
         auto clear_flags = [&]() noexcept
         {
-            BranchPluginOfAPC_->ClearFlags(
-                static_cast<uint32_t>(PackedCellBranchPlugin::APCFlags::SPLIT_INFLIGHT)
+            BranchPluginOfAPC_->ClearOneControlEnumFlagOfAPC(
+                PackedCellBranchPlugin::ControlEnumOfAPCSegment::SPLIT_INFLIGHT
             );
         };
         AdaptivePackedCellContainer* new_shared_container = nullptr;

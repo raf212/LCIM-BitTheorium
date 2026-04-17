@@ -30,7 +30,7 @@ public:
     };
 
 
-    enum class APCFlags : uint32_t
+    enum class ControlEnumOfAPCSegment : uint32_t
     {
         NONE = 0u,
         ENABLE_BRANCHING = 1u << 0,
@@ -127,6 +127,11 @@ private:
     std::optional<CompleteAPCNodeRegionsLayout> ReadAndGetFullRegionLayout_() noexcept;
 
     bool WriteAllRegionsLayoutToHeader_(const CompleteAPCNodeRegionsLayout& full_layout) noexcept;
+
+    bool ClearMultipleControlFlags_(uint32_t use_or_between_flags = NO_VAL) noexcept
+    {
+        return UpdateAPCModeFlagsInHeader_(NO_VAL, use_or_between_flags);
+    }
     
 public:
     packed64_t PackPureClock48AsPackedCell(
@@ -202,8 +207,6 @@ public:
 
     bool TryMarkSplitInFlight() noexcept;
 
-    bool TryMarkLayoutMutationInFlight() noexcept;
-
     bool ShouldSplitNow() noexcept;
 
     bool TryBindPortTarget(MetaIndexOfAPCNode port_meta_idx, uint32_t target_branch_id) noexcept;
@@ -214,7 +217,9 @@ public:
 
     std::optional<LayoutBoundsOfSingleRelNodeClass> ReadLayoutBounds(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
 
-    bool TryExtendASegment() noexcept;
+    bool TrySetLayoutMutationInFlight() noexcept;
+
+    bool TryExtendASegmentInOwnAPC(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t wanted_amount, ContainerConf::APCSegmentExtendOrder desired_apc_order) noexcept;
 
 
     uint32_t ForceOccupancyUpdateAndReturn(uint32_t new_occupancy) noexcept
@@ -235,24 +240,24 @@ public:
         return TryBindPortTarget(MetaIndexOfAPCNode::SHARED_PREVIOUS_ID, shared_previous_id);
     }
 
-    bool TurnOnASegmentFlag(APCFlags desired_segment_flag) noexcept
+    bool TurnOnASegmentFlag(ControlEnumOfAPCSegment desired_segment_flag) noexcept
     {
         return UpdateAPCModeFlagsInHeader_(static_cast<uint32_t>(desired_segment_flag));
     }
 
-    bool HasThisFlag(APCFlags flag) noexcept
+    bool HasThisFlag(ControlEnumOfAPCSegment flag) noexcept
     {
         return (ReadAPCModeFlags_() & static_cast<uint32_t>(flag)) != 0u;
     }
 
     void SetGraphNodeFlag() noexcept
     {
-        TurnOnASegmentFlag(APCFlags::IS_GRAPH_NODE);
+        TurnOnASegmentFlag(ControlEnumOfAPCSegment::IS_GRAPH_NODE);
     }
 
     bool IsGraphNode() noexcept
     {
-        return HasThisFlag(APCFlags::IS_GRAPH_NODE);
+        return HasThisFlag(ControlEnumOfAPCSegment::IS_GRAPH_NODE);
     }
 
     uint32_t ReadCapacity() noexcept
@@ -285,9 +290,9 @@ public:
         return ReadMetaCellValue32(MetaIndexOfAPCNode::BRANCH_DEPTH);
     }
 
-    bool ClearFlags(uint32_t use_or_between_flags = NO_VAL) noexcept
+    bool ClearOneControlEnumFlagOfAPC(ControlEnumOfAPCSegment desired_control_flag) noexcept
     {
-        return UpdateAPCModeFlagsInHeader_(NO_VAL, use_or_between_flags);
+        return UpdateAPCModeFlagsInHeader_(NO_VAL, static_cast<uint32_t>(desired_control_flag));
     }
 
     size_t PayloadCapacityFromHeader() noexcept

@@ -148,7 +148,6 @@ namespace PredictedAdaptedEncoding
     void AdaptivePackedCellContainer::InitAPCAsNode(
         size_t capacity,
         const ContainerConf& container_configuration,
-        uint32_t node_role_flags,
         PackedCellBranchPlugin::APCNodeComputeKind compute_kind,
         uint32_t aux_param_u32
     )
@@ -156,7 +155,7 @@ namespace PredictedAdaptedEncoding
         InitOwned(capacity, container_configuration);
         if (BranchPluginOfAPC_)
         {
-            BranchPluginOfAPC_->InitNodeSemantics(node_role_flags, compute_kind, aux_param_u32);
+            BranchPluginOfAPC_->InitNodeSemantics(compute_kind, aux_param_u32);
             BranchPluginOfAPC_->SetGraphNodeFlag();
         }
     }
@@ -572,7 +571,6 @@ namespace PredictedAdaptedEncoding
         new_branch_plugin->InitLogicalNodeIdentity(this_logical_id, this_shared_id, false);
 
         new_branch_plugin->InitNodeSemantics(
-            BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::NODE_ROLE_FLAGS),
             static_cast<PackedCellBranchPlugin::APCNodeComputeKind>(BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::NODE_COMPUTE_KIND)),
             BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::NODE_AUX_PARAM_U32)
         );

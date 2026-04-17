@@ -163,7 +163,6 @@ int main()
     A.InitAPCAsNode(
         256,
         cfg,
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::SELF_DATA_NODE),
         PackedCellBranchPlugin::APCNodeComputeKind::GENERATOR_UINT32,
         NO_VAL
     );
@@ -171,8 +170,6 @@ int main()
     B.InitAPCAsNode(
         256,
         cfg,
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::ACCEPTS_FEEDFORWARD) |
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::EMMITS_FEEDFORWARD),
         PackedCellBranchPlugin::APCNodeComputeKind::SQUARE_UINT32,
         NO_VAL
     );
@@ -180,8 +177,6 @@ int main()
     C.InitAPCAsNode(
         256,
         cfg,
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::ACCEPTS_FEEDFORWARD) |
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::EMMITS_FEEDFORWARD),
         PackedCellBranchPlugin::APCNodeComputeKind::ADD_UINT32,
         NO_VAL
     );
@@ -189,8 +184,6 @@ int main()
     D.InitAPCAsNode(
         256,
         cfg,
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::ACCEPTS_FEEDFORWARD) |
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::EMMITS_FEEDFORWARD),
         PackedCellBranchPlugin::APCNodeComputeKind::DIV_UINT32,
         NO_VAL
     );
@@ -198,8 +191,6 @@ int main()
     E.InitAPCAsNode(
         256,
         cfg,
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::ACCEPTS_FEEDFORWARD) |
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::SELF_DATA_NODE),
         PackedCellBranchPlugin::APCNodeComputeKind::GENERIC_VECTOR,
         NO_VAL
     );

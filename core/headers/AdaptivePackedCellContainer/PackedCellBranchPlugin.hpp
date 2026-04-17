@@ -29,20 +29,6 @@ public:
         GENERIC_VECTOR = 7u
     };
 
-    enum class APCBranchNodeRoleFlags : uint32_t
-    {
-        NODE_NONE = 0u,
-        ACCEPTS_FEEDFORWARD = 1u << 0,
-        EMMITS_FEEDFORWARD = 1u << 1,
-        ACCETS_FEEDBACKWARD = 1u << 2,
-        EMMITS_FEEDBACKWARD = 1u << 3,
-        USES_LETERAL_0 = 1u << 4,
-        USES_LETERAL_1 = 1u << 5,
-        STORES_LOCAL_STATE = 1u << 6,
-        STORES_LOCAL_ERROR = 1u  << 7,
-        SELF_DATA_NODE = 1u << 8,
-        SHARED_NODE_MEMBER = 1u << 9
-    };
 
     enum class APCFlags : uint32_t
     {
@@ -179,7 +165,6 @@ public:
     ) noexcept;
 
     void InitNodeSemantics(
-        uint32_t node_role_flags,
         APCNodeComputeKind compute_kind_of_node,
         uint32_t aux_param_uint32 = NO_VAL
     ) noexcept;
@@ -192,7 +177,6 @@ public:
         size_t total_capacity,
         const ContainerConf& container_configuration,
         bool is_root_shared = true,
-        uint32_t node_role_flags = static_cast<uint32_t>(APCBranchNodeRoleFlags::NODE_NONE),
         APCNodeComputeKind node_compute_kind = APCNodeComputeKind::NONE,
         uint32_t aux_param_uint32 = NO_VAL,
         uint32_t branch_depth = NO_VAL,
@@ -232,7 +216,8 @@ public:
         
     }
 
-
+    bool TryMarkLayoutMutationInFlight() noexcept;
+    
     bool ShouldSplitNow() noexcept;
 
     bool TryBindPortTarget(MetaIndexOfAPCNode port_meta_idx, uint32_t target_branch_id) noexcept;

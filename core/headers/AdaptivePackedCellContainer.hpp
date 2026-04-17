@@ -117,7 +117,6 @@ public:
     void InitAPCAsNode(
         size_t capacity,
         const ContainerConf& container_configuration,
-        uint32_t node_role_flags,
         PackedCellBranchPlugin::APCNodeComputeKind compute_kind = PackedCellBranchPlugin::APCNodeComputeKind::NONE,
         uint32_t aux_param_u32 = NO_VAL
 

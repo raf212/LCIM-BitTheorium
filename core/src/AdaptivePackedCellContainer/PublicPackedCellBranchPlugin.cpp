@@ -4,6 +4,28 @@
 
 namespace PredictedAdaptedEncoding
 {
+
+    val32_t PackedCellBranchPlugin::ReadMetaCellValue32(MetaIndexOfAPCNode idx) noexcept
+    {
+        if (!ValidMeteIdx(idx) || idx == MetaIndexOfAPCNode::LOCAL_CLOCK48)
+        {
+            return NO_VAL;
+        }
+        size_t index = static_cast<size_t>(idx);
+        return PackedCell64_t::ExtractValue32(PackedCellContainerPtr_[index].load(MoLoad_));
+    }
+
+    void PackedCellBranchPlugin::TouchLocalMetaClock48(packed64_t* updated_full_clock_cell_easy_return_ptr) noexcept
+    {
+        if (!MasterClockConfPtr_)
+        {
+            return;
+        }
+        MasterClockConfPtr_->TouchAtomicPackedCellClockForCurrentThread(
+            PackedCellContainerPtr_[static_cast<size_t>(MetaIndexOfAPCNode::LOCAL_CLOCK48)], updated_full_clock_cell_easy_return_ptr
+        );
+    }
+
     packed64_t PackedCellBranchPlugin::PackPureClock48AsPackedCell(
         std::optional<uint64_t> clock48,
         tag8_t priority,
@@ -101,12 +123,12 @@ namespace PredictedAdaptedEncoding
         WriteBrenchMeta32_(MetaIndexOfAPCNode::SHARED_NEXT_ID, BRANCH_SENTINAL, ZERO_PRIORITY);
         if (is_root_shared)
         {
-            TurnOnFlags(static_cast<uint32_t>(APCFlags::IS_GRAPH_NODE) | static_cast<uint32_t>(APCFlags::IS_SHARED_ROOT));
+            TurnOnMultipleSegmentFlagsAtOnce_(static_cast<uint32_t>(APCFlags::IS_GRAPH_NODE) | static_cast<uint32_t>(APCFlags::IS_SHARED_ROOT));
             ClearFlags(static_cast<uint32_t>(APCFlags::IS_SHARED_MAMBER));
         }
         else
         {
-            TurnOnFlags(static_cast<uint32_t>(APCFlags::IS_GRAPH_NODE) | static_cast<uint32_t>(APCFlags::IS_SHARED_MAMBER));
+            TurnOnMultipleSegmentFlagsAtOnce_(static_cast<uint32_t>(APCFlags::IS_GRAPH_NODE) | static_cast<uint32_t>(APCFlags::IS_SHARED_MAMBER));
             ClearFlags(static_cast<uint32_t>(APCFlags::IS_SHARED_ROOT));    
         }
         
@@ -163,7 +185,7 @@ namespace PredictedAdaptedEncoding
 
         WriteBrenchMeta32_(MetaIndexOfAPCNode::BRANCH_DEPTH, branch_depth, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::BRANCH_PRIORITY, branch_priority, write_cell_priority);
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::FLAGS, container_configuration.EnableBranching ? static_cast<uint32_t>(APCFlags::ENABLE_BRANCHING) : static_cast<uint32_t>(APCFlags::NONE), write_cell_priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS, container_configuration.EnableBranching ? static_cast<uint32_t>(APCFlags::ENABLE_BRANCHING) : static_cast<uint32_t>(APCFlags::NONE), write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::CURRENT_ACTIVE_THREADS, NO_VAL, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT, NO_VAL, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::SPLIT_THRESHOLD_PERCENTAGE, container_configuration.BranchSplitThresholdPercentage, write_cell_priority);
@@ -271,7 +293,7 @@ namespace PredictedAdaptedEncoding
     {
         while (true)
         {
-            const uint32_t current_flags = ReadMetaCellValue32(MetaIndexOfAPCNode::FLAGS);
+            const uint32_t current_flags = ReadMetaCellValue32(MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS);
             if (current_flags == BRANCH_SENTINAL)
             {
                 return false;
@@ -282,7 +304,7 @@ namespace PredictedAdaptedEncoding
             {
                 return false;
             }
-            return TurnOnFlags(static_cast<uint32_t>(APCFlags::SPLIT_INFLIGHT));
+            return TurnOnASegmentFlag(APCFlags::SPLIT_INFLIGHT);
         }
     }
 
@@ -343,6 +365,25 @@ namespace PredictedAdaptedEncoding
         const uint32_t current_end = ReadMetaCellValue32(end_meta);
 
         return JustUpdateValueOfMeta32(begin_meta, current_begain, begin) && JustUpdateValueOfMeta32(end_meta, current_end, end);
+        
+    }
+
+    bool PackedCellBranchPlugin::TryExtendASegment() noexcept
+    {
+        while (true)
+        {
+            const uint32_t current_flags = ReadMetaCellValue32(MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS);
+            if (current_flags == BRANCH_SENTINAL)
+            {
+                return false;
+            }
+
+            if (HasThisFlag(APCFlags::LAYOUT_MUTATION_INFLIGHT))
+            {
+                return false;
+            }
+            return TurnOnASegmentFlag(APCFlags::LAYOUT_MUTATION_INFLIGHT);            
+        }
         
     }
 

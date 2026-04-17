@@ -41,7 +41,7 @@ namespace PredictedAdaptedEncoding
         //runtime-controle
         BRANCH_DEPTH = 8,
         BRANCH_PRIORITY = 9,
-        FLAGS = 10,
+        SEGMENT_CONF_FLAGS = 10,
         CURRENT_ACTIVE_THREADS = 11,
         OCCUPANCY_SNAPSHOT = 12,
         SPLIT_THRESHOLD_PERCENTAGE = 13,

@@ -107,7 +107,7 @@ namespace PredictedAdaptedEncoding
         }
         if (BranchPluginOfAPC_->ShouldSplitNow())
         {
-            BranchPluginOfAPC_->TurnOnFlags(static_cast<uint32_t>(PackedCellBranchPlugin::APCFlags::SATURATED));
+            BranchPluginOfAPC_->TurnOnASegmentFlag(PackedCellBranchPlugin::APCFlags::SATURATED);
         }
         else
         {

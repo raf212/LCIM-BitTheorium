@@ -113,7 +113,7 @@ CURRENT_TREE_POSITION       — ROOT, LEFT, or RIGHT
 DEFINED_MODE_OF_CURRENT_APC — what mode this APC operates in
 BRANCH_DEPTH                — depth in the adaptive split tree
 BRANCH_PRIORITY             — priority of this branch
-FLAGS                       — bitfield: IS_GRAPH_NODE, HAS_LEFT/RIGHT_CHILD,
+SEGMENT_CONF_FLAGS                       — bitfield: IS_GRAPH_NODE, HAS_LEFT/RIGHT_CHILD,
                               ENABLE_BRANCHING, SPLIT_INFLIGHT, etc.
 CURRENT_ACTIVE_THREADS      — how many threads are currently using this APC
 OCCUPANCY_SNAPSHOT          — how many payload cells are currently filled
@@ -197,7 +197,7 @@ Why a binary tree and not, say, a flat array of overflow buckets? Because a bina
 
 ### The `TryMarkSplitInFlight` Protocol
 
-Before a split begins, the `SPLIT_INFLIGHT` flag is set atomically in the FLAGS meta cell. This prevents two concurrent split requests for the same branch. The flag is cleared after the split completes. This is a lightweight, lock-free "write-once" flag embedded in the metadata layer — no external mutex needed.
+Before a split begins, the `SPLIT_INFLIGHT` flag is set atomically in the SEGMENT_CONF_FLAGS meta cell. This prevents two concurrent split requests for the same branch. The flag is cleared after the split completes. This is a lightweight, lock-free "write-once" flag embedded in the metadata layer — no external mutex needed.
 
 ### Retirement
 

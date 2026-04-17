@@ -28,7 +28,7 @@ namespace PredictedAdaptedEncoding
         WriteBrenchMeta32_(MetaIndexOfAPCNode::EDGE_TABLE_COUNT, NO_VAL);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::WEIGHT_TABLE_COUNT, NO_VAL);
 
-        TurnOnFlags(static_cast<uint32_t>(APCFlags::HAS_LAYOUT_DIR));
+        TurnOnMultipleSegmentFlagsAtOnce_(static_cast<uint32_t>(APCFlags::HAS_LAYOUT_DIR));
 
         
     }
@@ -180,7 +180,7 @@ namespace PredictedAdaptedEncoding
             {
                 return true;
             }
-            if (JustUpdateValueOfMeta32(MetaIndexOfAPCNode::FLAGS, current_flags, next_flags))
+            if (JustUpdateValueOfMeta32(MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS, current_flags, next_flags))
             {
                 return true;
             }

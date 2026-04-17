@@ -106,7 +106,12 @@ private:
 
     uint32_t ReadAPCModeFlags_() noexcept
     {
-        return (ReadMetaCellValue32(MetaIndexOfAPCNode::FLAGS));
+        return (ReadMetaCellValue32(MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS));
+    }
+
+    bool TurnOnMultipleSegmentFlagsAtOnce_(uint32_t use_or_between_flags = NO_VAL) noexcept
+    {
+        return UpdateAPCModeFlagsInHeader_(use_or_between_flags);
     }
 
     bool UpdateAPCModeFlagsInHeader_(uint32_t flags_to_turn_on = NO_VAL, uint32_t flags_to_turn_off = NO_VAL) noexcept;
@@ -185,28 +190,28 @@ public:
 
     ) noexcept;
 
-    val32_t ReadMetaCellValue32(MetaIndexOfAPCNode idx) noexcept
-    {
-        if (!ValidMeteIdx(idx) || idx == MetaIndexOfAPCNode::LOCAL_CLOCK48)
-        {
-            return NO_VAL;
-        }
-        size_t index = static_cast<size_t>(idx);
-        return PackedCell64_t::ExtractValue32(PackedCellContainerPtr_[index].load(MoLoad_));
-    }
+    val32_t ReadMetaCellValue32(MetaIndexOfAPCNode idx) noexcept;
 
-    void TouchLocalMetaClock48(packed64_t* updated_full_clock_cell_easy_return_ptr = nullptr) noexcept
-    {
-        if (!MasterClockConfPtr_)
-        {
-            return;
-        }
-        MasterClockConfPtr_->TouchAtomicPackedCellClockForCurrentThread(
-            PackedCellContainerPtr_[static_cast<size_t>(MetaIndexOfAPCNode::LOCAL_CLOCK48)], updated_full_clock_cell_easy_return_ptr
-        );
-    }
+    void TouchLocalMetaClock48(packed64_t* updated_full_clock_cell_easy_return_ptr = nullptr) noexcept;
 
     bool TryIncrementOrDecrementActiveThreadCount(int8_t change_count) noexcept;
+
+    bool TryMarkSplitInFlight() noexcept;
+
+    bool TryMarkLayoutMutationInFlight() noexcept;
+
+    bool ShouldSplitNow() noexcept;
+
+    bool TryBindPortTarget(MetaIndexOfAPCNode port_meta_idx, uint32_t target_branch_id) noexcept;
+
+    uint32_t TotalCASFailForThisBranchIncreaseAndGet(uint32_t increment) noexcept;
+
+    bool SetLayOutBounds(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t begain, uint32_t end) noexcept;
+
+    std::optional<LayoutBoundsOfSingleRelNodeClass> ReadLayoutBounds(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
+
+    bool TryExtendASegment() noexcept;
+
 
     uint32_t ForceOccupancyUpdateAndReturn(uint32_t new_occupancy) noexcept
     {
@@ -215,13 +220,7 @@ public:
         return updated_occupancy;
         
     }
-
-    bool TryMarkLayoutMutationInFlight() noexcept;
     
-    bool ShouldSplitNow() noexcept;
-
-    bool TryBindPortTarget(MetaIndexOfAPCNode port_meta_idx, uint32_t target_branch_id) noexcept;
-
     bool  TryBindShareNext(uint32_t shared_next_id) noexcept
     {
         return TryBindPortTarget(MetaIndexOfAPCNode::SHARED_NEXT_ID, shared_next_id);
@@ -232,9 +231,9 @@ public:
         return TryBindPortTarget(MetaIndexOfAPCNode::SHARED_PREVIOUS_ID, shared_previous_id);
     }
 
-    bool TurnOnFlags(uint32_t use_or_between_flags = NO_VAL) noexcept
+    bool TurnOnASegmentFlag(APCFlags desired_segment_flag) noexcept
     {
-        return UpdateAPCModeFlagsInHeader_(use_or_between_flags);
+        return UpdateAPCModeFlagsInHeader_(static_cast<uint32_t>(desired_segment_flag));
     }
 
     bool HasThisFlag(APCFlags flag) noexcept
@@ -244,7 +243,7 @@ public:
 
     void SetGraphNodeFlag() noexcept
     {
-        TurnOnFlags(static_cast<uint32_t>(APCFlags::IS_GRAPH_NODE));
+        TurnOnASegmentFlag(APCFlags::IS_GRAPH_NODE);
     }
 
     bool IsGraphNode() noexcept
@@ -298,8 +297,6 @@ public:
         return NO_VAL;
     }
 
-    bool TryMarkSplitInFlight() noexcept;
-
     void MakeAPCBranchOwned() noexcept
     {
         WriteBrenchMeta32_(MetaIndexOfAPCNode::CURRENTLY_OWNED, 1u, DEFAULT_INTERNAL_PRIORITY);
@@ -320,17 +317,10 @@ public:
         return false;
     }
 
-    uint32_t TotalCASFailForThisBranchIncreaseAndGet(uint32_t increment) noexcept;
-
     void ResetTotalCASFailureForThisBranch(tag8_t priority = DEFAULT_INTERNAL_PRIORITY) noexcept
     {
         WriteBrenchMeta32_(MetaIndexOfAPCNode::TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH, NO_VAL, priority);
     }
-
-    bool SetLayOutBounds(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t begain, uint32_t end) noexcept;
-
-    std::optional<LayoutBoundsOfSingleRelNodeClass> ReadLayoutBounds(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
-
 
     bool SetSegmentRegionKind(APCPagedNodeRelMaskClasses region_kind) noexcept
     {
@@ -338,7 +328,6 @@ public:
         return JustUpdateValueOfMeta32(MetaIndexOfAPCNode::SEGMENT_KIND, current_segment_kind, static_cast<uint32_t>(region_kind));
     }
 
-    bool TryExtendASegment() noexcept;
 
 };
 

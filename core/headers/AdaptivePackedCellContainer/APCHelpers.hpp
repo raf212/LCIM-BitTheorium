@@ -305,7 +305,7 @@ namespace PredictedAdaptedEncoding
             return true;
         }
 
-        LayoutBoundsOfSingleRelNodeClass* GetByRelMask(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
+        LayoutBoundsOfSingleRelNodeClass* GetALayoutByRelMask(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
         {
             switch (desired_rel_mask)
             {
@@ -320,7 +320,7 @@ namespace PredictedAdaptedEncoding
                 default:                                               return nullptr;
             }
         }
-        const LayoutBoundsOfSingleRelNodeClass* GetByRelMask(APCPagedNodeRelMaskClasses desired_rel_mask) const noexcept
+        const LayoutBoundsOfSingleRelNodeClass* GetALayoutByRelMask(APCPagedNodeRelMaskClasses desired_rel_mask) const noexcept
         {
             switch (desired_rel_mask)
             {

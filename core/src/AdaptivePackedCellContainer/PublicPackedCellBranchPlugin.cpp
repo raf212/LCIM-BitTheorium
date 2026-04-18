@@ -386,24 +386,186 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    // bool PackedCellBranchPlugin::TryExtendASegmentInOwnAPC(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t wanted_amount, ContainerConf::APCSegmentExtendOrder desired_apc_order) noexcept
-    // {
-    //     if (wanted_amount == 0)
-    //     {
-    //         return true;
-    //     }
-    //     if (!IsBound() || desired_rel_mask == APCPagedNodeRelMaskClasses::NANNULL)
-    //     {
-    //         return false;
-    //     }
-    //     if (!TrySetLayoutMutationInFlight())
-    //     {
-    //         return false;
-    //     }
+    bool PackedCellBranchPlugin::TryExtendASegmentInOwnAPC(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t wanted_amount, ContainerConf::APCSegmentExtendOrder desired_apc_order) noexcept
+    {
+        if (wanted_amount == 0)
+        {
+            return true;
+        }
+        if (!IsBound() || desired_rel_mask == APCPagedNodeRelMaskClasses::NANNULL)
+        {
+            return false;
+        }
+        if (!TrySetLayoutMutationInFlight())
+        {
+            return false;
+        }
         
+        auto maybe_current_complete_node_layout = ReadAndGetFullRegionLayout_();
+        if (!maybe_current_complete_node_layout)
+        {
+            ClearOneControlEnumFlagOfAPC(ControlEnumOfAPCSegment::LAYOUT_MUTATION_INFLIGHT);
+            return false;
+        }
+
+        CompleteAPCNodeRegionsLayout current_complete_layout = *maybe_current_complete_node_layout;
+
+        LayoutBoundsOfSingleRelNodeClass* target_layout_of_increment = current_complete_layout.GetALayoutByRelMask(desired_rel_mask);
+        LayoutBoundsOfSingleRelNodeClass* free_slot_layout = current_complete_layout.GetALayoutByRelMask(APCPagedNodeRelMaskClasses::FREE_SLOT);
+
+        if (!target_layout_of_increment || !free_slot_layout || target_layout_of_increment->IsEmpty())
+        {
+            ClearOneControlEnumFlagOfAPC(ControlEnumOfAPCSegment::LAYOUT_MUTATION_INFLIGHT);
+            return false;
+        }
+        const uint32_t payload_begain = METACELL_COUNT;
+        const uint32_t payload_end = PayloadEndRead();
+
+        auto IsLayoutValid = [&](CompleteAPCNodeRegionsLayout& compleate_layout_address) noexcept->bool
+        {
+            auto ordered_array = compleate_layout_address.OrderedViewsFIFO();
+            uint32_t cursor = payload_begain;
+            for (const auto* one_layout : ordered_array)
+            {
+                if (!one_layout)
+                {
+                    return false;
+                }
+                if (!one_layout->IsValid(payload_begain, payload_end))
+                {
+                    return false;
+                }
+                if (one_layout->BeginIndex != cursor)
+                {
+                    return false;
+                }
+                if (one_layout->EndIndex < one_layout->BeginIndex)
+                {
+                    return false;
+                }
+                cursor = one_layout->EndIndex;
+            }
+            return cursor == payload_end;
+        };
+
+        auto TryFromSpecificNeighbor = [&](LayoutBoundsOfSingleRelNodeClass& candidate_neighbor) noexcept->bool
+        {
+            if (candidate_neighbor.LAYOUT_CLASS == desired_rel_mask)
+            {
+                return false;
+            }
+            if (candidate_neighbor.IsEmpty())
+            {
+                return false;
+            }
+            CompleteAPCNodeRegionsLayout trial_layout = current_complete_layout;
+            LayoutBoundsOfSingleRelNodeClass* trial_target = trial_layout.GetALayoutByRelMask(desired_rel_mask);
+            LayoutBoundsOfSingleRelNodeClass* trial_neighbor = trial_layout.GetALayoutByRelMask(candidate_neighbor.LAYOUT_CLASS);
+            if (!trial_target || !trial_neighbor)
+            {
+                return false;
+            }
+            
+            bool grown = false;
+
+            if (trial_target->CanBorrowRightFrom(*trial_neighbor))
+            {
+                grown = trial_target->TryGrowRight(wanted_amount, *trial_neighbor);
+            }
+            else if (trial_target->CanBorrowLeftFrom(*trial_neighbor))
+            {
+                grown = trial_target->TryGrowLeft(wanted_amount, *trial_neighbor);
+            }
+            if (!grown)
+            {
+                return false;
+            }
+            if(!IsLayoutValid(trial_layout))
+            {
+                return false;
+            }
+            current_complete_layout = trial_layout;
+            return true;
+        };
+
+        //first try against free
+        if (TryFromSpecificNeighbor(*free_slot_layout))
+        {
+            const bool ok = WriteAllRegionsLayoutToHeader_(current_complete_layout);
+            ClearOneControlEnumFlagOfAPC(ControlEnumOfAPCSegment::LAYOUT_MUTATION_INFLIGHT);
+            return ok;
+        }
         
+        std::array<LayoutBoundsOfSingleRelNodeClass*, (CompleteAPCNodeRegionsLayout::CURRENT_TOTAL_APC_REL_NODE_CLASSES - 1)> candidates{};
+        size_t count = 0;
+        {
+            auto all_layouts = current_complete_layout.OrderedViewsFIFO();
+            for (auto* one_layout : all_layouts)
+            {
+                if (!one_layout)
+                {
+                    continue;
+                }
+                if (one_layout->LAYOUT_CLASS == desired_rel_mask)
+                {
+                    continue;
+                }
+                const bool touches_target = target_layout_of_increment->CanBorrowRightFrom(*one_layout) || target_layout_of_increment->CanBorrowLeftFrom(*one_layout);
+                if (touches_target)
+                {
+                    candidates[count++] = one_layout;
+                }
+            }
+        }
+
+        auto PriorityScore = [] (const LayoutBoundsOfSingleRelNodeClass* one_layout) noexcept->uint32_t
+        {
+            if (!one_layout)
+            {
+                return NO_VAL;
+            }
+            return one_layout->GetPayloadSpan();
+        };
+
+        if (desired_apc_order == ContainerConf::APCSegmentExtendOrder::PRIORITY)
+        {
+            std::sort(candidates.begin(), candidates.begin() + count, 
+                [&](const auto* priority_layout_1, const auto* priority_layout_2) noexcept
+                {
+                    return PriorityScore(priority_layout_1) > PriorityScore(priority_layout_2);
+                }
+            );
+        }
+        else if (desired_apc_order == ContainerConf::APCSegmentExtendOrder::RANDOM)
+        {
+            const uint32_t seed = ReadMetaCellValue32(MetaIndexOfAPCNode::TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH) ^
+                                ReadMetaCellValue32(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT) ^
+                                ReadMetaCellValue32(MetaIndexOfAPCNode::BRANCH_ID);
+            for (size_t i = 0; i < count; i++)
+            {
+                const size_t j = (static_cast<size_t>(seed) + i * (CompleteAPCNodeRegionsLayout::CURRENT_TOTAL_APC_REL_NODE_CLASSES - 1)) % count;
+                std::swap(candidates[i], candidates[j]);
+            }
+            
+        }
+
+        for (size_t i = 0; i < count; i++)
+        {
+            if (!candidates[i])
+            {
+                continue;
+            }
+            if (TryFromSpecificNeighbor(*candidates[i]))
+            {
+                const bool ok = WriteAllRegionsLayoutToHeader_(current_complete_layout);
+                ClearOneControlEnumFlagOfAPC(ControlEnumOfAPCSegment::LAYOUT_MUTATION_INFLIGHT);
+                return ok;
+            }
+        }
+        ClearOneControlEnumFlagOfAPC(ControlEnumOfAPCSegment::LAYOUT_MUTATION_INFLIGHT);
+        return false;
         
-    // }
+    }
 
 
 }

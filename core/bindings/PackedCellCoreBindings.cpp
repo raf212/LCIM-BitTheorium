@@ -127,16 +127,16 @@ PYBIND11_MODULE(atomiccim_bind, m) {
     m.def("extract_value32", [](uint64_t p) -> uint32_t { return PackedCell64_t::ExtractValue32(static_cast<packed64_t>(p)); });
     m.def("extract_clk16", [](uint64_t p) -> uint16_t { return PackedCell64_t::ExtractClk16(static_cast<packed64_t>(p)); });
     m.def("extract_clk48", [](uint64_t p) -> uint64_t { return PackedCell64_t::ExtractClk48(static_cast<packed64_t>(p)); });
-    m.def("extract_priority_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractPriorityFromPacked(static_cast<packed64_t>(p)); });
+    // m.def("extract_priority_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractPriorityFromPacked(static_cast<packed64_t>(p)); });
     // m.def("extract_locality_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractLocalityFromPacked(static_cast<packed64_t>(p)); });
     // m.def("extract_pcelltype_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractModeOfPackedCellFromPacked(static_cast<packed64_t>(p)); });
     m.def("is_packed_cell_val32", [](uint64_t p) -> bool { return PackedCell64_t::IsPackedCellVal32(static_cast<packed64_t>(p)); });
     m.def("extract_relmask_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractRelMaskFromPacked(static_cast<packed64_t>(p)); });
     // m.def("extract_reloffset_from_packed", [](uint64_t p) -> uint8_t { return PackedCell64_t::ExtractRelOffsetFromPacked(static_cast<packed64_t>(p)); });
     // setters that return new packed value
-    m.def("set_priority_in_packed", [](uint64_t p, uint8_t priority) -> uint64_t {
-        return PackedCell64_t::SetPriorityInPacked(static_cast<packed64_t>(p), priority);
-    });
+    // m.def("set_priority_in_packed", [](uint64_t p, uint8_t priority) -> uint64_t {
+    //     return PackedCell64_t::SetPriorityInPacked(static_cast<packed64_t>(p), priority);
+    // });
     // m.def("set_locality_in_packed", [](uint64_t p, uint8_t local_state) -> uint64_t {
     //     return PackedCell64_t::SetLocalityInPacked(static_cast<packed64_t>(p), local_state);
     // });

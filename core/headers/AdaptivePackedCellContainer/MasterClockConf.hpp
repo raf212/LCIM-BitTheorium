@@ -50,7 +50,7 @@ struct Timer48
         
         packed64_t MakeInitialCellTimer48_(uint64_t now_ticks) noexcept
         {
-            packed64_t init_clk48_packed = PackedCell64_t::ComposeCLK48u_64(now_ticks, MakeStrl4ForMode48_t(ZERO_PRIORITY, PackedCellLocalityTypes::ST_IDLE, REL_NONE, 
+            packed64_t init_clk48_packed = PackedCell64_t::ComposeCLK48u_64(now_ticks, MakeStrl4ForMode48_t(PriorityPhysics::IDLE, PackedCellLocalityTypes::ST_IDLE, REL_NONE, 
                 RelOffsetMode48::RELOFFSET_GENERIC_VALUE));
             return init_clk48_packed;
         }
@@ -105,7 +105,7 @@ struct Timer48
         inline packed64_t ComposeValue32WithMasterClockStamp16_(
             val32_t cell_value32,
             size_t master_clock_slot_id,
-            tag8_t priority = ZERO_PRIORITY,
+            PriorityPhysics priority = PriorityPhysics::IDLE,
             tag8_t rel_mask4 = REL_MASK4_NONE,
             PackedCellLocalityTypes locality_wanted = PackedCellLocalityTypes::ST_PUBLISHED,
             RelOffsetMode32 reloffset_mode_wanted = RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
@@ -125,7 +125,7 @@ struct Timer48
         )
         {
             StampResult stamp = StampFromMasterClockSlot_(master_clock_id, force_rel_mask);
-            tag8_t priority = PackedCell64_t::ExtractPriorityFromPacked(old_packed);
+            PriorityPhysics priority = PackedCell64_t::ExtractPriorityFromPacked(old_packed);
             PackedCellLocalityTypes locality = PackedCell64_t::ExtractLocalityFromPacked(old_packed);
             if (should_owned)
             {
@@ -459,7 +459,7 @@ struct Timer48
         inline packed64_t ComposeValue32WithCurrentThreadStamp16(
             val32_t cel_value32,
             tag8_t rel_mask4,
-            tag8_t priority = ZERO_PRIORITY,
+            PriorityPhysics priority = PriorityPhysics::IDLE,
             PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
             RelOffsetMode32 rel_offset = RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
             PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType
@@ -482,7 +482,7 @@ struct Timer48
             size_t master_clock_slot_id,
             std::optional<uint64_t> clk_value48 = std::nullopt,
             tag8_t rel_mask4 = REL_MASK4_NONE,
-            tag8_t priority = ZERO_PRIORITY,
+            PriorityPhysics priority = PriorityPhysics::IDLE,
             PackedCellLocalityTypes locality_wanted = PackedCellLocalityTypes::ST_PUBLISHED,
             RelOffsetMode48 reloffset_mode_wanted = RelOffsetMode48::RELOFFSET_PURE_TIMER,
             PackedCellDataType data_type_wanted = PackedCellDataType::UnsignedPCellDataType

@@ -223,7 +223,7 @@ int main()
 
             for (uint32_t i = producer_id + 1; i <= VALUE_COUNT; i += PRODUCER_COUNT)
             {
-                packed64_t cell = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(i, REL_NONE, ZERO_PRIORITY);
+                packed64_t cell = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(i, REL_NONE, PriorityPhysics::IDLE);
 
                 if (PublishUntilSuccessOrBudgetEnd(
                         A,
@@ -301,7 +301,7 @@ int main()
 
                 const uint32_t x = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(in);
                 const uint32_t y = x * x;
-                packed64_t out = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(y, REL_NONE, ZERO_PRIORITY);
+                packed64_t out = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(y, REL_NONE, PriorityPhysics::IDLE);
 
                 if (PublishUntilSuccessOrBudgetEnd(
                         B,
@@ -380,7 +380,7 @@ int main()
 
                 const uint32_t x = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(in);
                 const uint32_t y = x + 1u;
-                packed64_t out = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(y, REL_PAGE, ZERO_PRIORITY);
+                packed64_t out = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(y, REL_PAGE, PriorityPhysics::IDLE);
 
                 if (PublishUntilSuccessOrBudgetEnd(
                         C,
@@ -460,7 +460,7 @@ int main()
                 const float y = static_cast<float>(x) * D_MULTIPLIER;
                 uint32_t unsigned_casted_float_y = BitCastMaybe<uint32_t>(y);
                 packed64_t out = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(
-                    unsigned_casted_float_y, REL_NONE, ZERO_PRIORITY, 
+                    unsigned_casted_float_y, REL_NONE, PriorityPhysics::IDLE, 
                     PackedCellLocalityTypes::ST_PUBLISHED, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, PackedCellDataType::FloatPCellDataType
                 );
 

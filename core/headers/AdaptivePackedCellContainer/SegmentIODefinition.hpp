@@ -73,7 +73,7 @@ protected:
 
     packed64_t PackValue32InPackedCellwithClock16_(
         val32_t value32,
-        tag8_t priority,
+        PriorityPhysics priority,
         PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
         tag8_t rel_mask = REL_NONE,
         RelOffsetMode32 reloffset_mode32 = RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
@@ -91,7 +91,7 @@ protected:
     void WriteBrenchMeta32_(
         MetaIndexOfAPCNode idx,
         uint32_t value32,
-        tag8_t priority = ZERO_PRIORITY,
+        PriorityPhysics priority = PriorityPhysics::IDLE,
         tag8_t rel_mask4 = REL_MASK4_NONE
     ) noexcept
     {
@@ -136,14 +136,14 @@ protected:
 public:
     packed64_t PackPureClock48AsPackedCell(
         std::optional<uint64_t> clock48 = std::nullopt,
-        tag8_t priority = ZERO_PRIORITY,
+        PriorityPhysics priority = PriorityPhysics::IDLE,
         PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
         tag8_t rel_mask = REL_NONE,
         RelOffsetMode48 reloffset = RelOffsetMode48::RELOFFSET_PURE_TIMER,
         PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType
     ) noexcept;
 
-    void WriteOrUpdateMetaClock48(tag8_t priority = ZERO_PRIORITY, std::optional<uint64_t>meta_clock_48 = std::nullopt) noexcept;
+    void WriteOrUpdateMetaClock48(PriorityPhysics priority = PriorityPhysics::IDLE, std::optional<uint64_t>meta_clock_48 = std::nullopt) noexcept;
 
     bool JustUpdateValueOfMeta32(
         MetaIndexOfAPCNode idx,
@@ -195,7 +195,7 @@ public:
         uint32_t aux_param_uint32 = NO_VAL,
         uint32_t branch_depth = NO_VAL,
         uint8_t branch_priority = ZERO_PRIORITY,
-        uint8_t write_cell_priority = ZERO_PRIORITY
+        PriorityPhysics write_cell_priority = PriorityPhysics::IDLE
 
     ) noexcept;
 
@@ -308,12 +308,12 @@ public:
 
     void MakeAPCBranchOwned() noexcept
     {
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::CURRENTLY_OWNED, 1u, DEFAULT_INTERNAL_PRIORITY);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::CURRENTLY_OWNED, 1u, PriorityPhysics::IMPORTANT);
     }
 
     void ReleseOwneshipFlag() noexcept
     {
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::CURRENTLY_OWNED, NO_VAL, MAX_PRIORITY);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::CURRENTLY_OWNED, NO_VAL, PriorityPhysics::ERROR_DEPENDENCY);
     }
 
     bool IsBranchOwnedByFlag() noexcept
@@ -326,7 +326,7 @@ public:
         return false;
     }
 
-    void ResetTotalCASFailureForThisBranch(tag8_t priority = DEFAULT_INTERNAL_PRIORITY) noexcept
+    void ResetTotalCASFailureForThisBranch(PriorityPhysics priority = PriorityPhysics::IDLE) noexcept
     {
         WriteBrenchMeta32_(MetaIndexOfAPCNode::TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH, NO_VAL, priority);
     }

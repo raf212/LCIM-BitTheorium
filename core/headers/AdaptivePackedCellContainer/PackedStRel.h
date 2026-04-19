@@ -168,10 +168,10 @@ namespace PredictedAdaptedEncoding {
     template<typename PCDT>
     inline constexpr PackedCellDataType BridgeOfPackedCellDataType_v = PackedCellTypeBridge<PCDT>::DType;
 
-    inline constexpr strl16_t MakeSTRL4_t(tag8_t priority, PackedCellLocalityTypes locality, tag8_t rel_mask, tag8_t rel_offset, PackedMode pc_type = PackedMode::MODE_VALUE32, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
+    inline constexpr strl16_t MakeSTRL4_t(PriorityPhysics priority, PackedCellLocalityTypes locality, tag8_t rel_mask, tag8_t rel_offset, PackedMode pc_type = PackedMode::MODE_VALUE32, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
     {
 
-        strl16_t prio = static_cast<strl16_t>(priority & PRIORITY_MASK);
+        strl16_t prio = static_cast<strl16_t>(static_cast<tag8_t>(priority) & PRIORITY_MASK);
         strl16_t loc = static_cast<strl16_t>(static_cast<tag8_t>(locality) & LOCALITY_MASK);
         strl16_t pctype = static_cast<strl16_t>(static_cast<tag8_t>(pc_type) & PCTYPE_MASK);
         strl16_t rm = static_cast<strl16_t>(rel_mask & RELMASK_MASK);
@@ -189,12 +189,12 @@ namespace PredictedAdaptedEncoding {
         return strl;
     }
 
-    inline constexpr strl16_t MakeSTRLMode32_t(tag8_t priority, PackedCellLocalityTypes locality, tag8_t rel_mask, RelOffsetMode32 rel_offset, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
+    inline constexpr strl16_t MakeSTRLMode32_t(PriorityPhysics priority, PackedCellLocalityTypes locality, tag8_t rel_mask, RelOffsetMode32 rel_offset, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
     {
         return MakeSTRL4_t(priority, locality, rel_mask, static_cast<tag8_t>(rel_offset), PackedMode::MODE_VALUE32, pc_datatype);
     }
 
-    inline constexpr strl16_t MakeStrl4ForMode48_t (tag8_t priority, PackedCellLocalityTypes locality, tag8_t rel_mask, RelOffsetMode48 rel_offset, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
+    inline constexpr strl16_t MakeStrl4ForMode48_t (PriorityPhysics priority, PackedCellLocalityTypes locality, tag8_t rel_mask, RelOffsetMode48 rel_offset, PackedCellDataType pc_datatype = PackedCellDataType::UnsignedPCellDataType) noexcept
     {
         return MakeSTRL4_t(priority, locality, rel_mask, static_cast<tag8_t>(rel_offset), PackedMode::MODE_CLKVAL48, pc_datatype);
     }

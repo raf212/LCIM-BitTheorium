@@ -11,6 +11,7 @@
 #include "PackedCellContainerManager.hpp"
 #include "NodeInGraphView.h"
 #include "AdaptivePackedCellContainer/APCHElpers.hpp"
+#include "AdaptivePackedCellContainer/CausalSegmentController.hpp"
 
 namespace PredictedAdaptedEncoding
 {
@@ -41,7 +42,7 @@ private:
     AtomicAdaptiveBackoff* AdaptiveBackoffOfAPCPtr_{nullptr};
     MasterClockConf* MasterClockConfPtr_{nullptr};
     PackedCellContainerManager* APCManagerPtr_{nullptr};
-    std::unique_ptr<SegmentIODefinition> SegmentIODefinitionPtr_;
+    std::unique_ptr<CausalSegmentController> SegmentIODefinitionPtr_;
     static inline std::atomic<uint32_t> GlobalBranchIdAlloc_{1};
     static inline thread_local PackedCellContainerManager::ThreadHandlePCCM  ThreadHandleAPCTL_ = {};
     

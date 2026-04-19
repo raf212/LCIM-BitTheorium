@@ -8,14 +8,16 @@
 namespace PredictedAdaptedEncoding
 {
 
-    class CausalSegmentController
+    class CausalSegmentController : public SegmentIODefinition
     {
-    private:
-        SegmentIODefinition* SegmentIOPtr_{nullptr};
     public:
-        CausalSegmentController(SegmentIODefinition* apc_segment_io_ptr) noexcept :
-            SegmentIOPtr_(apc_segment_io_ptr)
-        {}
+        CausalSegmentController() noexcept = default;
+        ~CausalSegmentController() = default;
+
+        bool TryUpdateLastAcceptedClock16ForRegion(APCPagedNodeRelMaskClasses region_kind, clk16_t new_clock16) noexcept;
+        bool TryUpdateLastEmittedClock16ForRegion(APCPagedNodeRelMaskClasses region_kind, clk16_t new_clock16) noexcept;
+        bool IsCellCausallyAccepatable(packed64_t packed_cell, APCPagedNodeRelMaskClasses region_kind, bool is_emitting = false) noexcept;
+        uint32_t ComputePriorityCausalScore(packed64_t packed_cell, APCPagedNodeRelMaskClasses region_kind, bool is_emitting = false) noexcept;
         
     };
 

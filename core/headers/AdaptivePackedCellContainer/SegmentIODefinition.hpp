@@ -7,7 +7,7 @@ namespace PredictedAdaptedEncoding
 {
 
 
-class SegmentIODefinition final
+class SegmentIODefinition
 {
 public:
     static constexpr size_t METACELL_COUNT = PackedCell64_t::METACELL_COUNT_FIRST;
@@ -66,7 +66,7 @@ public:
         return APC_SENTENAL;
     }
     
-private:
+protected:
     std::atomic<packed64_t>* PackedCellContainerPtr_{nullptr};
     size_t BranchCapacity_{0};
     MasterClockConf* MasterClockConfPtr_{nullptr};

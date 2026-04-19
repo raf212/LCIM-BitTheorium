@@ -211,6 +211,21 @@ public:
         return will_return;
     }
 
+    inline bool IfIndexValid(size_t idx) const noexcept
+    {
+        if (IfAPCBranchValid() && idx < GetPayloadEnd())
+        {
+            return true;
+        }
+        return false;        
+    }
+
+    inline AtomicAdaptiveBackoff* GetAtomicAdaptiveBackoffPtr() noexcept
+    {
+        return AdaptiveBackoffOfAPCPtr_;
+    }
+
+
     PackedCellContainerManager* GetAPCManager() noexcept
     {
         if (!APCManagerPtr_)

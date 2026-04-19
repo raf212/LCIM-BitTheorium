@@ -126,10 +126,9 @@ namespace PredictedAdaptedEncoding
         AUX_SLOT = 0x9,
         FREE_SLOT = 0xA,
         SELF_REFARANCE = 0xB,
-        STRUCTRUAL = 0xC,
-        ///
-        COMPLEX_STORAGE = 0xD,
-        RESERVED_14     = 0xE,
+        CLOCK_PURE_TIME = 0xC,
+        RESERVED_14     = 0xD,
+        COMPLEX_STORAGE = 0xE,
         NANNULL     = 0xF
     };
 

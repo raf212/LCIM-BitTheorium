@@ -343,6 +343,15 @@ public:
         return JustUpdateValueOfMeta32(MetaIndexOfAPCNode::SEGMENT_KIND, current_segment_kind, static_cast<uint32_t>(region_kind));
     }
 
+    std::atomic<packed64_t>* GetAPCBackinghPtr() noexcept
+    {
+        if (PackedCellContainerPtr_)
+        {
+            return PackedCellContainerPtr_;
+        }
+        return nullptr;
+    }
+
 
 };
 

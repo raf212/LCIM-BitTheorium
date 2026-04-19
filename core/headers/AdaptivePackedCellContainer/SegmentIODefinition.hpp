@@ -66,7 +66,7 @@ public:
         return APC_SENTENAL;
     }
     
-protected:
+private:
     std::atomic<packed64_t>* PackedCellContainerPtr_{nullptr};
     size_t BranchCapacity_{0};
     MasterClockConf* MasterClockConfPtr_{nullptr};
@@ -220,6 +220,12 @@ public:
     bool TrySetLayoutMutationInFlight() noexcept;
 
     bool TryExtendASegmentInOwnAPC(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t wanted_amount, ContainerConf::APCSegmentExtendOrder desired_apc_order) noexcept;
+
+    clk16_t ReadLastAcceptedClok16ForThisSegment(APCPagedNodeRelMaskClasses region_kind) noexcept;
+    clk16_t ReadLastEmittedClok16ForThisSegment(APCPagedNodeRelMaskClasses region_kind) noexcept;
+    bool TryAdvanceLastAcceptedClock16ForTheSegment(APCPagedNodeRelMaskClasses region_kind) noexcept;
+    bool TryAdvanceLastEmittedClock16ForTheSegment(APCPagedNodeRelMaskClasses region_kind) noexcept;
+
 
 
     uint32_t ForceOccupancyUpdateAndReturn(uint32_t new_occupancy) noexcept

@@ -567,5 +567,32 @@ namespace PredictedAdaptedEncoding
         
     }
 
+    clk16_t SegmentIODefinition::ReadLastAcceptedClok16ForThisSegment(APCPagedNodeRelMaskClasses region_kind) noexcept
+    {
+        switch (region_kind)
+        {
+            case APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE :
+                return static_cast<clk16_t>(ReadMetaCellValue32(MetaIndexOfAPCNode::LAST_ACCEPTED_FEED_BACKWARD_CLOCK16));
+        
+        default:
+            return static_cast<clk16_t>(ReadMetaCellValue32(MetaIndexOfAPCNode::LAST_ACCEPTED_FEED_FORWARD_CLOCK16));
+        }
+    }
+
+    clk16_t SegmentIODefinition::ReadLastEmittedClok16ForThisSegment(APCPagedNodeRelMaskClasses region_kind) noexcept
+    {
+        switch (region_kind)
+        {
+            case APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE :
+                return static_cast<clk16_t>(ReadMetaCellValue32(MetaIndexOfAPCNode::LAST_EMITTED_FEED_BACKWARD_CLOCK16));
+        
+        default:
+            return static_cast<clk16_t>(ReadMetaCellValue32(MetaIndexOfAPCNode::LAST_EMITTED_FEED_FORWARD_CLOCK16));
+        }
+    }
+
+    // bool SegmentIODefinition::TryAdvanceLastAcceptedClock16ForTheSegment(APCPagedNodeRelMaskClasses region_kind) noexcept;
+
+    // bool TryAdvanceLastEmittedClock16ForTheSegment(APCPagedNodeRelMaskClasses region_kind) noexcept;
 
 }

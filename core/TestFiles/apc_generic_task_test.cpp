@@ -281,7 +281,7 @@ int main()
     }
 
     const size_t num_of_tasks = task_ranges.size();
-    if (num_of_tasks >= PackedCellBranchPlugin::BRANCH_SENTINAL)
+    if (num_of_tasks >= SegmentIODefinition::BRANCH_SENTINAL)
     {
         std::cerr << "numver of tasks should be less than UINT32_MAX";
         return 1;

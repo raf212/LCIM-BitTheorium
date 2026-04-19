@@ -5,7 +5,7 @@
 namespace PredictedAdaptedEncoding
 {
 
-    val32_t PackedCellBranchPlugin::ReadMetaCellValue32(MetaIndexOfAPCNode idx) noexcept
+    val32_t SegmentIODefinition::ReadMetaCellValue32(MetaIndexOfAPCNode idx) noexcept
     {
         if (!ValidMeteIdx(idx) || idx == MetaIndexOfAPCNode::LOCAL_CLOCK48)
         {
@@ -15,7 +15,7 @@ namespace PredictedAdaptedEncoding
         return PackedCell64_t::ExtractValue32(PackedCellContainerPtr_[index].load(MoLoad_));
     }
 
-    void PackedCellBranchPlugin::TouchLocalMetaClock48(packed64_t* updated_full_clock_cell_easy_return_ptr) noexcept
+    void SegmentIODefinition::TouchLocalMetaClock48(packed64_t* updated_full_clock_cell_easy_return_ptr) noexcept
     {
         if (!MasterClockConfPtr_)
         {
@@ -26,7 +26,7 @@ namespace PredictedAdaptedEncoding
         );
     }
 
-    packed64_t PackedCellBranchPlugin::PackPureClock48AsPackedCell(
+    packed64_t SegmentIODefinition::PackPureClock48AsPackedCell(
         std::optional<uint64_t> clock48,
         tag8_t priority,
         PackedCellLocalityTypes locality,
@@ -58,7 +58,7 @@ namespace PredictedAdaptedEncoding
         return PackedCell64_t::ComposeCLK48u_64((now_timer.NowTicks() & MaskBits(CLK_B48)), strl_clock48);
     }
 
-    void PackedCellBranchPlugin::WriteOrUpdateMetaClock48(tag8_t priority, std::optional<uint64_t>meta_clock_48 ) noexcept
+    void SegmentIODefinition::WriteOrUpdateMetaClock48(tag8_t priority, std::optional<uint64_t>meta_clock_48 ) noexcept
     {
         size_t idx = static_cast<size_t>(MetaIndexOfAPCNode::LOCAL_CLOCK48);
         packed64_t wanted_cell = PackPureClock48AsPackedCell(meta_clock_48, priority, PackedCellLocalityTypes::ST_PUBLISHED);
@@ -66,7 +66,7 @@ namespace PredictedAdaptedEncoding
         PackedCellContainerPtr_[idx].notify_all();
     }
 
-    bool PackedCellBranchPlugin::JustUpdateValueOfMeta32(
+    bool SegmentIODefinition::JustUpdateValueOfMeta32(
         MetaIndexOfAPCNode idx,
         uint32_t expected_value,
         uint32_t desired_value,
@@ -111,7 +111,7 @@ namespace PredictedAdaptedEncoding
         
     }
 
-    void PackedCellBranchPlugin::InitLogicalNodeIdentity(
+    void SegmentIODefinition::InitLogicalNodeIdentity(
         uint32_t logical_node_id,
         uint32_t shared_id,
         bool is_root_shared
@@ -134,7 +134,7 @@ namespace PredictedAdaptedEncoding
         
     }
 
-    void PackedCellBranchPlugin::InitNodeSemantics(
+    void SegmentIODefinition::InitNodeSemantics(
         APCNodeComputeKind compute_kind_of_node,
         uint32_t aux_param_uint32
     ) noexcept
@@ -156,7 +156,7 @@ namespace PredictedAdaptedEncoding
 
 
 
-    void PackedCellBranchPlugin::InitRootOrChildBranch(
+    void SegmentIODefinition::InitRootOrChildBranch(
         uint32_t branch_id,
         uint32_t logical_node_id,
         uint32_t shared_id,
@@ -217,7 +217,7 @@ namespace PredictedAdaptedEncoding
         WriteBrenchMeta32_(MetaIndexOfAPCNode::EOF_APC_HEADER, EOF_HEADER, write_cell_priority);
     }
 
-    bool PackedCellBranchPlugin::TryIncrementOrDecrementActiveThreadCount(int8_t change_count) noexcept
+    bool SegmentIODefinition::TryIncrementOrDecrementActiveThreadCount(int8_t change_count) noexcept
     {
         ///for now
         if (change_count < 0)
@@ -245,7 +245,7 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    bool PackedCellBranchPlugin::TryBindPortTarget(MetaIndexOfAPCNode port_meta_idx, uint32_t target_branch_id) noexcept
+    bool SegmentIODefinition::TryBindPortTarget(MetaIndexOfAPCNode port_meta_idx, uint32_t target_branch_id) noexcept
     {
         if (target_branch_id == BRANCH_SENTINAL)
         {
@@ -269,7 +269,7 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    bool PackedCellBranchPlugin::ShouldSplitNow() noexcept
+    bool SegmentIODefinition::ShouldSplitNow() noexcept
     {
         const val32_t split_threshold = ReadMetaCellValue32(MetaIndexOfAPCNode::SPLIT_THRESHOLD_PERCENTAGE);
         const val32_t current_occumancy = ReadMetaCellValue32(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT);
@@ -289,7 +289,7 @@ namespace PredictedAdaptedEncoding
         
     }
 
-    bool PackedCellBranchPlugin::TryMarkSplitInFlight() noexcept
+    bool SegmentIODefinition::TryMarkSplitInFlight() noexcept
     {
         while (true)
         {
@@ -308,7 +308,7 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    uint32_t PackedCellBranchPlugin::TotalCASFailForThisBranchIncreaseAndGet(uint32_t increment) noexcept
+    uint32_t SegmentIODefinition::TotalCASFailForThisBranchIncreaseAndGet(uint32_t increment) noexcept
     {
         while (true)
         {
@@ -328,7 +328,7 @@ namespace PredictedAdaptedEncoding
 
 
 
-    std::optional<LayoutBoundsOfSingleRelNodeClass> PackedCellBranchPlugin::ReadLayoutBounds(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
+    std::optional<LayoutBoundsOfSingleRelNodeClass> SegmentIODefinition::ReadLayoutBounds(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
     {
         auto maybe_begin_end = GetMetaBoundsPairForRegionMask_(desired_rel_mask);
         if (!maybe_begin_end)
@@ -344,7 +344,7 @@ namespace PredictedAdaptedEncoding
         return current_bounds;
     }
 
-    bool PackedCellBranchPlugin::SetLayOutBounds(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t begin, uint32_t end) noexcept
+    bool SegmentIODefinition::SetLayOutBounds(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t begin, uint32_t end) noexcept
     {
         if (begin > end || begin < METACELL_COUNT || end > PayloadEndRead())
         {
@@ -368,7 +368,7 @@ namespace PredictedAdaptedEncoding
         
     }
 
-    bool PackedCellBranchPlugin::TrySetLayoutMutationInFlight() noexcept
+    bool SegmentIODefinition::TrySetLayoutMutationInFlight() noexcept
     {
         while (true)
         {
@@ -386,7 +386,7 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    bool PackedCellBranchPlugin::TryExtendASegmentInOwnAPC(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t wanted_amount, ContainerConf::APCSegmentExtendOrder desired_apc_order) noexcept
+    bool SegmentIODefinition::TryExtendASegmentInOwnAPC(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t wanted_amount, ContainerConf::APCSegmentExtendOrder desired_apc_order) noexcept
     {
         if (wanted_amount == 0)
         {

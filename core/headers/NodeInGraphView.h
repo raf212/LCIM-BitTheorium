@@ -77,7 +77,7 @@ class NodeInGraphView
 private:
     AdaptivePackedCellContainer* APCPtr_;
     PackedCellContainerManager* APCManagerPtr_;
-    PackedCellBranchPlugin* BranchPluginPtr_{nullptr};
+    SegmentIODefinition* BranchPluginPtr_{nullptr};
     void AutoSetBranchPlugin_() noexcept;
     
 public:

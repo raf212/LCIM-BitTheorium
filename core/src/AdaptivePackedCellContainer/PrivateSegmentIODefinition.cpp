@@ -5,7 +5,7 @@
 namespace PredictedAdaptedEncoding
 {
 
-    void PackedCellBranchPlugin::InitDefaultAPCSegmentedNodeLayout_() noexcept
+    void SegmentIODefinition::InitDefaultAPCSegmentedNodeLayout_() noexcept
     {
         const uint32_t payload_begain = METACELL_COUNT;
         const uint32_t payload_end = PayloadEndRead();
@@ -33,7 +33,7 @@ namespace PredictedAdaptedEncoding
         
     }
 
-    void PackedCellBranchPlugin::BuidDefaultLayoutPlan_(CompleteAPCNodeRegionsLayout& full_layout) noexcept
+    void SegmentIODefinition::BuidDefaultLayoutPlan_(CompleteAPCNodeRegionsLayout& full_layout) noexcept
     {
         const uint32_t payload_begain = METACELL_COUNT;
         const uint32_t payload_end = PayloadEndRead();
@@ -83,7 +83,7 @@ namespace PredictedAdaptedEncoding
         full_layout.FreeLayout.EndIndex = payload_end;
     }
 
-    bool PackedCellBranchPlugin::WriteBoundsPairToHeader_(const LayoutBoundsOfSingleRelNodeClass layout_bound) noexcept
+    bool SegmentIODefinition::WriteBoundsPairToHeader_(const LayoutBoundsOfSingleRelNodeClass layout_bound) noexcept
     {
         auto maybe_region_bounds_pair = GetMetaBoundsPairForRegionMask_(layout_bound.LAYOUT_CLASS);
         if (!maybe_region_bounds_pair || layout_bound.IsEmpty() == true)
@@ -97,7 +97,7 @@ namespace PredictedAdaptedEncoding
                 JustUpdateValueOfMeta32(end_meta, current_end, layout_bound.EndIndex);
     }
 
-    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>>PackedCellBranchPlugin::GetMetaBoundsPairForRegionMask_(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
+    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>>SegmentIODefinition::GetMetaBoundsPairForRegionMask_(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
     {
         MetaIndexOfAPCNode begin_idx;
         MetaIndexOfAPCNode end_idx;
@@ -124,6 +124,14 @@ namespace PredictedAdaptedEncoding
             {
                 begin_idx = MetaIndexOfAPCNode::STATE_BEGAINING;
                 end_idx   = MetaIndexOfAPCNode::STATE_END;
+                break;
+            }
+
+            //-- ERROR--
+            case APCPagedNodeRelMaskClasses::ERROR_SLOT:
+            {
+                begin_idx = MetaIndexOfAPCNode::ERROR_BEGAIN;
+                end_idx   = MetaIndexOfAPCNode::ERROR_END;
                 break;
             }
 
@@ -168,7 +176,7 @@ namespace PredictedAdaptedEncoding
         return std::pair {begin_idx, end_idx};
     }
 
-    bool PackedCellBranchPlugin::UpdateAPCModeFlagsInHeader_(uint32_t flags_to_turn_on, uint32_t flags_to_turn_off) noexcept
+    bool SegmentIODefinition::UpdateAPCModeFlagsInHeader_(uint32_t flags_to_turn_on, uint32_t flags_to_turn_off) noexcept
     {
         while (true)
         {
@@ -187,7 +195,7 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    std::optional<CompleteAPCNodeRegionsLayout> PackedCellBranchPlugin::ReadAndGetFullRegionLayout_() noexcept
+    std::optional<CompleteAPCNodeRegionsLayout> SegmentIODefinition::ReadAndGetFullRegionLayout_() noexcept
     {
         auto LoadOne = [&](APCPagedNodeRelMaskClasses desired_rel_mask, LayoutBoundsOfSingleRelNodeClass& out_one) noexcept->bool
         {
@@ -212,7 +220,7 @@ namespace PredictedAdaptedEncoding
         return out_layout;
     }
 
-    bool PackedCellBranchPlugin::WriteAllRegionsLayoutToHeader_(const CompleteAPCNodeRegionsLayout& full_layout) noexcept
+    bool SegmentIODefinition::WriteAllRegionsLayoutToHeader_(const CompleteAPCNodeRegionsLayout& full_layout) noexcept
     {
         return 
             WriteBoundsPairToHeader_(full_layout.FeedForwardLayout) &&

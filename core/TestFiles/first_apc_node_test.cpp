@@ -29,7 +29,7 @@ namespace PredictedAdaptedEncoding
         AdaptivePackedCellContainer* current = apc_ptr;
         while (current)
         {
-            PackedCellBranchPlugin* plugin = current->GetBranchPlugin();
+            SegmentIODefinition* plugin = current->GetBranchPlugin();
             if (!plugin)
             {
                 break;
@@ -39,7 +39,7 @@ namespace PredictedAdaptedEncoding
                 plugin->ReadMetaCellValue32(
                     MetaIndexOfAPCNode::SHARED_PREVIOUS_ID);
 
-            if (prev_id == NO_VAL || prev_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            if (prev_id == NO_VAL || prev_id == SegmentIODefinition::BRANCH_SENTINAL)
             {
                 break;
             }
@@ -82,7 +82,7 @@ namespace PredictedAdaptedEncoding
                 return false;
             }
 
-            PackedCellBranchPlugin* plugin = current->GetBranchPlugin();
+            SegmentIODefinition* plugin = current->GetBranchPlugin();
             if (!plugin)
             {
                 break;
@@ -92,7 +92,7 @@ namespace PredictedAdaptedEncoding
                 plugin->ReadMetaCellValue32(
                     MetaIndexOfAPCNode::SHARED_NEXT_ID);
 
-            if (next_id == NO_VAL || next_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            if (next_id == NO_VAL || next_id == SegmentIODefinition::BRANCH_SENTINAL)
             {
                 break;
             }
@@ -131,7 +131,7 @@ namespace PredictedAdaptedEncoding
                 return true;
             }
 
-            PackedCellBranchPlugin* plugin = current->GetBranchPlugin();
+            SegmentIODefinition* plugin = current->GetBranchPlugin();
             if (!plugin)
             {
                 break;
@@ -141,7 +141,7 @@ namespace PredictedAdaptedEncoding
                 plugin->ReadMetaCellValue32(
                     MetaIndexOfAPCNode::SHARED_NEXT_ID);
 
-            if (next_id == NO_VAL || next_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            if (next_id == NO_VAL || next_id == SegmentIODefinition::BRANCH_SENTINAL)
             {
                 break;
             }
@@ -376,44 +376,44 @@ int main()
     A.InitAPCAsNode(
         256,
         cfg,
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::SELF_DATA_NODE),
-        PackedCellBranchPlugin::APCNodeComputeKind::GENERATOR_UINT32,
+        static_cast<uint32_t>(SegmentIODefinition::APCBranchNodeRoleFlags::SELF_DATA_NODE),
+        SegmentIODefinition::APCNodeComputeKind::GENERATOR_UINT32,
         NO_VAL
     );
 
     B.InitAPCAsNode(
         256,
         cfg,
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::ACCEPTS_FEEDFORWARD) |
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::EMMITS_FEEDFORWARD),
-        PackedCellBranchPlugin::APCNodeComputeKind::SQUARE_UINT32,
+        static_cast<uint32_t>(SegmentIODefinition::APCBranchNodeRoleFlags::ACCEPTS_FEEDFORWARD) |
+        static_cast<uint32_t>(SegmentIODefinition::APCBranchNodeRoleFlags::EMMITS_FEEDFORWARD),
+        SegmentIODefinition::APCNodeComputeKind::SQUARE_UINT32,
         NO_VAL
     );
 
     C.InitAPCAsNode(
         256,
         cfg,
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::ACCEPTS_FEEDFORWARD) |
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::EMMITS_FEEDFORWARD),
-        PackedCellBranchPlugin::APCNodeComputeKind::ADD_UINT32,
+        static_cast<uint32_t>(SegmentIODefinition::APCBranchNodeRoleFlags::ACCEPTS_FEEDFORWARD) |
+        static_cast<uint32_t>(SegmentIODefinition::APCBranchNodeRoleFlags::EMMITS_FEEDFORWARD),
+        SegmentIODefinition::APCNodeComputeKind::ADD_UINT32,
         NO_VAL
     );
 
     D.InitAPCAsNode(
         256,
         cfg,
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::ACCEPTS_FEEDFORWARD) |
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::EMMITS_FEEDFORWARD),
-        PackedCellBranchPlugin::APCNodeComputeKind::DIV_UINT32,
+        static_cast<uint32_t>(SegmentIODefinition::APCBranchNodeRoleFlags::ACCEPTS_FEEDFORWARD) |
+        static_cast<uint32_t>(SegmentIODefinition::APCBranchNodeRoleFlags::EMMITS_FEEDFORWARD),
+        SegmentIODefinition::APCNodeComputeKind::DIV_UINT32,
         NO_VAL
     );
 
     E.InitAPCAsNode(
         256,
         cfg,
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::ACCEPTS_FEEDFORWARD) |
-        static_cast<uint32_t>(PackedCellBranchPlugin::APCBranchNodeRoleFlags::SELF_DATA_NODE),
-        PackedCellBranchPlugin::APCNodeComputeKind::GENERIC_VECTOR,
+        static_cast<uint32_t>(SegmentIODefinition::APCBranchNodeRoleFlags::ACCEPTS_FEEDFORWARD) |
+        static_cast<uint32_t>(SegmentIODefinition::APCBranchNodeRoleFlags::SELF_DATA_NODE),
+        SegmentIODefinition::APCNodeComputeKind::GENERIC_VECTOR,
         NO_VAL
     );
 

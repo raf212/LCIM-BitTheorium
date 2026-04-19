@@ -240,7 +240,7 @@ namespace PredictedAdaptedEncoding
                 packed64_t expected_head = cur_head;
                 if (!BackingPtr[head].compare_exchange_strong(expected_head, claimed_cur_head, OnExchangeSuccess, OnExchangeFailure))
                 {
-                    BranchPluginOfAPC_->TotalCASFailForThisBranchIncreaseAndGet(1);
+                    SegmentIODefinitionPtr_->TotalCASFailForThisBranchIncreaseAndGet(1);
                 }
                 else
                 {
@@ -249,7 +249,7 @@ namespace PredictedAdaptedEncoding
                     {
                         BackingPtr[head].store(cur_head, MoStoreSeq_);
                         BackingPtr[head].notify_all();
-                        BranchPluginOfAPC_->TotalCASFailForThisBranchIncreaseAndGet(1);
+                        SegmentIODefinitionPtr_->TotalCASFailForThisBranchIncreaseAndGet(1);
                     }
                     else
                     {
@@ -302,9 +302,9 @@ namespace PredictedAdaptedEncoding
                 auto& backoff = APCManagerPtr_->GetManagersAdaptiveBackoff();
                 backoff.AdaptiveBackOffPacked(observed);
             }
-            if (BranchPluginOfAPC_ && 
-                BranchPluginOfAPC_->HasThisFlag(PackedCellBranchPlugin::ControlEnumOfAPCSegment::ENABLE_BRANCHING) && 
-                BranchPluginOfAPC_->ShouldSplitNow() && APCManagerPtr_
+            if (SegmentIODefinitionPtr_ && 
+                SegmentIODefinitionPtr_->HasThisFlag(SegmentIODefinition::ControlEnumOfAPCSegment::ENABLE_BRANCHING) && 
+                SegmentIODefinitionPtr_->ShouldSplitNow() && APCManagerPtr_
             )
             {
                 APCManagerPtr_->RequestBranchCreationForTheAdaptivePackedCellContainer(this);

@@ -19,13 +19,13 @@ namespace PredictedAdaptedEncoding
 
     void AdaptivePackedCellContainer::InitZeroState_() noexcept
     {
-        if (!BranchPluginOfAPC_)
+        if (!SegmentIODefinitionPtr_)
         {
             return;
         }
-        BranchPluginOfAPC_->ForceOccupancyUpdateAndReturn(0);
-        BranchPluginOfAPC_->MakeAPCBranchOwned();
-        BranchPluginOfAPC_->ResetTotalCASFailureForThisBranch();
+        SegmentIODefinitionPtr_->ForceOccupancyUpdateAndReturn(0);
+        SegmentIODefinitionPtr_->MakeAPCBranchOwned();
+        SegmentIODefinitionPtr_->ResetTotalCASFailureForThisBranch();
         UpdateProducerCursorPlacement(static_cast<uint32_t>(PayloadBegin()));
         UpdateConsumerCursorPlacement(static_cast<uint32_t>(PayloadBegin()));
     }
@@ -49,9 +49,9 @@ namespace PredictedAdaptedEncoding
         MasterClockConfPtr_ = nullptr;        
         if (BackingPtr)
         {
-            if (BranchPluginOfAPC_->IsBranchOwnedByFlag())
+            if (SegmentIODefinitionPtr_->IsBranchOwnedByFlag())
             {
-                BranchPluginOfAPC_->ReleseOwneshipFlag();
+                SegmentIODefinitionPtr_->ReleseOwneshipFlag();
                 delete[] BackingPtr;
             }
             BackingPtr = nullptr;
@@ -60,8 +60,8 @@ namespace PredictedAdaptedEncoding
         RegionRelArray_.reset();
         RegionEpochArray_.reset();
         RelBitmaps_.clear();
-        BranchPluginOfAPC_->ReleseOwneshipFlag();
-        BranchPluginOfAPC_.reset();
+        SegmentIODefinitionPtr_->ReleseOwneshipFlag();
+        SegmentIODefinitionPtr_.reset();
     }
 
     void PackedCellContainerManager::ProcessRemainingWorkOfAPC_(NodeOfAdaptivePackedCellContainer_* batch_head_apc_ptr, uint64_t min_epoch) noexcept
@@ -105,23 +105,23 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        if (BranchPluginOfAPC_->ShouldSplitNow())
+        if (SegmentIODefinitionPtr_->ShouldSplitNow())
         {
-            BranchPluginOfAPC_->TurnOnASegmentFlag(PackedCellBranchPlugin::ControlEnumOfAPCSegment::SATURATED);
+            SegmentIODefinitionPtr_->TurnOnASegmentFlag(SegmentIODefinition::ControlEnumOfAPCSegment::SATURATED);
         }
         else
         {
-            BranchPluginOfAPC_->ClearOneControlEnumFlagOfAPC(PackedCellBranchPlugin::ControlEnumOfAPCSegment::SATURATED);
+            SegmentIODefinitionPtr_->ClearOneControlEnumFlagOfAPC(SegmentIODefinition::ControlEnumOfAPCSegment::SATURATED);
         }
         if (MasterClockConfPtr_)
         {
-            BranchPluginOfAPC_->TouchLocalMetaClock48();
+            SegmentIODefinitionPtr_->TouchLocalMetaClock48();
         }
 
-        uint32_t current_group_size = BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::NODE_GROUP_SIZE);
+        uint32_t current_group_size = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::NODE_GROUP_SIZE);
         if (current_group_size == NO_VAL)
         {
-            BranchPluginOfAPC_->JustUpdateValueOfMeta32(
+            SegmentIODefinitionPtr_->JustUpdateValueOfMeta32(
                 MetaIndexOfAPCNode::NODE_GROUP_SIZE,
                 current_group_size,
                 1u
@@ -141,13 +141,13 @@ namespace PredictedAdaptedEncoding
         bool* did_changed_easy_return, const MetaIndexOfAPCNode cursors_meta_idx
     ) noexcept
     {
-        if (!BranchPluginOfAPC_)
+        if (!SegmentIODefinitionPtr_)
         {
             if (did_changed_easy_return)
             {
                 *did_changed_easy_return = false;
             }
-            return PackedCellBranchPlugin::BRANCH_SENTINAL;
+            return SegmentIODefinition::BRANCH_SENTINAL;
         }
         if (GetPayloadEnd() <= PayloadBegin())
         {
@@ -155,12 +155,12 @@ namespace PredictedAdaptedEncoding
             {
                 *did_changed_easy_return = false;
             }
-            return PackedCellBranchPlugin::BRANCH_SENTINAL;
+            return SegmentIODefinition::BRANCH_SENTINAL;
         }
         
         while (true)
         {
-            const uint32_t current_cursor_placement = BranchPluginOfAPC_->ReadMetaCellValue32(cursors_meta_idx);
+            const uint32_t current_cursor_placement = SegmentIODefinitionPtr_->ReadMetaCellValue32(cursors_meta_idx);
             uint32_t desired_cursor_place = current_cursor_placement;
             if (cursor_placement.has_value())
             {
@@ -169,7 +169,7 @@ namespace PredictedAdaptedEncoding
 
             else if (increment_or_decrement_of_cursor != 0)
             {
-                if (current_cursor_placement == PackedCellBranchPlugin::BRANCH_SENTINAL)
+                if (current_cursor_placement == SegmentIODefinition::BRANCH_SENTINAL)
                 {
                     if (did_changed_easy_return)
                     {
@@ -185,11 +185,11 @@ namespace PredictedAdaptedEncoding
                     {
                         *did_changed_easy_return = false;
                     }
-                    return PackedCellBranchPlugin::BRANCH_SENTINAL;
+                    return SegmentIODefinition::BRANCH_SENTINAL;
                 }
                 
                 size_t current_placement = static_cast<size_t>(PayloadBegin());
-                if (current_cursor_placement >= PayloadBegin() || current_cursor_placement < payload_end)
+                if (current_cursor_placement >= PayloadBegin() && current_cursor_placement < payload_end)
                 {
                     current_placement = static_cast<size_t>(current_cursor_placement);
                 }
@@ -231,7 +231,7 @@ namespace PredictedAdaptedEncoding
                 }
                 return current_cursor_placement;
             }
-            if (BranchPluginOfAPC_->JustUpdateValueOfMeta32(cursors_meta_idx, current_cursor_placement, desired_cursor_place))
+            if (SegmentIODefinitionPtr_->JustUpdateValueOfMeta32(cursors_meta_idx, current_cursor_placement, desired_cursor_place))
             {
                 if (did_changed_easy_return)
                 {
@@ -249,7 +249,7 @@ namespace PredictedAdaptedEncoding
         {
             return std::nullopt;
         }
-        const auto maybe_current_region_bounds = BranchPluginOfAPC_->ReadLayoutBounds(region_kind);
+        const auto maybe_current_region_bounds = SegmentIODefinitionPtr_->ReadLayoutBounds(region_kind);
         if (!maybe_current_region_bounds.has_value() || maybe_current_region_bounds->GetPayloadSpan() == 0)
         {
             return std::nullopt;
@@ -284,7 +284,7 @@ namespace PredictedAdaptedEncoding
                 {
                     APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(expected_cell);
                 }
-                BranchPluginOfAPC_->TotalCASFailForThisBranchIncreaseAndGet(1);
+                SegmentIODefinitionPtr_->TotalCASFailForThisBranchIncreaseAndGet(1);
                 continue;
             }
             const PackedMode old_mode = PackedCell64_t::ExtractModeOfPackedCellFromPacked(current_cell);
@@ -312,9 +312,9 @@ namespace PredictedAdaptedEncoding
         }
         while (true)
         {
-            val32_t current_branch_rel_mask = BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::READY_REL_MASK);
+            val32_t current_branch_rel_mask = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::READY_REL_MASK);
             uint32_t next_mask = current_branch_rel_mask | static_cast<uint32_t>(rel_mask & RELMASK_MASK);
-            if (BranchPluginOfAPC_->JustUpdateValueOfMeta32(MetaIndexOfAPCNode::READY_REL_MASK, current_branch_rel_mask, next_mask))
+            if (SegmentIODefinitionPtr_->JustUpdateValueOfMeta32(MetaIndexOfAPCNode::READY_REL_MASK, current_branch_rel_mask, next_mask))
             {
                 return;
             }
@@ -330,7 +330,7 @@ namespace PredictedAdaptedEncoding
             return result;
         }
 
-        const auto maybe_current_region_bounds = BranchPluginOfAPC_->ReadLayoutBounds(region_kind);
+        const auto maybe_current_region_bounds = SegmentIODefinitionPtr_->ReadLayoutBounds(region_kind);
         if (!maybe_current_region_bounds.has_value() || maybe_current_region_bounds->GetPayloadSpan() == 0)
         {
             return result;
@@ -367,13 +367,13 @@ namespace PredictedAdaptedEncoding
                         BackingPtr[idx].notify_all();
                         OccupancyAddOrSubAndGetAfterChange(+1);
                         UpdateRegionRelMaskForIdx_(static_cast<tag8_t>(region_kind));
-                        BranchPluginOfAPC_->TouchLocalMetaClock48();
+                        SegmentIODefinitionPtr_->TouchLocalMetaClock48();
                         RefreshAPCMeta_();
                         result.ResultStatus = PublishStatus::OK;
                         result.Index = idx;
                         return result;
                     }
-                    BranchPluginOfAPC_->TotalCASFailForThisBranchIncreaseAndGet(1);
+                    SegmentIODefinitionPtr_->TotalCASFailForThisBranchIncreaseAndGet(1);
                 }
                 idx = current_region_bounds.BeginIndex + ((idx - current_region_bounds.BeginIndex + step) % region_capacity);
             }
@@ -386,6 +386,9 @@ namespace PredictedAdaptedEncoding
         result.ResultStatus = PublishStatus::FULL;
         return result;
     }
+
+
+
 
 
 

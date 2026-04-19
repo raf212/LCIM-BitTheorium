@@ -7,7 +7,7 @@ namespace PredictedAdaptedEncoding
 {
 
 
-class PackedCellBranchPlugin final
+class SegmentIODefinition final
 {
 public:
     static constexpr size_t METACELL_COUNT = PackedCell64_t::METACELL_COUNT_FIRST;
@@ -152,7 +152,7 @@ public:
         bool refresh_clock16 = true
     ) noexcept;
 
-    PackedCellBranchPlugin() noexcept = default;
+    SegmentIODefinition() noexcept = default;
 
     void BindBranchPluginToAPC(std::atomic<packed64_t>* packed_cells, size_t capacity, MasterClockConf* master_clock_ptr) noexcept
     {

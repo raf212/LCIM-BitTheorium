@@ -7,7 +7,7 @@
 
 #include "AdaptivePackedCellContainer/AtomicAdaptiveBackoff.hpp"
 #include "AdaptivePackedCellContainer/MasterClockConf.hpp"
-#include "AdaptivePackedCellContainer/PackedCellBranchPlugin.hpp"
+#include "AdaptivePackedCellContainer/SegmentIODefinition.hpp"
 #include "PackedCellContainerManager.hpp"
 #include "NodeInGraphView.h"
 #include "AdaptivePackedCellContainer/APCHElpers.hpp"
@@ -41,7 +41,7 @@ private:
     AtomicAdaptiveBackoff* AdaptiveBackoffOfAPCPtr_{nullptr};
     MasterClockConf* MasterClockConfPtr_{nullptr};
     PackedCellContainerManager* APCManagerPtr_{nullptr};
-    std::unique_ptr<PackedCellBranchPlugin> BranchPluginOfAPC_;
+    std::unique_ptr<SegmentIODefinition> SegmentIODefinitionPtr_;
     static inline std::atomic<uint32_t> GlobalBranchIdAlloc_{1};
     static inline thread_local PackedCellContainerManager::ThreadHandlePCCM  ThreadHandleAPCTL_ = {};
     
@@ -117,7 +117,7 @@ public:
     void InitAPCAsNode(
         size_t capacity,
         const ContainerConf& container_configuration,
-        PackedCellBranchPlugin::APCNodeComputeKind compute_kind = PackedCellBranchPlugin::APCNodeComputeKind::NONE,
+        SegmentIODefinition::APCNodeComputeKind compute_kind = SegmentIODefinition::APCNodeComputeKind::NONE,
         uint32_t aux_param_u32 = NO_VAL
 
     );
@@ -143,28 +143,28 @@ public:
 
     size_t OccupancyAddOrSubAndGetAfterChange(int delta = 0) noexcept;
 
-    PackedCellBranchPlugin* GetBranchPlugin() noexcept
+    SegmentIODefinition* GetBranchPlugin() noexcept
     {
-        return BranchPluginOfAPC_.get();
+        return SegmentIODefinitionPtr_.get();
     }
-    const PackedCellBranchPlugin* GetBranchPlugin() const noexcept
+    const SegmentIODefinition* GetBranchPlugin() const noexcept
     {
-        return BranchPluginOfAPC_.get();
+        return SegmentIODefinitionPtr_.get();
     }
 
     inline size_t GetPayloadCapacity() const noexcept
     {
-        return BranchPluginOfAPC_ ? BranchPluginOfAPC_->PayloadCapacityFromHeader() : NO_VAL;
+        return SegmentIODefinitionPtr_ ? SegmentIODefinitionPtr_->PayloadCapacityFromHeader() : NO_VAL;
     }
 
     inline size_t GetPayloadEnd() const noexcept
     {
-        return BranchPluginOfAPC_ ? BranchPluginOfAPC_->PayloadEndRead() : SIZE_MAX;
+        return SegmentIODefinitionPtr_ ? SegmentIODefinitionPtr_->PayloadEndRead() : SIZE_MAX;
     }
 
     static constexpr uint32_t PayloadBegin() noexcept
     {
-        return PackedCellBranchPlugin::METACELL_COUNT;
+        return SegmentIODefinition::METACELL_COUNT;
     }
     
     inline bool IfAPCBranchValid() const noexcept
@@ -178,7 +178,7 @@ public:
 
     uint32_t GetProducerCursorPlacement() noexcept
     {
-        return BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
+        return SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
     }
 
     bool UpdateProducerCursorPlacement(uint32_t new_cursor_placement_idx) noexcept
@@ -197,7 +197,7 @@ public:
 
     uint32_t GetConsumerCursorPlacement() noexcept
     {
-        return BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
+        return SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
     }
 
     bool UpdateConsumerCursorPlacement(uint32_t new_cursor_value) noexcept

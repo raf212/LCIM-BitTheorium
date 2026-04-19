@@ -163,35 +163,35 @@ int main()
     A.InitAPCAsNode(
         256,
         cfg,
-        PackedCellBranchPlugin::APCNodeComputeKind::GENERATOR_UINT32,
+        SegmentIODefinition::APCNodeComputeKind::GENERATOR_UINT32,
         NO_VAL
     );
 
     B.InitAPCAsNode(
         256,
         cfg,
-        PackedCellBranchPlugin::APCNodeComputeKind::SQUARE_UINT32,
+        SegmentIODefinition::APCNodeComputeKind::SQUARE_UINT32,
         NO_VAL
     );
 
     C.InitAPCAsNode(
         256,
         cfg,
-        PackedCellBranchPlugin::APCNodeComputeKind::ADD_UINT32,
+        SegmentIODefinition::APCNodeComputeKind::ADD_UINT32,
         NO_VAL
     );
 
     D.InitAPCAsNode(
         256,
         cfg,
-        PackedCellBranchPlugin::APCNodeComputeKind::DIV_UINT32,
+        SegmentIODefinition::APCNodeComputeKind::DIV_UINT32,
         NO_VAL
     );
 
     E.InitAPCAsNode(
         256,
         cfg,
-        PackedCellBranchPlugin::APCNodeComputeKind::GENERIC_VECTOR,
+        SegmentIODefinition::APCNodeComputeKind::GENERIC_VECTOR,
         NO_VAL
     );
 

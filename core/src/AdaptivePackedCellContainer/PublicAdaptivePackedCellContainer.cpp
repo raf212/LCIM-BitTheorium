@@ -8,27 +8,27 @@ namespace PredictedAdaptedEncoding
     
     uint32_t AdaptivePackedCellContainer::GetBranchId() const noexcept
     {
-        if (BranchPluginOfAPC_)
+        if (SegmentIODefinitionPtr_)
         {
-            return BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::BRANCH_ID);
+            return SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::BRANCH_ID);
         }
         return NO_VAL;
     }
 
     uint32_t AdaptivePackedCellContainer::GetLogicalId() const noexcept
     {
-        if (BranchPluginOfAPC_)
+        if (SegmentIODefinitionPtr_)
         {
-            return BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::LOGICAL_NODE_ID);
+            return SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::LOGICAL_NODE_ID);
         }
         return NO_VAL;
     }
 
     uint32_t AdaptivePackedCellContainer::GetSharedId() const noexcept
     {
-        if (BranchPluginOfAPC_)
+        if (SegmentIODefinitionPtr_)
         {
-            return BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::SHARED_ID);
+            return SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::SHARED_ID);
         }
         return NO_VAL;
     }
@@ -51,7 +51,7 @@ namespace PredictedAdaptedEncoding
         while (true)
         {
             uint32_t current_producer_cursor = GetProducerCursorPlacement();
-            if (current_producer_cursor == PackedCellBranchPlugin::BRANCH_SENTINAL || current_producer_cursor < PayloadBegin() || current_producer_cursor >= GetPayloadEnd())
+            if (current_producer_cursor == SegmentIODefinition::BRANCH_SENTINAL || current_producer_cursor < PayloadBegin() || current_producer_cursor >= GetPayloadEnd())
             {
                 current_producer_cursor = PayloadBegin();
             }
@@ -121,12 +121,12 @@ namespace PredictedAdaptedEncoding
             AdaptiveBackoffOfAPCPtr_ = nullptr;
             if (APCLogger_) APCLogger_("InitOwned", "Attach masterclock/backoff failed (non-fatal)");
         }
-        BranchPluginOfAPC_ = std::make_unique<PackedCellBranchPlugin>();
-        BranchPluginOfAPC_->BindBranchPluginToAPC(BackingPtr, container_capacity, MasterClockConfPtr_);
+        SegmentIODefinitionPtr_ = std::make_unique<SegmentIODefinition>();
+        SegmentIODefinitionPtr_->BindBranchPluginToAPC(BackingPtr, container_capacity, MasterClockConfPtr_);
         const uint32_t new_branch_id = GlobalBranchIdAlloc_.fetch_add(1, std::memory_order_acq_rel);
         const uint32_t logical_node_id = new_branch_id;
         const uint32_t shared_id = NO_VAL;
-        BranchPluginOfAPC_->InitRootOrChildBranch(
+        SegmentIODefinitionPtr_->InitRootOrChildBranch(
             new_branch_id,
             logical_node_id,
             shared_id,
@@ -148,15 +148,15 @@ namespace PredictedAdaptedEncoding
     void AdaptivePackedCellContainer::InitAPCAsNode(
         size_t capacity,
         const ContainerConf& container_configuration,
-        PackedCellBranchPlugin::APCNodeComputeKind compute_kind,
+        SegmentIODefinition::APCNodeComputeKind compute_kind,
         uint32_t aux_param_u32
     )
     {
         InitOwned(capacity, container_configuration);
-        if (BranchPluginOfAPC_)
+        if (SegmentIODefinitionPtr_)
         {
-            BranchPluginOfAPC_->InitNodeSemantics(compute_kind, aux_param_u32);
-            BranchPluginOfAPC_->SetGraphNodeFlag();
+            SegmentIODefinitionPtr_->InitNodeSemantics(compute_kind, aux_param_u32);
+            SegmentIODefinitionPtr_->SetGraphNodeFlag();
         }
     }
 
@@ -167,15 +167,15 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        uint32_t current_region_size = BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::REGION_SIZE);
-        bool ok = BranchPluginOfAPC_->JustUpdateValueOfMeta32(MetaIndexOfAPCNode::REGION_SIZE, current_region_size, static_cast<uint32_t>(region_size));
+        uint32_t current_region_size = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::REGION_SIZE);
+        bool ok = SegmentIODefinitionPtr_->JustUpdateValueOfMeta32(MetaIndexOfAPCNode::REGION_SIZE, current_region_size, static_cast<uint32_t>(region_size));
         if (!ok)
         {
             return;
         }
         size_t number_of_region = ((GetPayloadCapacity() + region_size - 1) / region_size);
-        uint32_t current_number_of_region = BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::REGION_COUNT);
-        ok = BranchPluginOfAPC_->JustUpdateValueOfMeta32(MetaIndexOfAPCNode::REGION_COUNT, current_number_of_region, static_cast<uint32_t>(number_of_region));
+        uint32_t current_number_of_region = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::REGION_COUNT);
+        ok = SegmentIODefinitionPtr_->JustUpdateValueOfMeta32(MetaIndexOfAPCNode::REGION_COUNT, current_number_of_region, static_cast<uint32_t>(number_of_region));
         if (!ok)
         {
             return;
@@ -223,11 +223,11 @@ namespace PredictedAdaptedEncoding
 
     size_t AdaptivePackedCellContainer::NextProducerSequence() noexcept
     {
-        if (!BranchPluginOfAPC_)
+        if (!SegmentIODefinitionPtr_)
         {
             return SIZE_MAX;
         }
-        size_t current_block_size = static_cast<size_t>(BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::PRODUCER_BLOCK_SIZE));
+        size_t current_block_size = static_cast<size_t>(SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::PRODUCER_BLOCK_SIZE));
         thread_local size_t block_base = 0;
         thread_local size_t block_left = 0;
         if (block_left == 0)
@@ -255,14 +255,14 @@ namespace PredictedAdaptedEncoding
             return;
         }
         
-        if (!BranchPluginOfAPC_->HasThisFlag(
-            PackedCellBranchPlugin::ControlEnumOfAPCSegment::ENABLE_BRANCHING
+        if (!SegmentIODefinitionPtr_->HasThisFlag(
+            SegmentIODefinition::ControlEnumOfAPCSegment::ENABLE_BRANCHING
         ))
         {
             return;
         }
 
-        if(!BranchPluginOfAPC_->ShouldSplitNow())
+        if(!SegmentIODefinitionPtr_->ShouldSplitNow())
         {
             return;
         }
@@ -279,7 +279,7 @@ namespace PredictedAdaptedEncoding
 
     AdaptivePackedCellContainer* PackedCellContainerManager::GetAPCPtrFromBranchId(uint32_t branch_id) noexcept
     {
-        if (branch_id == NO_VAL || branch_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
+        if (branch_id == NO_VAL || branch_id == SegmentIODefinition::BRANCH_SENTINAL)
         {
             return nullptr;
         }
@@ -303,22 +303,22 @@ namespace PredictedAdaptedEncoding
     
     size_t AdaptivePackedCellContainer::OccupancyAddOrSubAndGetAfterChange(int delta) noexcept
     {
-        if (!BranchPluginOfAPC_)
+        if (!SegmentIODefinitionPtr_)
         {
             return SIZE_MAX;
         }
 
         if (delta == 0)
         {
-            return static_cast<size_t>(BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT));
+            return static_cast<size_t>(SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT));
         }
         while (true)
         {
-            packed64_t current_occupancy_cell = BranchPluginOfAPC_->ReadFullMetaCell(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT);
+            packed64_t current_occupancy_cell = SegmentIODefinitionPtr_->ReadFullMetaCell(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT);
             val32_t current_occupancy = PackedCell64_t::ExtractValue32(current_occupancy_cell);
-            if (current_occupancy == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            if (current_occupancy == SegmentIODefinition::BRANCH_SENTINAL)
             {
-                return PackedCellBranchPlugin::BRANCH_SENTINAL;
+                return SegmentIODefinition::BRANCH_SENTINAL;
             }
             
             int64_t next_occupancy_winded = static_cast<int64_t>(current_occupancy) + static_cast<int64_t>(delta);
@@ -326,14 +326,14 @@ namespace PredictedAdaptedEncoding
             {
                 next_occupancy_winded = 0;
             }
-            constexpr int64_t high_val = static_cast<int64_t>(PackedCellBranchPlugin::BRANCH_SENTINAL - 1u);
+            constexpr int64_t high_val = static_cast<int64_t>(SegmentIODefinition::BRANCH_SENTINAL - 1u);
             if (next_occupancy_winded > high_val)
             {
                 next_occupancy_winded = high_val;
             }
             
             uint32_t next_occupancy = static_cast<uint32_t>(next_occupancy_winded);
-            if (BranchPluginOfAPC_->JustUpdateValueOfMeta32(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT, current_occupancy, next_occupancy))
+            if (SegmentIODefinitionPtr_->JustUpdateValueOfMeta32(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT, current_occupancy, next_occupancy))
             {
                 return static_cast<size_t>(next_occupancy);
             }
@@ -358,8 +358,8 @@ namespace PredictedAdaptedEncoding
         AdaptivePackedCellContainer* current_apc_ptr = this;
         while (current_apc_ptr)
         {
-            const uint32_t previous_id = BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::SHARED_PREVIOUS_ID);
-            if (previous_id == NO_VAL || previous_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            const uint32_t previous_id = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::SHARED_PREVIOUS_ID);
+            if (previous_id == NO_VAL || previous_id == SegmentIODefinition::BRANCH_SENTINAL)
             {
                 break;
             }
@@ -381,9 +381,9 @@ namespace PredictedAdaptedEncoding
             return nullptr;
         }
 
-        const uint32_t next_apc_id = BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::SHARED_NEXT_ID);
+        const uint32_t next_apc_id = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::SHARED_NEXT_ID);
 
-        if (next_apc_id == NO_VAL || next_apc_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
+        if (next_apc_id == NO_VAL || next_apc_id == SegmentIODefinition::BRANCH_SENTINAL)
         {
             return nullptr;
         }
@@ -407,9 +407,9 @@ namespace PredictedAdaptedEncoding
             {
                 break;
             }
-            PackedCellBranchPlugin* current_branch_plugin = current_apc_ptr->GetBranchPlugin();
+            SegmentIODefinition* current_branch_plugin = current_apc_ptr->GetBranchPlugin();
             uint32_t next_apc_id = current_branch_plugin->ReadMetaCellValue32(MetaIndexOfAPCNode::SHARED_NEXT_ID);
-            if (next_apc_id == NO_VAL || next_apc_id == PackedCellBranchPlugin::BRANCH_SENTINAL)
+            if (next_apc_id == NO_VAL || next_apc_id == SegmentIODefinition::BRANCH_SENTINAL)
             {
                 break;
             }
@@ -491,7 +491,7 @@ namespace PredictedAdaptedEncoding
             }
             curren_or_next_container_ptr = curren_or_next_container_ptr->GetNextSharedSegment();
         }
-        if (BranchPluginOfAPC_->ShouldSplitNow())
+        if (SegmentIODefinitionPtr_->ShouldSplitNow())
         {
             AdaptivePackedCellContainer* grown_apc = GrowSharedNodeByRegionKind(region_kind, true);
             if (grown_apc)
@@ -509,32 +509,32 @@ namespace PredictedAdaptedEncoding
             return nullptr;
         }
 
-        if (!BranchPluginOfAPC_->HasThisFlag(PackedCellBranchPlugin::ControlEnumOfAPCSegment::ENABLE_BRANCHING))
+        if (!SegmentIODefinitionPtr_->HasThisFlag(SegmentIODefinition::ControlEnumOfAPCSegment::ENABLE_BRANCHING))
         {
             return nullptr;
         }
 
-        if (!BranchPluginOfAPC_->TryMarkSplitInFlight())
+        if (!SegmentIODefinitionPtr_->TryMarkSplitInFlight())
         {
             return nullptr;
         }
 
         auto clear_flags = [&]() noexcept
         {
-            BranchPluginOfAPC_->ClearOneControlEnumFlagOfAPC(
-                PackedCellBranchPlugin::ControlEnumOfAPCSegment::SPLIT_INFLIGHT
+            SegmentIODefinitionPtr_->ClearOneControlEnumFlagOfAPC(
+                SegmentIODefinition::ControlEnumOfAPCSegment::SPLIT_INFLIGHT
             );
         };
         AdaptivePackedCellContainer* new_shared_container = nullptr;
         ContainerConf child_configuration{};
-        child_configuration.InitialMode = static_cast<PackedMode>(BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::DEFINED_MODE_OF_CURRENT_APC));
-        child_configuration.ProducerBlockSize = static_cast<size_t>(BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::PRODUCER_BLOCK_SIZE));
-        child_configuration.RegionSize = static_cast<size_t>(BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::REGION_SIZE));
-        child_configuration.RetireBatchThreshold = BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::RETIRE_BRANCH_THRASHOLD);
-        child_configuration.BackgroundEpochAdvanceMS = BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::BACKGROUND_EPOCH_ADVANCE_MS);
+        child_configuration.InitialMode = static_cast<PackedMode>(SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::DEFINED_MODE_OF_CURRENT_APC));
+        child_configuration.ProducerBlockSize = static_cast<size_t>(SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::PRODUCER_BLOCK_SIZE));
+        child_configuration.RegionSize = static_cast<size_t>(SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::REGION_SIZE));
+        child_configuration.RetireBatchThreshold = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::RETIRE_BRANCH_THRASHOLD);
+        child_configuration.BackgroundEpochAdvanceMS = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::BACKGROUND_EPOCH_ADVANCE_MS);
         child_configuration.EnableBranching = enable_recursive_branching;
-        child_configuration.BranchSplitThresholdPercentage = BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::SPLIT_THRESHOLD_PERCENTAGE);
-        child_configuration.BranchMaxDepth = BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::MAX_DEPTH);
+        child_configuration.BranchSplitThresholdPercentage = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::SPLIT_THRESHOLD_PERCENTAGE);
+        child_configuration.BranchMaxDepth = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::MAX_DEPTH);
         child_configuration.BranchMinChildCapacity = SuggestedChildCapacity_();
 
         try
@@ -555,7 +555,7 @@ namespace PredictedAdaptedEncoding
             return nullptr;
         }
         
-        PackedCellBranchPlugin* new_branch_plugin = new_shared_container->GetBranchPlugin();
+        SegmentIODefinition* new_branch_plugin = new_shared_container->GetBranchPlugin();
         if (!new_branch_plugin)
         {
             new_shared_container->FreeAll();
@@ -571,15 +571,15 @@ namespace PredictedAdaptedEncoding
         new_branch_plugin->InitLogicalNodeIdentity(this_logical_id, this_shared_id, false);
 
         new_branch_plugin->InitNodeSemantics(
-            static_cast<PackedCellBranchPlugin::APCNodeComputeKind>(BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::NODE_COMPUTE_KIND)),
-            BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::NODE_AUX_PARAM_U32)
+            static_cast<SegmentIODefinition::APCNodeComputeKind>(SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::NODE_COMPUTE_KIND)),
+            SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::NODE_AUX_PARAM_U32)
         );
 
         new_branch_plugin->SetSegmentRegionKind(desired_region_kind);
 
         const auto copy_meta = [&](MetaIndexOfAPCNode idx) noexcept
         {
-            const uint32_t original_value = BranchPluginOfAPC_->ReadMetaCellValue32(idx);
+            const uint32_t original_value = SegmentIODefinitionPtr_->ReadMetaCellValue32(idx);
             const uint32_t current_value = new_branch_plugin->ReadMetaCellValue32(idx);
             new_branch_plugin->JustUpdateValueOfMeta32(idx, current_value, original_value);
         };
@@ -617,10 +617,10 @@ namespace PredictedAdaptedEncoding
             return nullptr;
         }
 
-        const uint32_t current_group_size = BranchPluginOfAPC_->ReadMetaCellValue32(MetaIndexOfAPCNode::NODE_GROUP_SIZE);
+        const uint32_t current_group_size = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::NODE_GROUP_SIZE);
         uint32_t next_group_size = ((current_group_size == NO_VAL) ? 1 : current_group_size) + 1; 
 
-        BranchPluginOfAPC_->JustUpdateValueOfMeta32(
+        SegmentIODefinitionPtr_->JustUpdateValueOfMeta32(
             MetaIndexOfAPCNode::NODE_GROUP_SIZE,
             current_group_size,
             next_group_size

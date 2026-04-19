@@ -2,7 +2,7 @@
 #pragma once 
 #include <array>
 #include <utility>
-#include "PackedCell.hpp"
+#include "AtomicAdaptiveBackoff.hpp"
 
 namespace PredictedAdaptedEncoding
 {
@@ -396,9 +396,11 @@ namespace PredictedAdaptedEncoding
             return PackedCell64_t::ExtractPCellDataTypeFromPacked(packed_cell)  == PackedCellTypeBridge<PCDT>::DType;
         }
 
-        static bool DoseCellBelongsToThisPagedRegion(packed64_t packed_cell, APCPagedNodeRelMaskClasses region_kind) noexcept
+        static bool CanCellBeConsumedForThisRegion(packed64_t packed_cell, APCPagedNodeRelMaskClasses region_kind) noexcept
         {
-            return ExtractPagedRelMaskFromPacked(packed_cell) == region_kind;
+            return PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
+                ExtractPagedRelMaskFromPacked(packed_cell) == region_kind &&
+                static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell)) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
         }
 
         static packed64_t SetRelMaskForPagedNode(packed64_t packed_cell, APCPagedNodeRelMaskClasses rel_mask) noexcept

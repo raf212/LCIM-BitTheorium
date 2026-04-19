@@ -8,7 +8,7 @@
 #include "AtomicAdaptiveBackoff.hpp"
 #include "MasterClockConf.hpp"
 #include "SegmentIODefinition.hpp"
-#include "PackedCellContainerManager.hpp"
+#include "../PackedCellContainerManager.hpp"
 #include "APCHElpers.hpp"
 
 namespace PredictedAdaptedEncoding
@@ -137,8 +137,6 @@ public:
     uint32_t GetSharedId() const noexcept;
     size_t ReserveProducerSlots(size_t number_of_slots) noexcept;
     size_t NextProducerSequence() noexcept;
-
-    bool PublishToPort(APCPortSlot port_slot, packed64_t packed_cell, uint16_t max_tries = MAX_TRIES) noexcept;
 
     size_t OccupancyAddOrSubAndGetAfterChange(int delta = 0) noexcept;
 

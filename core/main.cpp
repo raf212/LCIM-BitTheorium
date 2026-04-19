@@ -88,7 +88,7 @@ namespace
 
 
     static bool PublishUntilSuccessOrBudgetEnd(
-        AdaptivePackedCellContainer& root,
+        APCSegmentsCausalCordinator& root,
         packed64_t packed_cell,
         PackedCellContainerManager& manager,
         std::atomic<uint64_t>* growth_counter,
@@ -117,7 +117,7 @@ namespace
 
     static void PrintNodeSummary(
         const char* name,
-        AdaptivePackedCellContainer& apc
+        APCSegmentsCausalCordinator& apc
     )
     {
         std::cout << name
@@ -148,11 +148,11 @@ int main()
     cfg.BranchMinChildCapacity = 256;
     cfg.NodeGroupSize = 1u;
 
-    AdaptivePackedCellContainer A;
-    AdaptivePackedCellContainer B;
-    AdaptivePackedCellContainer C;
-    AdaptivePackedCellContainer D;
-    AdaptivePackedCellContainer E;
+    APCSegmentsCausalCordinator A;
+    APCSegmentsCausalCordinator B;
+    APCSegmentsCausalCordinator C;
+    APCSegmentsCausalCordinator D;
+    APCSegmentsCausalCordinator E;
 
     A.SetManagerForGlobalAPC(&manager);
     B.SetManagerForGlobalAPC(&manager);

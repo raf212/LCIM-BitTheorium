@@ -267,11 +267,7 @@ namespace PredictedAdaptedEncoding
         {
             const size_t idx = current_region_bounds.BeginIndex + ((scan_cursor - current_region_bounds.BeginIndex + prob) % region_capacity);
             packed64_t current_cell = BackingPtr[idx].load(MoLoad_);
-            if (PackedCell64_t::ExtractLocalityFromPacked(current_cell) != PackedCellLocalityTypes::ST_PUBLISHED)
-            {
-                continue;
-            }
-            if (!APCAndPagedNodeHelpers::DoseCellBelongsToThisPagedRegion(current_cell, region_kind))
+            if (!APCAndPagedNodeHelpers::CanCellBeConsumedForThisRegion(current_cell, region_kind))
             {
                 continue;
             }

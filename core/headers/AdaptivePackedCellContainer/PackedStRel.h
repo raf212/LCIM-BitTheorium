@@ -39,7 +39,7 @@ namespace PredictedAdaptedEncoding {
     #define LN_OF_BYTE_IN_BITS 8u
     #define MASK_8_BIT  0xFFu
     #define ID_HASH_GOLDEN_CONST 0x9E3779B97F4A7C15ull 
-    #define DEFAULT_INTERNAL_PRIORITY 8u
+    #define DEFAULT_INTERNAL_PRIORITY 3u
     #define DEFAULT_PAIRED_HEAD_HALF_PRIORITY 10u
     #define MAX_TRIES 128
     #define SIZE_OF_MODE_48 6u // 6 * 8 = 48
@@ -128,6 +128,18 @@ namespace PredictedAdaptedEncoding {
         RELOFFSET_PURE_TIMER = 1,
         RELOFFSET_STANDALONE_PTR = 2,
         RESERVED = 3
+    };
+
+    enum class PriorityPhysics : tag8_t
+    {
+        IDLE = 0,
+        DEFAULT_PRIORITY = 1,
+        IMPORTANT = 2,
+        URGENT = 3,
+        HANDLE_NOW = 4,
+        STRUCTURAL_DEPENDENCY = 5,
+        TIME_DEPENDENCY = 6,
+        ERROR_DEPENDENCY = 7
     };
 
     template<typename PCDT>

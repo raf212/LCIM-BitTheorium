@@ -1,6 +1,5 @@
 #pragma once
-#include "AdaptivePackedCellContainer/APCHelpers.hpp"
-#include "AdaptivePackedCellContainer.hpp"
+#include "APCSegmentsCausalCordinator.hpp"
 
 namespace PredictedAdaptedEncoding
 {

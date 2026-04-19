@@ -1,4 +1,4 @@
-#include "AdaptivePackedCellContainer.hpp"
+#include "APCSegmentsCausalCordinator.hpp"
 #include "PackedCellContainerManager.hpp"
 #include <iostream>
 
@@ -121,7 +121,7 @@ namespace PredictedAdaptedEncoding
             AdaptiveBackoffOfAPCPtr_ = nullptr;
             if (APCLogger_) APCLogger_("InitOwned", "Attach masterclock/backoff failed (non-fatal)");
         }
-        SegmentIODefinitionPtr_ = std::make_unique<CausalSegmentController>();
+        SegmentIODefinitionPtr_ = std::make_unique<SegmentIODefinition>();
         SegmentIODefinitionPtr_->BindBranchPluginToAPC(BackingPtr, container_capacity, MasterClockConfPtr_);
         const uint32_t new_branch_id = GlobalBranchIdAlloc_.fetch_add(1, std::memory_order_acq_rel);
         const uint32_t logical_node_id = new_branch_id;

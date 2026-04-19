@@ -2,17 +2,16 @@
 #pragma once 
 #include <array>
 #include <utility>
-#include "PackedCell.hpp"
-#include "SegmentIODefinition.hpp"
+#include "AdaptivePackedCellContainer/AdaptivePackedCellContainer.hpp"
 
 namespace PredictedAdaptedEncoding
 {
 
-    class CausalSegmentController : public SegmentIODefinition
+    class APCSegmentsCausalCordinator : public AdaptivePackedCellContainer
     {
     public:
-        CausalSegmentController() noexcept = default;
-        ~CausalSegmentController() = default;
+        APCSegmentsCausalCordinator() noexcept = default;
+        ~APCSegmentsCausalCordinator() = default;
 
         bool TryUpdateLastAcceptedClock16ForRegion(APCPagedNodeRelMaskClasses region_kind, clk16_t new_clock16) noexcept;
         bool TryUpdateLastEmittedClock16ForRegion(APCPagedNodeRelMaskClasses region_kind, clk16_t new_clock16) noexcept;

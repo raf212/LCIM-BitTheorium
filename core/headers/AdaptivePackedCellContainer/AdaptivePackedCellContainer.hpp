@@ -37,8 +37,9 @@ public:
     };
     
 private:
+    Timer48 LocalTimer48_;
     AtomicAdaptiveBackoff* AdaptiveBackoffOfAPCPtr_{nullptr};
-    MasterClockConf* MasterClockConfPtr_{nullptr};
+    std::unique_ptr<MasterClockConf> OwnedMasterClockConfPtr_;
     PackedCellContainerManager* APCManagerPtr_{nullptr};
     std::unique_ptr<SegmentIODefinition> SegmentIODefinitionPtr_;
     static inline std::atomic<uint32_t> GlobalBranchIdAlloc_{1};

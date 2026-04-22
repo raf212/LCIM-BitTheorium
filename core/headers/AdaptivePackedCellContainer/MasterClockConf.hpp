@@ -75,7 +75,7 @@ class AdaptivePackedCellContainer;
             return GetImmidiateDownShiftedClock16(NowTicks48());
         }
 
-        inline void AttachCurrentThreadSegment() noexcept;
+        void AttachCurrentThreadSegment() noexcept;
 
         std::optional<uint64_t> ReconstructCellClock16toFull48BySegmentLocalClock48(size_t index_of_packed_cell) noexcept;
 

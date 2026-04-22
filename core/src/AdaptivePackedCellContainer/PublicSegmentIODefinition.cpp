@@ -580,8 +580,5 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    // bool SegmentIODefinition::TryAdvanceLastAcceptedClock16ForTheSegment(APCPagedNodeRelMaskClasses region_kind) noexcept;
-
-    // bool TryAdvanceLastEmittedClock16ForTheSegment(APCPagedNodeRelMaskClasses region_kind) noexcept;
 
 }

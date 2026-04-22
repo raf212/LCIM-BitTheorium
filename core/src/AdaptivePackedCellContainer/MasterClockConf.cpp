@@ -6,7 +6,7 @@ namespace PredictedAdaptedEncoding
     MasterClockConf::MasterClockConf(AdaptivePackedCellContainer* apc_ptr, Timer48& master_timer) noexcept :
         MasterTimer48_(master_timer), APCPtr_(apc_ptr)
     {
-        if (APCPtr_->IfAPCBranchValid())
+        if (APCPtr_ != nullptr && APCPtr_->IfAPCBranchValid())
         {
             SegmentIODefinitionPtr_ = APCPtr_->GetBranchPlugin();
         }
@@ -56,12 +56,14 @@ namespace PredictedAdaptedEncoding
         return provided_packed_cell;
     }
 
-    inline void MasterClockConf::AttachCurrentThreadSegment() noexcept
+    void MasterClockConf::AttachCurrentThreadSegment() noexcept
     {
-        if (APCPtr_)
+        if (APCPtr_ == nullptr)
         {
-            SegmentIODefinitionPtr_ = APCPtr_->GetBranchPlugin();
+            SegmentIODefinitionPtr_ = nullptr;
+            return;
         }
+        SegmentIODefinitionPtr_ = APCPtr_->GetBranchPlugin();
     }
 
 
@@ -99,11 +101,39 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    std::optional<uint64_t> MasterClockConf::ReconstructCellClock16toFull48BySegmentLocalClock48(size_t index_of_packed_cell) noexcept
+std::optional<uint64_t> MasterClockConf::ReconstructCellClock16toFull48BySegmentLocalClock48(
+    size_t index_of_packed_cell
+) noexcept
+{
+    if (APCPtr_ == nullptr || SegmentIODefinitionPtr_ == nullptr)
     {
-        (void) index_of_packed_cell;
-        return UINT64_MAX;
+        return std::nullopt;
     }
+
+    if (!APCPtr_->IfIndexValid(index_of_packed_cell))
+    {
+        return std::nullopt;
+    }
+
+    const packed64_t packed_cell = APCPtr_->BackingPtr[index_of_packed_cell].load(MoLoad_);
+    const clk16_t stored_clk16 = PackedCell64_t::ExtractClk16(packed_cell);
+
+    const packed64_t local_clock_cell =
+        SegmentIODefinitionPtr_->ReadFullMetaCell(MetaIndexOfAPCNode::LOCAL_CLOCK48);
+
+    const uint64_t local_clock48 = PackedCell64_t::ExtractClk48(local_clock_cell) & MaskBits(CLK_B48);
+
+    const uint64_t local_down = (local_clock48 >> TimerDownShift_) & MaskBits(CLK_B48);
+    uint64_t candidate_down = (local_down & ~uint64_t(0xFFFFu)) | static_cast<uint64_t>(stored_clk16);
+
+    if (candidate_down > local_down)
+    {
+        candidate_down -= (1ull << CLK_B16);
+    }
+
+    const uint64_t reconstructed = (candidate_down << TimerDownShift_) & MaskBits(CLK_B48);
+    return reconstructed;
+}
 
 
     bool MasterClockConf::TouchSegmentLocalClock48HighPriority() noexcept

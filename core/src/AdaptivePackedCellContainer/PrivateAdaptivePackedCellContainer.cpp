@@ -32,7 +32,7 @@ namespace PredictedAdaptedEncoding
 
     void AdaptivePackedCellContainer::FreeAll() noexcept
     {
-        if (!IfAPCBranchValid())
+        if (!BackingPtr && !IfAPCBranchValid() && !OwnedMasterClockConfPtr_)
         {
             return;
         }
@@ -46,10 +46,10 @@ namespace PredictedAdaptedEncoding
 
         }
         AdaptiveBackoffOfAPCPtr_ = nullptr;
-        MasterClockConfPtr_ = nullptr;        
+        OwnedMasterClockConfPtr_.reset();   
         if (BackingPtr)
         {
-            if (SegmentIODefinitionPtr_->IsBranchOwnedByFlag())
+            if (SegmentIODefinitionPtr_ && SegmentIODefinitionPtr_->IsBranchOwnedByFlag())
             {
                 SegmentIODefinitionPtr_->ReleseOwneshipFlag();
                 delete[] BackingPtr;
@@ -60,8 +60,10 @@ namespace PredictedAdaptedEncoding
         RegionRelArray_.reset();
         RegionEpochArray_.reset();
         RelBitmaps_.clear();
-        SegmentIODefinitionPtr_->ReleseOwneshipFlag();
-        SegmentIODefinitionPtr_.reset();
+        if (SegmentIODefinitionPtr_)
+        {
+            SegmentIODefinitionPtr_.reset();
+        }        
     }
 
     void PackedCellContainerManager::ProcessRemainingWorkOfAPC_(NodeOfAdaptivePackedCellContainer_* batch_head_apc_ptr, uint64_t min_epoch) noexcept
@@ -113,7 +115,7 @@ namespace PredictedAdaptedEncoding
         {
             SegmentIODefinitionPtr_->ClearOneControlEnumFlagOfAPC(SegmentIODefinition::ControlEnumOfAPCSegment::SATURATED);
         }
-        if (MasterClockConfPtr_)
+        if (OwnedMasterClockConfPtr_)
         {
             SegmentIODefinitionPtr_->TouchLocalMetaClock48();
         }

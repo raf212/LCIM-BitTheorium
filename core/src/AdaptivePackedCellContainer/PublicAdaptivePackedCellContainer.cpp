@@ -107,21 +107,36 @@ namespace PredictedAdaptedEncoding
         {
             BackingPtr[i].store(idle_cell, MoStoreUnSeq_);
         }
-        
-        // attach manager-provided master clock and adaptive backoff only after allocations succeed
-        try {
-            AdaptiveBackoffOfAPCPtr_ = &PackedCellContainerManager::Instance().GetManagersAdaptiveBackoff();
-            if (AdaptiveBackoffOfAPCPtr_ && MasterClockConfPtr_) {
-                AdaptiveBackoffOfAPCPtr_->AttachMasterClockToAadaptiveBackOff(MasterClockConfPtr_);
+
+        try
+        {
+            if (APCManagerPtr_)
+            {
+                APCManagerPtr_->StartAPCManager();
+                AdaptiveBackoffOfAPCPtr_ = &APCManagerPtr_->GetManagersAdaptiveBackoff();
             }
-        } catch (...) {
-            // best-effort; do not throw for integration issues
-            MasterClockConfPtr_ = nullptr;
+            else
+            {
+                AdaptiveBackoffOfAPCPtr_ = nullptr;
+            }
+            OwnedMasterClockConfPtr_ = std::make_unique<MasterClockConf>(this, LocalTimer48_);
+            if (AdaptiveBackoffOfAPCPtr_ && OwnedMasterClockConfPtr_)
+            {
+                AdaptiveBackoffOfAPCPtr_->AttachMasterClockToAadaptiveBackOff(OwnedMasterClockConfPtr_.get());
+            }
+        }
+        catch(...)
+        {
             AdaptiveBackoffOfAPCPtr_ = nullptr;
-            if (APCLogger_) APCLogger_("InitOwned", "Attach masterclock/backoff failed (non-fatal)");
+            OwnedMasterClockConfPtr_.reset();
         }
         SegmentIODefinitionPtr_ = std::make_unique<SegmentIODefinition>();
-        SegmentIODefinitionPtr_->BindBranchPluginToAPC(BackingPtr, container_capacity, MasterClockConfPtr_);
+        SegmentIODefinitionPtr_->BindBranchPluginToAPC(BackingPtr, container_capacity, OwnedMasterClockConfPtr_.get());
+        if (OwnedMasterClockConfPtr_)
+        {
+            OwnedMasterClockConfPtr_->AttachCurrentThreadSegment();
+        }
+        
         const uint32_t new_branch_id = GlobalBranchIdAlloc_.fetch_add(1, std::memory_order_acq_rel);
         const uint32_t logical_node_id = new_branch_id;
         const uint32_t shared_id = NO_VAL;

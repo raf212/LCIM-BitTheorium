@@ -342,7 +342,7 @@ int main()
                 }
 
                 packed64_t in = 0;
-                auto maybe_in = B.ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses::FREE_SLOT, scan_cursor);
+                auto maybe_in = B.ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE, scan_cursor);
 
                 if (!maybe_in)
                 {
@@ -421,7 +421,7 @@ int main()
                 }
 
                 packed64_t in = 0;
-                auto maybe_in = C.ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses::FREE_SLOT, scan_cursor);
+                auto maybe_in = C.ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE, scan_cursor);
                 if (!maybe_in)
                 {
                     if (total_done_C.load(std::memory_order_acquire) >= VALUE_COUNT &&
@@ -501,7 +501,7 @@ int main()
                 }
 
                 packed64_t in = 0;
-                auto maybe_in = D.ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses::FREE_SLOT, scan_cursor);
+                auto maybe_in = D.ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE, scan_cursor);
 
                 if (!maybe_in)
                 {

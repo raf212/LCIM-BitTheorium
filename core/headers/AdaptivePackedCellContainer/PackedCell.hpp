@@ -1,7 +1,6 @@
 #pragma once
 
 #include "PackedStRel.h"
-#define MINIMUM_SLEEP_THRASHOLD_US 8
 namespace PredictedAdaptedEncoding
 {
 // #define PC_MODE_V32 0u

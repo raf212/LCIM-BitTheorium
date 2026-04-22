@@ -137,6 +137,8 @@ int main()
 
     PackedCellContainerManager& manager = PackedCellContainerManager::Instance();
     manager.StartAPCManager();
+    Timer48 master_timer;
+    MasterClockConf master_clock_conf(nullptr, master_timer);
 
     ContainerConf cfg;
     cfg.InitialMode = PackedMode::MODE_VALUE32;
@@ -223,7 +225,7 @@ int main()
 
             for (uint32_t i = producer_id + 1; i <= VALUE_COUNT; i += PRODUCER_COUNT)
             {
-                packed64_t cell = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(i, REL_NONE, PriorityPhysics::IDLE);
+                packed64_t cell = master_clock_conf.ComposeValue32WithCurrentThreadStamp16(i, APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE);
 
                 if (PublishUntilSuccessOrBudgetEnd(
                         A,
@@ -261,7 +263,7 @@ int main()
                 }
 
                 packed64_t in = 0;
-                auto maybe_in = A.ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses::FREE_SLOT, scan_cursor);
+                auto maybe_in = A.ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE, scan_cursor);
                 
                 if (!maybe_in)
                 {
@@ -301,7 +303,7 @@ int main()
 
                 const uint32_t x = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(in);
                 const uint32_t y = x * x;
-                packed64_t out = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(y, REL_NONE, PriorityPhysics::IDLE);
+                packed64_t out = master_clock_conf.ComposeValue32WithCurrentThreadStamp16(y, APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE);
 
                 if (PublishUntilSuccessOrBudgetEnd(
                         B,
@@ -380,7 +382,7 @@ int main()
 
                 const uint32_t x = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(in);
                 const uint32_t y = x + 1u;
-                packed64_t out = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(y, REL_PAGE, PriorityPhysics::IDLE);
+                packed64_t out = master_clock_conf.ComposeValue32WithCurrentThreadStamp16(y, APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE);
 
                 if (PublishUntilSuccessOrBudgetEnd(
                         C,
@@ -459,10 +461,8 @@ int main()
                 const uint32_t x = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(in);
                 const float y = static_cast<float>(x) * D_MULTIPLIER;
                 uint32_t unsigned_casted_float_y = BitCastMaybe<uint32_t>(y);
-                packed64_t out = manager.GetMasterClockAdaptivePackedCellContainerManager().ComposeValue32WithCurrentThreadStamp16(
-                    unsigned_casted_float_y, REL_NONE, PriorityPhysics::IDLE, 
-                    PackedCellLocalityTypes::ST_PUBLISHED, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, PackedCellDataType::FloatPCellDataType
-                );
+                packed64_t out = master_clock_conf.ComposeValue32WithCurrentThreadStamp16(
+                    unsigned_casted_float_y, APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE, PriorityPhysics::IDLE, PackedCellLocalityTypes ::ST_PUBLISHED, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, PackedCellDataType::FloatPCellDataType);
 
                 if (PublishUntilSuccessOrBudgetEnd(
                         D,

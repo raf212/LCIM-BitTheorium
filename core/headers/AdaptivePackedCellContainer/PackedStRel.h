@@ -134,26 +134,8 @@ namespace PredictedAdaptedEncoding {
         ERROR_DEPENDENCY = 7
     };
 
-    enum class APCPagedNodeRelMaskClasses : tag8_t
-    {
-        NONE = 0x0,
-        FEEDFORWARD_MESSAGE  = 0x1,
-        FEEDBACKWARD_MESSAGE = 0x2,
-        LATERAL_MESAGE = 0x3,
-        STATE_SLOT = 0x4,
-        ERROR_SLOT = 0x5,
-        EDGE_DESCRIPTOR = 0x6,
-        WEIGHT_SLOT = 0x7,
-        CONTROL_SLOT = 0x8,
-        AUX_SLOT = 0x9,
-        FREE_SLOT = 0xA,
-        SELF_REFARANCE = 0xB,
-        CLOCK_PURE_TIME = 0xC,
-        RESERVED_14     = 0xD,
-        COMPLEX_STORAGE = 0xE,
-        NANNULL     = 0xF
-    };
-    
+
+
     template<typename PCDT>
     struct PackedCellTypeBridge
     {

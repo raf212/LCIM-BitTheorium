@@ -3,17 +3,11 @@
 
 #include "PackedCell.hpp"
 #include "PackedStRel.h"
+#include "APCHelpers.hpp"
 #include "MasterClockConf.hpp"
 
 namespace PredictedAdaptedEncoding
 {
-
-
-#define BURNCYCLE_THRESHOLD 4
-#define PAUSE_THRESHOLD 16
-#define YIELD_THRESHOLD 48
-
-
 
 static inline void CpuRelaxHint()
 {
@@ -23,8 +17,6 @@ static inline void CpuRelaxHint()
     __asm__ __volatile__("pause" ::: "memory");
 #endif
 }
-
-
 
 struct SpinBackoff
 {

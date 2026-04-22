@@ -2,6 +2,7 @@
 #pragma once 
 namespace PredictedAdaptedEncoding
 {
+    //packedCell
     #define NO_VAL 0u
     #define ZERO_PRIORITY 0u
     #define MAX_VAL 64u
@@ -12,7 +13,7 @@ namespace PredictedAdaptedEncoding
     #define DEFAULT_PAIRED_HEAD_HALF_PRIORITY 10u
     #define MAX_TRIES 128
     #define SIZE_OF_MODE_48 6u // 6 * 8 = 48
-    //
+    //runtime
     #define MIN_PRODUCER_BLOCK_SIZE 96
     #define MIN_REGION_SIZE 4
     #define MIN_RETIRE_BATCH_THRESHOLD 16
@@ -35,5 +36,11 @@ namespace PredictedAdaptedEncoding
     #define MAX_TIMER_DOWNSHIFT 14
     #define A_BILLION 1000000000ull
     #define THRESHHOLD_64BIT 1e-12
+    //AtomicAdaptiveBackoff
+    #define BURNCYCLE_THRESHOLD 4
+    #define PAUSE_THRESHOLD 16
+    #define YIELD_THRESHOLD 48
+    #define MINIMUM_SLEEP_THRASHOLD_US 8
+
 
 }

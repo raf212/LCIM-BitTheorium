@@ -1,6 +1,5 @@
 #pragma once 
 #include "PackedCell.hpp"
-#include "AtomicAdaptiveBackoff.hpp"
 #include "APCHelpers.hpp"
 
 
@@ -23,6 +22,7 @@ class AdaptivePackedCellContainer;
             return ns_count & MaskBits(CLK_B48);
         }
     };
+
     class MasterClockConf final
     {
     private:
@@ -67,7 +67,7 @@ class AdaptivePackedCellContainer;
 
         inline clk16_t GetImmidiateDownShiftedClock16(uint64_t now_ticks48) const noexcept
         {
-            return static_cast<clk16_t>((now_ticks48 >> TimerDownShift_) && MaskBits(CLK_B16));
+            return static_cast<clk16_t>((now_ticks48 >> TimerDownShift_) & MaskBits(CLK_B16));
         }
 
         inline clk16_t NowClock16() const noexcept

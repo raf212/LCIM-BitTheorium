@@ -293,7 +293,7 @@ namespace PredictedAdaptedEncoding
             OccupancyAddOrSubAndGetAfterChange(-1);
             RefreshAPCMeta_();
             scan_cursor = idx + 1;
-            if (scan_cursor >= current_region_bounds.BeginIndex)
+            if (scan_cursor >= current_region_bounds.EndIndex)
             {
                 scan_cursor = current_region_bounds.BeginIndex;
             }
@@ -302,16 +302,25 @@ namespace PredictedAdaptedEncoding
         return std::nullopt;
     }
 
-    void AdaptivePackedCellContainer::UpdateRegionRelMaskForIdx_(tag8_t rel_mask) noexcept
+    void AdaptivePackedCellContainer::UpdateRegionRelMaskForIdx_(APCPagedNodeRelMaskClasses rel_mask) noexcept
     {
         if (!IfAPCBranchValid())
+        {
+            return;
+        }
+        const uint32_t ready_bit = APCAndPagedNodeHelpers::ReadyBitForRelClass(rel_mask);
+        if (ready_bit == 0)
         {
             return;
         }
         while (true)
         {
             val32_t current_branch_rel_mask = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::READY_REL_MASK);
-            uint32_t next_mask = current_branch_rel_mask | static_cast<uint32_t>(rel_mask & RELMASK_MASK);
+            uint32_t next_mask = current_branch_rel_mask | ready_bit;
+            if (next_mask == current_branch_rel_mask)
+            {
+                return;
+            }
             if (SegmentIODefinitionPtr_->JustUpdateValueOfMeta32(MetaIndexOfAPCNode::READY_REL_MASK, current_branch_rel_mask, next_mask))
             {
                 return;
@@ -351,7 +360,7 @@ namespace PredictedAdaptedEncoding
             }
 
             size_t idx = current_region_bounds.BeginIndex + ((next_sequense - PayloadBegin()) % region_capacity);
-            const size_t step = 1u + ((next_sequense * ID_HASH_GOLDEN_CONST) % ((region_capacity > MIN_REGION_SIZE) ? (region_capacity - 1) : MIN_REGION_SIZE));
+            const size_t step = MakeProbeStepCoPrime_(next_sequense * ID_HASH_GOLDEN_CONST, region_capacity);
             for (size_t prob = 0; prob < region_capacity; prob++)
             {
                 packed64_t current_cell = BackingPtr[idx].load(MoLoad_);
@@ -364,7 +373,7 @@ namespace PredictedAdaptedEncoding
                         BackingPtr[idx].store(PackedCell64_t::SetLocalityInPacked(packed_cell, PackedCellLocalityTypes::ST_PUBLISHED));
                         BackingPtr[idx].notify_all();
                         OccupancyAddOrSubAndGetAfterChange(+1);
-                        UpdateRegionRelMaskForIdx_(static_cast<tag8_t>(region_kind));
+                        UpdateRegionRelMaskForIdx_(region_kind);
                         SegmentIODefinitionPtr_->TouchLocalMetaClock48();
                         RefreshAPCMeta_();
                         result.ResultStatus = PublishStatus::OK;
@@ -383,6 +392,35 @@ namespace PredictedAdaptedEncoding
         }
         result.ResultStatus = PublishStatus::FULL;
         return result;
+    }
+
+    size_t AdaptivePackedCellContainer::FindGreatestCommonDivisor_(size_t a, size_t b) noexcept
+    {
+        while (b != 0)
+        {
+            const size_t modulo = a % b;
+            a = b;
+            b = modulo;
+        }
+        return a;
+    }
+
+    size_t AdaptivePackedCellContainer::MakeProbeStepCoPrime_(size_t seed, size_t region_capacity) const noexcept
+    {
+        if (region_capacity <= 1)
+        {
+            return 1;
+        }
+        size_t step = 1u + (seed % (region_capacity - 1u));
+        while (FindGreatestCommonDivisor_(step, region_capacity) != 1u)
+        {
+            ++step;
+            if (step >= region_capacity)
+            {
+                step = 1u;
+            }
+        }
+        return step;
     }
 
 

@@ -66,7 +66,10 @@ private:
 
     PublishResult TryPublishToRegionLocal_(APCPagedNodeRelMaskClasses region_kind, packed64_t packed_cell, bool force_rel_mask = true, uint16_t max_tries = MAX_TRIES) noexcept;
 
-    void UpdateRegionRelMaskForIdx_(tag8_t rel_mask) noexcept;
+    void UpdateRegionRelMaskForIdx_(APCPagedNodeRelMaskClasses rel_mask) noexcept;
+
+    static size_t FindGreatestCommonDivisor_(size_t a, size_t b) noexcept;
+    size_t MakeProbeStepCoPrime_(size_t seed, size_t region_capacity) const noexcept;
 
     inline bool IfValidPayloadIndex_(size_t idx) const noexcept
     {

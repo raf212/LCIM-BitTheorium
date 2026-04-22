@@ -353,6 +353,8 @@ namespace PredictedAdaptedEncoding
 
     struct APCAndPagedNodeHelpers
     {
+        static constexpr uint8_t HIGH_FOUR_NIBBLE = 0x0Fu;
+
         static inline bool INewerClock16(clk16_t candidate, clk16_t baseline) noexcept
         {
             if (candidate == baseline)
@@ -395,6 +397,22 @@ namespace PredictedAdaptedEncoding
         {
             return PackedCell64_t::SetRelMaskInPacked(packed_cell, static_cast<tag8_t>(rel_mask));
         }
+
+        static constexpr uint32_t ReadyBitForRelClass(APCPagedNodeRelMaskClasses desired_rel_class) noexcept
+        {
+            const uint32_t rel_class = static_cast<uint8_t>(desired_rel_class) & HIGH_FOUR_NIBBLE;
+            if (rel_class == static_cast<uint8_t>(APCPagedNodeRelMaskClasses::NONE) || rel_class == static_cast<uint8_t>(APCPagedNodeRelMaskClasses::NANNULL))
+            {
+                return NO_VAL;
+            }
+            return (1u << rel_class);
+        }
+
+        static constexpr uint32_t ReadyRelationBitMapForPackedCell(packed64_t packed_cell) noexcept
+        {
+            return ReadyBitForRelClass(ExtractPagedRelMaskFromPacked(packed_cell));
+        }
+
 
         // static packed64_t PackValue32withAPCPageNodeClasses(val32_t value32, APCPagedNodeRelMaskClasses rel_mask, PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
         //                     MasterClockConf* master_clock_ptr = nullptr ,PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType, PriorityPhysics priority = PriorityPhysics::IDLE,

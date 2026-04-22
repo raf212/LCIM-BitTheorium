@@ -210,24 +210,26 @@ namespace PredictedAdaptedEncoding
         {
             size_t base = region * region_size;
             size_t end = std::min(GetPayloadCapacity(), base + region_size);
-            tag8_t accum = 0;
+
+            uint32_t accum_ready_bits = NO_VAL;
             for (size_t i = base; i < end; i++)
             {
                 const size_t absolute_idx = PayloadBegin() + i;
-                accum |= PackedCell64_t::ExtractFullRelFromPacked(BackingPtr[absolute_idx].load(MoLoad_));
+                const packed64_t current_cell = BackingPtr[absolute_idx].load(MoLoad_);
+                accum_ready_bits |= APCAndPagedNodeHelpers::ReadyRelationBitMapForPackedCell(current_cell);
             }
-            RegionRelArray_[region].store(accum, MoStoreSeq_);
-            if (accum)
+            RegionRelArray_[region].store(static_cast<uint8_t>(accum_ready_bits & APCAndPagedNodeHelpers::HIGH_FOUR_NIBBLE), MoStoreSeq_);
+            if (accum_ready_bits)
             {
-                size_t w = region / MAX_VAL;
-                size_t b = region % MAX_VAL;
-                uint64_t mask = (1ull << b);
+                const size_t width = region / MAX_VAL;
+                const size_t bound = region % MAX_VAL;
+                const uint64_t region_presence_mask = (1ull << bound);
                 for (unsigned bit = 0; bit < LN_OF_BYTE_IN_BITS; bit++)
                 {
-                    if (accum & (1u << bit))
+                    if (accum_ready_bits & (1u << bit))
                     {
-                        std::atomic_ref<uint64_t>aref(RelBitmaps_[bit][w]);
-                        aref.fetch_or(mask, std::memory_order_acq_rel);
+                        std::atomic_ref<uint64_t>aref(RelBitmaps_[bit][width]);
+                        aref.fetch_or(region_presence_mask, std::memory_order_acq_rel);
                     }
                 }
             }
@@ -236,27 +238,41 @@ namespace PredictedAdaptedEncoding
 
     size_t AdaptivePackedCellContainer::NextProducerSequence() noexcept
     {
-        if (!SegmentIODefinitionPtr_)
+        if (!IfAPCBranchValid())
         {
             return SIZE_MAX;
         }
-        size_t current_block_size = static_cast<size_t>(SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::PRODUCER_BLOCK_SIZE));
-        thread_local size_t block_base = 0;
-        thread_local size_t block_left = 0;
-        if (block_left == 0)
+
+        struct ProducerBlockCacheTLS
         {
-            size_t block = std::min<size_t>(current_block_size, GetPayloadCapacity());
-            size_t base = ReserveProducerSlots(block);
+            const AdaptivePackedCellContainer* OwnerOfNode = nullptr;
+            size_t BlockBase = 0;
+            size_t BlockLeft = 0;
+        };
+
+        thread_local ProducerBlockCacheTLS cache{};
+        if (cache.OwnerOfNode != this)
+        {
+            cache.OwnerOfNode = this;
+            cache.BlockBase = 0;
+            cache.BlockLeft = 0;
+        }
+
+        const size_t current_block_size = static_cast<size_t>(SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::PRODUCER_BLOCK_SIZE));
+        if (cache.BlockLeft == 0)
+        {
+            const size_t block = std::min<size_t>(current_block_size, GetPayloadCapacity());
+            const size_t base = ReserveProducerSlots(block);
             if (base == SIZE_MAX)
             {
                 return SIZE_MAX;
             }
-            block_base = base;
-            block_left = block;
+            cache.BlockBase = base;
+            cache.BlockLeft = block;
         }
-        size_t seq = block_base++;
-        --block_left;
-        return seq;
+        const size_t sequence = cache.BlockBase++;
+        --cache.BlockLeft;
+        return sequence;
     }
 
 
@@ -371,6 +387,15 @@ namespace PredictedAdaptedEncoding
         AdaptivePackedCellContainer* current_apc_ptr = this;
         while (current_apc_ptr)
         {
+            if (!current_apc_ptr->IfAPCBranchValid())
+            {
+                break;
+            }
+            SegmentIODefinition* current_segment_io = current_apc_ptr->GetBranchPlugin();
+            if (!current_segment_io)
+            {
+                break;
+            }
             const uint32_t previous_id = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::SHARED_PREVIOUS_ID);
             if (previous_id == NO_VAL || previous_id == SegmentIODefinition::BRANCH_SENTINAL)
             {

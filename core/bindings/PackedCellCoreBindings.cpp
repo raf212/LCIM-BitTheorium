@@ -228,17 +228,17 @@ PYBIND11_MODULE(atomiccim_bind, m) {
     // -------------------------
     // MasterClockConf
     // -------------------------
-    py::class_<MasterClockConf>(m, "MasterClockConf")
-        .def(py::init<Timer48&, int>(), py::arg("timer48"), py::arg("used_node") = 0)
-        .def("init_master_clock_slots", &MasterClockConf::InitMasterClockSlots, py::arg("max_slots"), py::arg("alignment") = 64)
-        .def("free_master_clock_slots", &MasterClockConf::FreeMasterClockSlots)
-        .def("register_master_clock_slot", [](MasterClockConf &self, uint64_t given_init_clk, std::optional<size_t> m_id_opt) -> py::size_t {
-            size_t id = (m_id_opt.has_value()) ? self.ResetAndRegisterMasterClockSlot(static_cast<packed64_t>(given_init_clk), m_id_opt.value()) : self.ResetAndRegisterMasterClockSlot(static_cast<packed64_t>(given_init_clk));
-            return id;
-        }, py::arg("given_init_clk") = 0, py::arg("m_id") = std::optional<size_t>{})
-        .def("attach_thread_mclock_id", &MasterClockConf::AttachThreadMClockID)
-        .def("read_master_clock_packed", &MasterClockConf::ReadMasterClockPacked)
-        .def_readwrite("UsedNode", &MasterClockConf::UsedNode);
+    // py::class_<MasterClockConf>(m, "MasterClockConf")
+    //     .def(py::init<Timer48&, int>(), py::arg("timer48"), py::arg("used_node") = 0)
+    //     .def("init_master_clock_slots", &MasterClockConf::InitMasterClockSlots, py::arg("max_slots"), py::arg("alignment") = 64)
+    //     .def("free_master_clock_slots", &MasterClockConf::FreeMasterClockSlots)
+    //     .def("register_master_clock_slot", [](MasterClockConf &self, uint64_t given_init_clk, std::optional<size_t> m_id_opt) -> py::size_t {
+    //         size_t id = (m_id_opt.has_value()) ? self.ResetAndRegisterMasterClockSlot(static_cast<packed64_t>(given_init_clk), m_id_opt.value()) : self.ResetAndRegisterMasterClockSlot(static_cast<packed64_t>(given_init_clk));
+    //         return id;
+    //     }, py::arg("given_init_clk") = 0, py::arg("m_id") = std::optional<size_t>{})
+    //     .def("attach_thread_mclock_id", &MasterClockConf::AttachThreadMClockID)
+    //     .def("read_master_clock_packed", &MasterClockConf::ReadMasterClockPacked)
+    //     .def_readwrite("UsedNode", &MasterClockConf::UsedNode);
 
     //PackedCellContainer
     py::enum_<PublishStatus>(m, "PublishStatus")

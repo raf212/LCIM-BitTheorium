@@ -235,14 +235,6 @@ public:
         return APCManagerPtr_;
     }
 
-    MasterClockConf* GetMasterClockPtrForThisAPC() noexcept
-    {
-        if (!APCManagerPtr_)
-        {
-            return nullptr;
-        }
-        return (APCManagerPtr_->GetMasterClockAdaptivePackedCellContainerManager().GetMasterClockPtr());
-    }
 
     //Paired Pointer functions-- have to separate into a class or struct for better use and update 
     PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;

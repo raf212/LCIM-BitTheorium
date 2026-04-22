@@ -6,24 +6,6 @@
 
 namespace PredictedAdaptedEncoding
 {
-
-    #define MIN_PRODUCER_BLOCK_SIZE 96
-    #define MIN_REGION_SIZE 4
-    #define MIN_RETIRE_BATCH_THRESHOLD 16
-    #define MIN_BACKGROUND_EPOCH_MS 50
-    #define INITIAL_BRANCH_SPLIT_THRESHOLD_PERCENTAGE 70
-    #define MINIMUM_BRANCH_CAPACITY 128
-    #define MAX_BRANCH_DEPTH 10
-    //default Rel Class percentage
-    #define FEEDFOEWARD_PERCENTAGE 8u
-    #define FEEDBACKWARD_PERCENTAGE 6u
-    #define STATESLOT_PERCENTAGE 8u
-    #define ERRORSLOT_PERCENTAGE 6u
-    #define EDGEDESCRIPTOR_PERCENTAGE 7u
-    #define WEIGHTSLOT_PERCENTAGE 7u
-    #define AUXSLOT_PERCENTAGE 3u
-    #define FREE_PERCENTAGE 55u
-
     enum class MetaIndexOfAPCNode : size_t
     {
         //identity
@@ -110,26 +92,6 @@ namespace PredictedAdaptedEncoding
 
         RESERVED_63 = 63,
         EOF_APC_HEADER = 95
-    };
-
-    enum class APCPagedNodeRelMaskClasses : tag8_t
-    {
-        NONE = 0x0,
-        FEEDFORWARD_MESSAGE  = 0x1,
-        FEEDBACKWARD_MESSAGE = 0x2,
-        LATERAL_MESAGE = 0x3,
-        STATE_SLOT = 0x4,
-        ERROR_SLOT = 0x5,
-        EDGE_DESCRIPTOR = 0x6,
-        WEIGHT_SLOT = 0x7,
-        CONTROL_SLOT = 0x8,
-        AUX_SLOT = 0x9,
-        FREE_SLOT = 0xA,
-        SELF_REFARANCE = 0xB,
-        CLOCK_PURE_TIME = 0xC,
-        RESERVED_14     = 0xD,
-        COMPLEX_STORAGE = 0xE,
-        NANNULL     = 0xF
     };
 
 
@@ -373,6 +335,15 @@ namespace PredictedAdaptedEncoding
 
     struct APCAndPagedNodeHelpers
     {
+        static inline bool INewerClock16(clk16_t candidate, clk16_t baseline) noexcept
+        {
+            if (candidate == baseline)
+            {
+                return false;
+            }
+            return static_cast<uint16_t>(candidate - baseline) < HALF16Bit_THRESHOLD_WRAP;
+            
+        }
         static APCPagedNodeRelMaskClasses ExtractPagedRelMaskFromPacked (packed64_t packed_cell) noexcept
         {
             return static_cast<APCPagedNodeRelMaskClasses>(PackedCell64_t::ExtractRelMaskFromPacked(packed_cell));
@@ -407,30 +378,30 @@ namespace PredictedAdaptedEncoding
             return PackedCell64_t::SetRelMaskInPacked(packed_cell, static_cast<tag8_t>(rel_mask));
         }
 
-        static packed64_t PackValue32withAPCPageNodeClasses(val32_t value32, APCPagedNodeRelMaskClasses rel_mask, PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
-                            MasterClockConf* master_clock_ptr = nullptr ,PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType, PriorityPhysics priority = PriorityPhysics::IDLE,
-                            RelOffsetMode32 rel_offset = RelOffsetMode32::RELOFFSET_GENERIC_VALUE, clk16_t clock16 = NO_VAL) noexcept
-        {
-            packed64_t desired = 0;
-            if (master_clock_ptr)
-            {
-                desired = master_clock_ptr->ComposeValue32WithCurrentThreadStamp16(
-                    value32,
-                    static_cast<tag8_t>(rel_mask),
-                    priority,
-                    locality,
-                    rel_offset,
-                    dtype
-                );
-            }
-            else
-            {
-                desired = PackedCell64_t::ComposeValue32u_64(value32, clock16, 
-                        MakeSTRLMode32_t(priority, locality, static_cast<tag8_t>(rel_mask), rel_offset, dtype)
-                    );
-            }
-            return desired;
-            }
+        // static packed64_t PackValue32withAPCPageNodeClasses(val32_t value32, APCPagedNodeRelMaskClasses rel_mask, PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
+        //                     MasterClockConf* master_clock_ptr = nullptr ,PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType, PriorityPhysics priority = PriorityPhysics::IDLE,
+        //                     RelOffsetMode32 rel_offset = RelOffsetMode32::RELOFFSET_GENERIC_VALUE, clk16_t clock16 = NO_VAL) noexcept
+        // {
+        //     packed64_t desired = 0;
+        //     if (master_clock_ptr)
+        //     {
+        //         desired = master_clock_ptr->ComposeValue32WithCurrentThreadStamp16(
+        //             value32,
+        //             static_cast<tag8_t>(rel_mask),
+        //             priority,
+        //             locality,
+        //             rel_offset,
+        //             dtype
+        //         );
+        //     }
+        //     else
+        //     {
+        //         desired = PackedCell64_t::ComposeValue32u_64(value32, clock16, 
+        //                 MakeSTRLMode32_t(priority, locality, static_cast<tag8_t>(rel_mask), rel_offset, dtype)
+        //             );
+        //     }
+        //     return desired;
+        // }
     };
     
 

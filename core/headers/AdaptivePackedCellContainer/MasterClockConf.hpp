@@ -6,26 +6,23 @@
 
 namespace PredictedAdaptedEncoding
 {
-#define HALF16Bit_THRESHOLD_WRAP 0x8000u
-#define MIN_TIMER_DOWNSHIFT 6
-#define MAX_TIMER_DOWNSHIFT 14
-#define A_BILLION 1000000000ull
+enum class APCPagedNodeRelMaskClasses : tag8_t;
 
 class SegmentIODefinition;
 class AdaptivePackedCellContainer;
 
-struct Timer48
-{
-    uint64_t TicksPerSec_ = A_BILLION;
-
-    inline uint64_t NowTicks() const noexcept
+    struct Timer48
     {
-        using  cns = std::chrono::nanoseconds;
-        auto d = std::chrono::steady_clock::now().time_since_epoch();
-        uint64_t ns_count = static_cast<uint64_t>(std::chrono::duration_cast<cns>(d).count());
-        return ns_count & MaskBits(CLK_B48);
-    }
-};
+        uint64_t TicksPerSec_ = A_BILLION;
+
+        inline uint64_t NowTicks() const noexcept
+        {
+            using  cns = std::chrono::nanoseconds;
+            auto d = std::chrono::steady_clock::now().time_since_epoch();
+            uint64_t ns_count = static_cast<uint64_t>(std::chrono::duration_cast<cns>(d).count());
+            return ns_count & MaskBits(CLK_B48);
+        }
+    };
     class MasterClockConf final
     {
     private:
@@ -34,16 +31,12 @@ struct Timer48
         SegmentIODefinition* SegmentIODefinitionPtr_ = nullptr;
         AdaptivePackedCellContainer* APCPtr_ = nullptr;
     public:
-        explicit MasterClockConf(AdaptivePackedCellContainer* apc_ptr, Timer48& master_timer) noexcept :
-            MasterTimer48_(master_timer), APCPtr_(apc_ptr)
-        {
-        }
+        explicit MasterClockConf(AdaptivePackedCellContainer* apc_ptr, Timer48& master_timer) noexcept;
         MasterClockConf(const MasterClockConf&) = delete;
         MasterClockConf& operator = (const MasterClockConf&) = delete;
         MasterClockConf(MasterClockConf&&) = delete;
         MasterClockConf& operator = (MasterClockConf&&) = delete;
         ~MasterClockConf() noexcept = default;
-        MasterClockConf& operator = (MasterClockConf&& other) noexcept = delete;
 
         packed64_t RefreshPackedCellClockOnly(
             packed64_t provided_packed_cell,
@@ -58,6 +51,8 @@ struct Timer48
         ) noexcept;
 
         bool TouchSegmentLocalClock48HighPriority() noexcept;
+
+        bool TryAdvanceSegmentsLastAcceptedClock(APCPagedNodeRelMaskClasses desired_rel_class) noexcept;
 
 
         MasterClockConf* GetMasterClockConfPtr() noexcept
@@ -80,16 +75,10 @@ struct Timer48
             return GetImmidiateDownShiftedClock16(NowTicks48());
         }
 
-        inline uint8_t SetAndGetTimerDownShift(unsigned down_shift_value = NO_VAL) noexcept
-        {
-            if (down_shift_value >= MIN_TIMER_DOWNSHIFT && down_shift_value <= MAX_TIMER_DOWNSHIFT)
-            {
-                TimerDownShift_ = down_shift_value;
-            }
-            return static_cast<uint8_t>(TimerDownShift_);
-        }
-
         inline void AttachCurrentThreadSegment() noexcept;
+
+        std::optional<uint64_t> ReconstructCellClock16toFull48BySegmentLocalClock48(size_t index_of_packed_cell) noexcept;
+
 
 
         inline SegmentIODefinition* GETAttachedTLSAPCSegmentIO() const noexcept
@@ -125,9 +114,16 @@ struct Timer48
             return PackedCell64_t::ComposeCLK48u_64(full_clock48, strl_for_pure48_clock);
         }
 
+        inline uint8_t SetAndGetTimerDownShift(unsigned down_shift_value = NO_VAL) noexcept
+        {
+            if (down_shift_value >= MIN_TIMER_DOWNSHIFT && down_shift_value <= MAX_TIMER_DOWNSHIFT)
+            {
+                TimerDownShift_ = down_shift_value;
+            }
+            return static_cast<uint8_t>(TimerDownShift_);
+        }
 
     };
-    
     
 
 

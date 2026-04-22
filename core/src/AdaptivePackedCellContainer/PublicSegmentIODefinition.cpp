@@ -15,15 +15,13 @@ namespace PredictedAdaptedEncoding
         return PackedCell64_t::ExtractValue32(PackedCellContainerPtr_[index].load(MoLoad_));
     }
 
-    void SegmentIODefinition::TouchLocalMetaClock48(packed64_t* updated_full_clock_cell_easy_return_ptr) noexcept
+    void SegmentIODefinition::TouchLocalMetaClock48() noexcept
     {
         if (!MasterClockConfPtr_)
         {
             return;
         }
-        MasterClockConfPtr_->TouchAtomicPackedCellClockForCurrentThread(
-            PackedCellContainerPtr_[static_cast<size_t>(MetaIndexOfAPCNode::LOCAL_CLOCK48)], updated_full_clock_cell_easy_return_ptr
-        );
+        MasterClockConfPtr_->TouchSegmentLocalClock48HighPriority();
     }
 
     packed64_t SegmentIODefinition::PackPureClock48AsPackedCell(
@@ -42,11 +40,7 @@ namespace PredictedAdaptedEncoding
         
         if (MasterClockConfPtr_)
         {
-            size_t master_clock_slot_id = MasterClockConfPtr_->EnsureOrAssignThreadIdForMasterClock();
-            if (master_clock_slot_id != SIZE_MAX)
-            {
-                return MasterClockConfPtr_->ComposeClockCell48WithMasterClock(master_clock_slot_id, clock48, rel_mask, priority, locality, reloffset, dtype);
-            }
+            return MasterClockConfPtr_->ComposePureClockCell48();
         }
         
         strl16_t strl_clock48 = MakeStrl4ForMode48_t(priority, locality, rel_mask, reloffset, dtype);
@@ -93,12 +87,7 @@ namespace PredictedAdaptedEncoding
         if (refresh_clock16 && MasterClockConfPtr_)
         {
             desired_packed = MasterClockConfPtr_->ComposeValue32WithCurrentThreadStamp16(
-                desired_value,
-                PackedCell64_t::ExtractRelMaskFromPacked(expected_packed),
-                PackedCell64_t::ExtractPriorityFromPacked(expected_packed),
-                PackedCell64_t::ExtractLocalityFromPacked(expected_packed),
-                static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(expected_packed)),
-                PackedCell64_t::ExtractPCellDataTypeFromPacked(expected_packed)
+                desired_value
             );
         }
         

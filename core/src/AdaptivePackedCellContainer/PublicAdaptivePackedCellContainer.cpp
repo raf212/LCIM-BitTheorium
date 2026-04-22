@@ -110,7 +110,6 @@ namespace PredictedAdaptedEncoding
         
         // attach manager-provided master clock and adaptive backoff only after allocations succeed
         try {
-            MasterClockConfPtr_ = &PackedCellContainerManager::Instance().GetMasterClockAdaptivePackedCellContainerManager();
             AdaptiveBackoffOfAPCPtr_ = &PackedCellContainerManager::Instance().GetManagersAdaptiveBackoff();
             if (AdaptiveBackoffOfAPCPtr_ && MasterClockConfPtr_) {
                 AdaptiveBackoffOfAPCPtr_->AttachMasterClockToAadaptiveBackOff(MasterClockConfPtr_);

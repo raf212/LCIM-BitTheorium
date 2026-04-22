@@ -49,10 +49,6 @@ namespace PredictedAdaptedEncoding
 
             uint64_t ComputeMinThreadEpoch() const noexcept;
 
-            MasterClockConf& GetMasterClockAdaptivePackedCellContainerManager() noexcept
-            {
-                return MasterClockConfAPCManager_;
-            }
 
             AtomicAdaptiveBackoff& GetManagersAdaptiveBackoff() noexcept
             {
@@ -112,7 +108,6 @@ namespace PredictedAdaptedEncoding
             std::atomic<uint64_t>GlobalEpoch_{1};
 
             Timer48 Timer48APCManager_;
-            MasterClockConf MasterClockConfAPCManager_;
             AtomicAdaptiveBackoff AdaptiveBackOffOfAPCManager_;
             std::atomic<size_t> UnregistersSinceCompact_{0};
             size_t CompactionTriggerThreshold_ = 1024;

@@ -9,7 +9,6 @@ namespace PredictedAdaptedEncoding
         ThreadNextIdxPtr_(new std::atomic<size_t>[ThreadTableCapacity_]),
         ThreadEpochArrayPtr_(new std::atomic<uint64_t>[ThreadTableCapacity_]),
         ThreadWaitSlotArrayPtr_(new std::atomic<uint64_t>[ThreadTableCapacity_]),
-        MasterClockConfAPCManager_(Timer48APCManager_, 0),
         AdaptiveBackOffOfAPCManager_(AtomicAdaptiveBackoff::PCBCfg{}, PackedMode::MODE_VALUE32)
     {
         for (size_t i = 0; i < ThreadTableCapacity_; i++)

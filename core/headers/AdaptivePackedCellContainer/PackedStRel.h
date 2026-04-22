@@ -18,6 +18,7 @@
 #include <stdexcept>
 #include <memory>
 #include <bit>
+#include "Defination.h"
 
 #if defined(_MSC_VER)
     #include <intrin.h>
@@ -33,16 +34,7 @@ namespace PredictedAdaptedEncoding {
     using tag8_t     = uint8_t;
     using strl16_t   = uint16_t;
 
-    #define NO_VAL 0u
-    #define ZERO_PRIORITY 0u
-    #define MAX_VAL 64u
-    #define LN_OF_BYTE_IN_BITS 8u
-    #define MASK_8_BIT  0xFFu
-    #define ID_HASH_GOLDEN_CONST 0x9E3779B97F4A7C15ull 
-    #define DEFAULT_INTERNAL_PRIORITY 3u
-    #define DEFAULT_PAIRED_HEAD_HALF_PRIORITY 10u
-    #define MAX_TRIES 128
-    #define SIZE_OF_MODE_48 6u // 6 * 8 = 48
+
 
     static constexpr ::std::memory_order MoLoad_      = ::std::memory_order_acquire;
     static constexpr ::std::memory_order MoStoreSeq_  = ::std::memory_order_release;
@@ -142,6 +134,26 @@ namespace PredictedAdaptedEncoding {
         ERROR_DEPENDENCY = 7
     };
 
+    enum class APCPagedNodeRelMaskClasses : tag8_t
+    {
+        NONE = 0x0,
+        FEEDFORWARD_MESSAGE  = 0x1,
+        FEEDBACKWARD_MESSAGE = 0x2,
+        LATERAL_MESAGE = 0x3,
+        STATE_SLOT = 0x4,
+        ERROR_SLOT = 0x5,
+        EDGE_DESCRIPTOR = 0x6,
+        WEIGHT_SLOT = 0x7,
+        CONTROL_SLOT = 0x8,
+        AUX_SLOT = 0x9,
+        FREE_SLOT = 0xA,
+        SELF_REFARANCE = 0xB,
+        CLOCK_PURE_TIME = 0xC,
+        RESERVED_14     = 0xD,
+        COMPLEX_STORAGE = 0xE,
+        NANNULL     = 0xF
+    };
+    
     template<typename PCDT>
     struct PackedCellTypeBridge
     {

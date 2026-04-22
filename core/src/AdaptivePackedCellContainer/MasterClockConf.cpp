@@ -3,7 +3,7 @@
 namespace PredictedAdaptedEncoding
 {
 
-    explicit MasterClockConf::MasterClockConf(AdaptivePackedCellContainer* apc_ptr, Timer48& master_timer) noexcept :
+    MasterClockConf::MasterClockConf(AdaptivePackedCellContainer* apc_ptr, Timer48& master_timer) noexcept :
         MasterTimer48_(master_timer), APCPtr_(apc_ptr)
     {
         if (APCPtr_->IfAPCBranchValid())
@@ -99,6 +99,13 @@ namespace PredictedAdaptedEncoding
         }
     }
 
+    std::optional<uint64_t> MasterClockConf::ReconstructCellClock16toFull48BySegmentLocalClock48(size_t index_of_packed_cell) noexcept
+    {
+        (void) index_of_packed_cell;
+        return UINT64_MAX;
+    }
+
+
     bool MasterClockConf::TouchSegmentLocalClock48HighPriority() noexcept
     {
         if (!APCPtr_ || !SegmentIODefinitionPtr_)
@@ -110,5 +117,43 @@ namespace PredictedAdaptedEncoding
         APCPtr_->BackingPtr[static_cast<size_t>(MetaIndexOfAPCNode::LOCAL_CLOCK48)].notify_all();
         return true;
     }
+
+    bool MasterClockConf::TryAdvanceSegmentsLastAcceptedClock(APCPagedNodeRelMaskClasses desired_rel_class) noexcept
+    {
+        if (!APCPtr_ || !SegmentIODefinitionPtr_)
+        {
+            return false;
+        }
+        MetaIndexOfAPCNode idx = MetaIndexOfAPCNode::VERSION;
+        if (desired_rel_class == APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
+        {
+            idx = MetaIndexOfAPCNode::LAST_ACCEPTED_FEED_FORWARD_CLOCK16;
+        }
+        else if(desired_rel_class == APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE)
+        {
+            idx = MetaIndexOfAPCNode::LAST_ACCEPTED_FEED_BACKWARD_CLOCK16;
+        }
+        else
+        {
+            return false;
+        }
+        clk16_t candidate_clock16 = NowClock16();
+        while (true)
+        {
+            uint32_t current32 = SegmentIODefinitionPtr_->ReadMetaCellValue32(idx);
+            const clk16_t current_segment_clock16 = static_cast<clk16_t>(current32);
+            if (!APCAndPagedNodeHelpers::INewerClock16(candidate_clock16, current_segment_clock16))
+            {
+                return true;
+            }
+            if (SegmentIODefinitionPtr_->JustUpdateValueOfMeta32(idx, current32, static_cast<uint32_t>(candidate_clock16), false))
+            {
+                return true;
+            }
+            
+        }
+        
+    }
+
 
 }

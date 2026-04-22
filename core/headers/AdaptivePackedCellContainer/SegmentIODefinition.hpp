@@ -82,7 +82,7 @@ private:
     {
         if (MasterClockConfPtr_)
         {
-            return MasterClockConfPtr_->ComposeValue32WithCurrentThreadStamp16(value32, rel_mask, priority, locality, reloffset_mode32, dtype);
+            return MasterClockConfPtr_->ComposeValue32WithCurrentThreadStamp16(value32);
         }
         strl16_t strl_moded32 = MakeSTRLMode32_t(priority, locality, rel_mask, reloffset_mode32, dtype);
         return PackedCell64_t::ComposeValue32u_64(value32, NO_VAL, strl_moded32);
@@ -201,7 +201,7 @@ public:
 
     val32_t ReadMetaCellValue32(MetaIndexOfAPCNode idx) noexcept;
 
-    void TouchLocalMetaClock48(packed64_t* updated_full_clock_cell_easy_return_ptr = nullptr) noexcept;
+    void TouchLocalMetaClock48() noexcept;
 
     bool TryIncrementOrDecrementActiveThreadCount(int8_t change_count) noexcept;
 

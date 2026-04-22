@@ -119,8 +119,12 @@ namespace PredictedAdaptedEncoding
             {
                 AdaptiveBackoffOfAPCPtr_ = nullptr;
             }
+            SegmentIODefinitionPtr_ = std::make_unique<SegmentIODefinition>();
+            SegmentIODefinitionPtr_->BindBranchPluginToAPC(BackingPtr, container_capacity, nullptr);
             OwnedMasterClockConfPtr_ = std::make_unique<MasterClockConf>(this, LocalTimer48_);
-            if (AdaptiveBackoffOfAPCPtr_ && OwnedMasterClockConfPtr_)
+            SegmentIODefinitionPtr_->SetMasterClockPtr(OwnedMasterClockConfPtr_.get());
+            OwnedMasterClockConfPtr_->AttachCurrentThreadSegment();
+            if (AdaptiveBackoffOfAPCPtr_ )
             {
                 AdaptiveBackoffOfAPCPtr_->AttachMasterClockToAadaptiveBackOff(OwnedMasterClockConfPtr_.get());
             }
@@ -129,12 +133,7 @@ namespace PredictedAdaptedEncoding
         {
             AdaptiveBackoffOfAPCPtr_ = nullptr;
             OwnedMasterClockConfPtr_.reset();
-        }
-        SegmentIODefinitionPtr_ = std::make_unique<SegmentIODefinition>();
-        SegmentIODefinitionPtr_->BindBranchPluginToAPC(BackingPtr, container_capacity, OwnedMasterClockConfPtr_.get());
-        if (OwnedMasterClockConfPtr_)
-        {
-            OwnedMasterClockConfPtr_->AttachCurrentThreadSegment();
+            SegmentIODefinitionPtr_.reset();
         }
         
         const uint32_t new_branch_id = GlobalBranchIdAlloc_.fetch_add(1, std::memory_order_acq_rel);

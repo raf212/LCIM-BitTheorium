@@ -75,16 +75,16 @@ private:
         val32_t value32,
         PriorityPhysics priority,
         PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
-        tag8_t rel_mask = REL_NONE,
+        APCPagedNodeRelMaskClasses rel_mask = APCPagedNodeRelMaskClasses::NONE,
         RelOffsetMode32 reloffset_mode32 = RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
         PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType
     ) noexcept
     {
         if (MasterClockConfPtr_)
         {
-            return MasterClockConfPtr_->ComposeValue32WithCurrentThreadStamp16(value32);
+            return MasterClockConfPtr_->ComposeValue32WithCurrentThreadStamp16(value32, rel_mask, priority, locality, reloffset_mode32, dtype);
         }
-        strl16_t strl_moded32 = MakeSTRLMode32_t(priority, locality, rel_mask, reloffset_mode32, dtype);
+        strl16_t strl_moded32 = MakeSTRLMode32_t(priority, locality, static_cast<tag8_t>(rel_mask), reloffset_mode32, dtype);
         return PackedCell64_t::ComposeValue32u_64(value32, NO_VAL, strl_moded32);
     }
 
@@ -92,7 +92,7 @@ private:
         MetaIndexOfAPCNode idx,
         uint32_t value32,
         PriorityPhysics priority = PriorityPhysics::IDLE,
-        tag8_t rel_mask4 = REL_MASK4_NONE
+        APCPagedNodeRelMaskClasses rel_mask4 = APCPagedNodeRelMaskClasses::CONTROL_SLOT
     ) noexcept
     {
         size_t index = static_cast<size_t>(idx);
@@ -223,11 +223,12 @@ public:
 
     clk16_t ReadLastAcceptedClok16ForThisSegment(APCPagedNodeRelMaskClasses region_kind) noexcept;
     clk16_t ReadLastEmittedClok16ForThisSegment(APCPagedNodeRelMaskClasses region_kind) noexcept;
-    bool TryAdvanceLastAcceptedClock16ForTheSegment(APCPagedNodeRelMaskClasses region_kind) noexcept;
-    bool TryAdvanceLastEmittedClock16ForTheSegment(APCPagedNodeRelMaskClasses region_kind) noexcept;
 
-
-
+    void SetMasterClockPtr(MasterClockConf* master_clock_ptr) noexcept
+    {
+        MasterClockConfPtr_ = master_clock_ptr;
+    }
+    
     uint32_t ForceOccupancyUpdateAndReturn(uint32_t new_occupancy) noexcept
     {
         WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT, new_occupancy);

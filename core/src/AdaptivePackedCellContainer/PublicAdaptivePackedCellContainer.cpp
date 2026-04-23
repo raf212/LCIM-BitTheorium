@@ -378,7 +378,7 @@ namespace PredictedAdaptedEncoding
                 break;
             }
             AdaptivePackedCellContainer* previous_apc_ptr = APCManagerPtr_->GetAPCPtrFromBranchId(previous_id);
-            if (!previous_apc_ptr || previous_apc_ptr == current_apc_ptr)
+            if (!previous_apc_ptr || previous_apc_ptr == current_apc_ptr || !previous_apc_ptr->IfAPCBranchValid())
             {
                 break;
             }
@@ -401,7 +401,12 @@ namespace PredictedAdaptedEncoding
         {
             return nullptr;
         }
-        return APCManagerPtr_->GetAPCPtrFromBranchId(next_apc_id);
+        AdaptivePackedCellContainer* next_apc_ptr = APCManagerPtr_->GetAPCPtrFromBranchId(next_apc_id);
+        if (!next_apc_ptr || next_apc_ptr == this)
+        {
+            return nullptr;
+        }
+        return next_apc_ptr;
     }
 
     bool AdaptivePackedCellContainer::IsAPCSharedChainEmpty() noexcept
@@ -461,22 +466,31 @@ namespace PredictedAdaptedEncoding
 
     std::optional<packed64_t> AdaptivePackedCellContainer::ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept
     {
-        auto maybe_packed_cell = TryConsumeAndIdleFromRegionLocal_(region_kind, scan_cursor);
-        if (maybe_packed_cell)
+        if (!IfAPCBranchValid())
         {
-            return *maybe_packed_cell;
+            return std::nullopt;
         }
-
-        AdaptivePackedCellContainer* current_apc = GetNextSharedSegment();
-        while (current_apc)
+        AdaptivePackedCellContainer* root_apc_ptr = FindSharedRootOrThis();
+        if (!root_apc_ptr)
         {
-            size_t sibling_cursor = PayloadBegin();
-            auto maybe_shared_packed_cell = current_apc->TryConsumeAndIdleFromRegionLocal_(region_kind, sibling_cursor);
-            if (maybe_shared_packed_cell)
+            return std::nullopt;
+        }
+        AdaptivePackedCellContainer* current_apc_ptr = root_apc_ptr;
+        bool first = true;
+        while (current_apc_ptr)
+        {
+            size_t local_cursor = first ? scan_cursor : PayloadBegin();
+            auto maybe_cell = current_apc_ptr->TryConsumeAndIdleFromRegionLocal_(region_kind, local_cursor);
+            if (maybe_cell)
             {
-                return *maybe_shared_packed_cell;
+                if (first)
+                {
+                    scan_cursor = local_cursor;
+                }
+                return *maybe_cell;
             }
-            current_apc = current_apc->GetNextSharedSegment();
+            current_apc_ptr = current_apc_ptr->GetNextSharedSegment();
+            first = false;
         }
         return std::nullopt;
     }
@@ -597,7 +611,15 @@ namespace PredictedAdaptedEncoding
         
         SegmentIODefinition* new_child_Segment_io_ptr = new_child_segment_ptr->GetBranchPlugin();
 
-        const uint32_t new_child_branch_id = GetBranchId();
+        const uint32_t new_child_branch_id = new_child_segment_ptr->GetBranchId();
+        if (new_child_branch_id == NO_VAL || new_child_branch_id == SegmentIODefinition::BRANCH_SENTINAL || new_child_branch_id == root_branch_id)
+        {
+            new_child_segment_ptr->FreeAll();
+            delete new_child_segment_ptr;
+            ClearSplitFlag();
+            return nullptr;
+        }
+        
         new_child_Segment_io_ptr->InitRootOrChildBranch(
             new_child_branch_id,
             root_logical_id,

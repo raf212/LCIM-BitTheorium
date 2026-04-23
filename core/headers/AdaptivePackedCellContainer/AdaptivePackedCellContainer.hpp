@@ -71,6 +71,10 @@ private:
     static size_t FindGreatestCommonDivisor_(size_t a, size_t b) noexcept;
     size_t MakeProbeStepCoPrime_(size_t seed, size_t region_capacity) const noexcept;
 
+    bool RebuildSharedChainSegmentMetatdataFromRoot_() noexcept;
+
+    bool RebuildRegionIndexFromPayload_() noexcept;
+
     inline bool IfValidPayloadIndex_(size_t idx) const noexcept
     {
         return (BackingPtr && idx >= PayloadBegin() && idx < GetPayloadEnd());

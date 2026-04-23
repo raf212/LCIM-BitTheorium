@@ -267,11 +267,6 @@ public:
         return HasThisFlag(ControlEnumOfAPCSegment::IS_GRAPH_NODE);
     }
 
-    uint32_t ReadCapacity() noexcept
-    {
-        return ReadMetaCellValue32(MetaIndexOfAPCNode::CAPACITY);
-    }
-
     uint32_t PayloadEndRead() noexcept
     {
         return ReadMetaCellValue32(MetaIndexOfAPCNode::PAYLOAD_END);

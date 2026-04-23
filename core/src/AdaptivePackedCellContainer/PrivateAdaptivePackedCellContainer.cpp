@@ -315,8 +315,8 @@ namespace PredictedAdaptedEncoding
         }
         while (true)
         {
-            val32_t current_branch_rel_mask = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::READY_REL_MASK);
-            uint32_t next_mask = current_branch_rel_mask | ready_bit;
+            const val32_t current_branch_rel_mask = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::READY_REL_MASK);
+            const uint32_t next_mask = current_branch_rel_mask | ready_bit;
             if (next_mask == current_branch_rel_mask)
             {
                 return;
@@ -421,6 +421,72 @@ namespace PredictedAdaptedEncoding
             }
         }
         return step;
+    }
+
+    bool AdaptivePackedCellContainer::RebuildRegionIndexFromPayload_() noexcept
+    {
+        if (!IfAPCBranchValid())
+        {
+            return false;
+        }
+        const size_t region_size = static_cast<size_t>(SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::REGION_SIZE));
+        if (region_size == 0)
+        {
+            RegionRelArray_.reset();
+            RegionEpochArray_.reset();
+            RelBitmaps_.clear();
+            return true;
+        }
+
+        const size_t number_of_regions = (GetPayloadCapacity() + region_size - 1u) / region_size;
+        RegionRelArray_.reset(new std::atomic<uint8_t>[number_of_regions]);
+        RegionEpochArray_.reset(new std::atomic<uint64_t>[number_of_regions]);
+        const size_t words = (number_of_regions + MAX_VAL - 1) / MAX_VAL;
+        RelBitmaps_.assign(APCAndPagedNodeHelpers::SIZE_OF_APCPagedNodeRelMaskClasses, std::vector<uint64_t>(words, 0ull));
+        uint32_t global_ready_mask = NO_VAL;
+        for (size_t region = 0; region < number_of_regions; region++)
+        {
+            const size_t base = region * region_size;
+            const size_t capacity_end = std::min(GetPayloadCapacity(), base + region_size);
+            uint32_t region_ready_mask = NO_VAL;
+            uint64_t region_epoch = NO_VAL;
+            for (size_t i = base; i < capacity_end; i++)
+            {
+                const size_t absolute_idx = PayloadBegin() + i;
+                const packed64_t absolute_packed_cell = BackingPtr[absolute_idx].load(MoLoad_);
+                if (PackedCell64_t::ExtractLocalityFromPacked(absolute_packed_cell) != PackedCellLocalityTypes::ST_PUBLISHED)
+                {
+                    continue;
+                }
+                const APCPagedNodeRelMaskClasses absolute_cell_relation_mask = APCAndPagedNodeHelpers::ExtractPagedRelMaskFromPacked(absolute_packed_cell);
+                region_ready_mask |= APCAndPagedNodeHelpers::ReadyBitForRelClass(absolute_cell_relation_mask);
+                region_epoch = std::max<uint64_t>(region_epoch, PackedCell64_t::ExtractClk16(absolute_packed_cell));
+                RegionRelArray_[region].store(static_cast<uint8_t>(region_ready_mask & APCAndPagedNodeHelpers::HIGH_ALL_EIGHT_NIBBLE), MoStoreSeq_);
+                RegionEpochArray_[region].store(region_epoch, MoStoreSeq_);
+                global_ready_mask |= region_ready_mask;
+                if (region_ready_mask != NO_VAL)
+                {
+                    const size_t word = region / MAX_VAL;
+                    const size_t bit = region % MAX_VAL;
+                    const uint64_t region_mask = (1ull << bit);
+                    for (unsigned rel_class = 0; rel_class < APCAndPagedNodeHelpers::SIZE_OF_APCPagedNodeRelMaskClasses; i++)
+                    {
+                        if (region_ready_mask & (1u << rel_class))
+                        {
+                            RelBitmaps_[rel_class][word] |= region_mask;
+                        }
+                    }
+                }
+            }
+        }
+        const uint32_t expected_mask = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::READY_REL_MASK);
+
+        SegmentIODefinitionPtr_->JustUpdateValueOfMeta32(
+            MetaIndexOfAPCNode::READY_REL_MASK,
+            expected_mask,
+            global_ready_mask
+        );
+        return true;
     }
 
 

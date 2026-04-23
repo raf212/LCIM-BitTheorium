@@ -11,7 +11,7 @@ namespace PredictedAdaptedEncoding
         //identity
         MAGIC_ID = 0,
         VERSION = 1,
-        CAPACITY = 2,
+        RESERVED_2 = 2,
         BRANCH_ID = 3,
 
         //logical-node Identity
@@ -354,6 +354,8 @@ namespace PredictedAdaptedEncoding
     struct APCAndPagedNodeHelpers
     {
         static constexpr uint8_t HIGH_FOUR_NIBBLE = 0x0Fu;
+        static constexpr uint8_t HIGH_ALL_EIGHT_NIBBLE = 0xFFu;
+        static constexpr size_t SIZE_OF_APCPagedNodeRelMaskClasses = 16u;
 
         static inline bool INewerClock16(clk16_t candidate, clk16_t baseline) noexcept
         {

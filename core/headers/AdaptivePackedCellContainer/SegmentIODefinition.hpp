@@ -48,6 +48,18 @@ public:
         LAYOUT_MUTATION_INFLIGHT = 1u << 12
     };
 
+    enum class ManagerControlFlagBits : uint32_t
+    {
+        NONE = 0u,
+        REGISTERED_APC = 1U << 0,
+        DEAD_APC = 1U << 1,
+        RECLAIMATION_REQUST_FOR_JUST_THIS_APC = 1u << 2,
+        RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN = 1u << 3,
+        REQUEST_SEGMENTATION = 1u << 4,
+        IN_WORK_STACK = 1u << 5,
+        IN_CLEANUP_STACK = 1u << 6
+    };
+
     static constexpr uint32_t PAYLOAD_BOUND_START = static_cast<uint32_t>(MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN);
     static constexpr uint32_t PAYLOAD_BOUND_END = static_cast<uint32_t>(MetaIndexOfAPCNode::FREE_END);
 
@@ -111,10 +123,10 @@ private:
 
     bool TurnOnMultipleSegmentFlagsAtOnce_(uint32_t use_or_between_flags = NO_VAL) noexcept
     {
-        return UpdateAPCModeFlagsInHeader_(use_or_between_flags);
+        return UpdateAPCModeFlagsInHeader_(use_or_between_flags, NO_VAL, MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS);
     }
 
-    bool UpdateAPCModeFlagsInHeader_(uint32_t flags_to_turn_on = NO_VAL, uint32_t flags_to_turn_off = NO_VAL) noexcept;
+    bool UpdateAPCModeFlagsInHeader_(uint32_t flags_to_turn_on = NO_VAL, uint32_t flags_to_turn_off = NO_VAL, MetaIndexOfAPCNode desired_flag_idx = MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS) noexcept;
 
     std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>> GetMetaBoundsPairForRegionMask_(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
 
@@ -249,7 +261,7 @@ public:
 
     bool TurnOnASegmentFlag(ControlEnumOfAPCSegment desired_segment_flag) noexcept
     {
-        return UpdateAPCModeFlagsInHeader_(static_cast<uint32_t>(desired_segment_flag));
+        return UpdateAPCModeFlagsInHeader_(static_cast<uint32_t>(desired_segment_flag), NO_VAL, MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS);
     }
 
     bool HasThisFlag(ControlEnumOfAPCSegment flag) noexcept
@@ -294,7 +306,7 @@ public:
 
     bool ClearOneControlEnumFlagOfAPC(ControlEnumOfAPCSegment desired_control_flag) noexcept
     {
-        return UpdateAPCModeFlagsInHeader_(NO_VAL, static_cast<uint32_t>(desired_control_flag));
+        return UpdateAPCModeFlagsInHeader_(NO_VAL, static_cast<uint32_t>(desired_control_flag), MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS);
     }
 
     size_t PayloadCapacityFromHeader() noexcept

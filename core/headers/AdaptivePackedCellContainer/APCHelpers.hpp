@@ -10,11 +10,10 @@ namespace PredictedAdaptedEncoding
     {
         //identity
         MAGIC_ID = 0,
-        VERSION = 1,
+        MANAGER_CONTROL_FLAGS = 1,
         RESERVED_2 = 2,
-        BRANCH_ID = 3,
-
         //logical-node Identity
+        BRANCH_ID = 3,
         LOGICAL_NODE_ID = 4,
         SHARED_ID = 5,
         SHARED_PREVIOUS_ID = 6,

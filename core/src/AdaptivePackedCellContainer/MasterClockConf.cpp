@@ -154,7 +154,7 @@ std::optional<uint64_t> MasterClockConf::ReconstructCellClock16toFull48BySegment
         {
             return false;
         }
-        MetaIndexOfAPCNode idx = MetaIndexOfAPCNode::VERSION;
+        MetaIndexOfAPCNode idx = MetaIndexOfAPCNode::MAGIC_ID;
         if (desired_rel_class == APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
         {
             idx = MetaIndexOfAPCNode::LAST_ACCEPTED_FEED_FORWARD_CLOCK16;

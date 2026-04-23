@@ -168,7 +168,6 @@ namespace PredictedAdaptedEncoding
         const uint32_t resolve_shared_id = (shared_id == NO_VAL || shared_id == BRANCH_SENTINAL) ? branch_id : shared_id;
         
         WriteBrenchMeta32_(MetaIndexOfAPCNode::MAGIC_ID, BRANCH_MAGIC, write_cell_priority);
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::VERSION, BRANCH_VERSION, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::BRANCH_ID, static_cast<uint32_t>(std::min<uint32_t>(branch_id, BRANCH_SENTINAL)), write_cell_priority);
 
         WriteBrenchMeta32_(MetaIndexOfAPCNode::BRANCH_DEPTH, branch_depth, write_cell_priority);

@@ -176,8 +176,13 @@ namespace PredictedAdaptedEncoding
         return std::pair {begin_idx, end_idx};
     }
 
-    bool SegmentIODefinition::UpdateAPCModeFlagsInHeader_(uint32_t flags_to_turn_on, uint32_t flags_to_turn_off) noexcept
+    bool SegmentIODefinition::UpdateAPCModeFlagsInHeader_(uint32_t flags_to_turn_on, uint32_t flags_to_turn_off, MetaIndexOfAPCNode desired_flag_idx) noexcept
     {
+        if (desired_flag_idx != MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS || desired_flag_idx != MetaIndexOfAPCNode::MANAGER_CONTROL_FLAGS)
+        {
+            return false;
+        }
+        
         while (true)
         {
             const uint32_t current_flags = ReadAPCModeFlags_();
@@ -188,7 +193,7 @@ namespace PredictedAdaptedEncoding
             {
                 return true;
             }
-            if (JustUpdateValueOfMeta32(MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS, current_flags, next_flags))
+            if (JustUpdateValueOfMeta32(desired_flag_idx, current_flags, next_flags))
             {
                 return true;
             }

@@ -275,7 +275,7 @@ namespace PredictedAdaptedEncoding
         AdaptivePackedCellContainer* grown_apc = GrowSharedNodeByRegionKind(rel_mask_hint);
         if (grown_apc)
         {
-            APCManagerPtr_->RequestForReclaimationOfTheAdaptivePackedCellContainer(grown_apc);
+            APCManagerPtr_->RegisterAdaptivePackedCellContainer(grown_apc);
         }
         
     }

@@ -469,7 +469,7 @@ namespace PredictedAdaptedEncoding
                     const size_t word = region / MAX_VAL;
                     const size_t bit = region % MAX_VAL;
                     const uint64_t region_mask = (1ull << bit);
-                    for (unsigned rel_class = 0; rel_class < APCAndPagedNodeHelpers::SIZE_OF_APCPagedNodeRelMaskClasses; i++)
+                    for (unsigned rel_class = 0; rel_class < APCAndPagedNodeHelpers::SIZE_OF_APCPagedNodeRelMaskClasses; rel_class++)
                     {
                         if (region_ready_mask & (1u << rel_class))
                         {

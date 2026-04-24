@@ -53,6 +53,10 @@ private:
     std::unique_ptr<std::atomic<uint64_t>[]> RegionEpochArray_{nullptr};
     static inline thread_local std::vector<std::pair<size_t, packed64_t>> TLSCandidates_;
     //--??
+
+    std::atomic<AdaptivePackedCellContainer*> RegistryNextAPCPtr_{nullptr};
+    std::atomic<AdaptivePackedCellContainer*> WorkNextAPCPtr_{nullptr};
+    std::atomic<AdaptivePackedCellContainer*> CleanupNextAPCPtr_{nullptr};
     
     size_t GetHashedRendomizedStep_(size_t sequense_number) noexcept;
 
@@ -243,6 +247,35 @@ public:
         return APCManagerPtr_;
     }
 
+    inline AdaptivePackedCellContainer* LoadRegistryNextAPC() const noexcept
+    {
+        return RegistryNextAPCPtr_.load(MoLoad_);
+    }
+
+    inline void StoreRegistryNextAPC(AdaptivePackedCellContainer* apc_ptr) noexcept
+    {
+        RegistryNextAPCPtr_.store(apc_ptr, MoStoreSeq_);
+    }
+
+    inline AdaptivePackedCellContainer* LoadWorkNextAPC() const noexcept
+    {
+        return WorkNextAPCPtr_.load(MoLoad_);
+    }
+
+    inline void StoreWorkNextAPC(AdaptivePackedCellContainer* apc_ptr) noexcept
+    {
+        WorkNextAPCPtr_.store(apc_ptr, MoStoreSeq_);
+    }
+
+    inline AdaptivePackedCellContainer* LoadCleanupNextAPC() const noexcept
+    {
+        return CleanupNextAPCPtr_.load(MoLoad_);
+    }
+
+    inline void StoreCleanupNextAPC(AdaptivePackedCellContainer* apc_ptr) noexcept
+    {
+        CleanupNextAPCPtr_.store(apc_ptr, MoStoreSeq_);
+    }
 
     //Paired Pointer functions-- have to separate into a class or struct for better use and update 
     PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;

@@ -167,7 +167,7 @@ namespace PredictedAdaptedEncoding
         RefreshAPCMeta_();
         if (APCManagerPtr_)
         {
-            APCManagerPtr_->RequestForReclaimationOfTheAdaptivePackedCellContainer(this);
+            APCManagerPtr_->ReclaimationRequestOfAPCSegmentFromManager_(this);
         }
         
     }
@@ -303,11 +303,11 @@ namespace PredictedAdaptedEncoding
                 backoff.AdaptiveBackOffPacked(observed);
             }
             if (SegmentIODefinitionPtr_ && 
-                SegmentIODefinitionPtr_->HasThisFlag(SegmentIODefinition::ControlEnumOfAPCSegment::ENABLE_BRANCHING) && 
+                SegmentIODefinitionPtr_->HasThisControlEnumFlag(SegmentIODefinition::ControlEnumOfAPCSegment::ENABLE_BRANCHING) && 
                 SegmentIODefinitionPtr_->ShouldSplitNow() && APCManagerPtr_
             )
             {
-                APCManagerPtr_->RequestBranchCreationForTheAdaptivePackedCellContainer(this);
+                APCManagerPtr_->RequestAPCSegmentCreationFromManager_(this);
             }
             
             ++publish_attempt;

@@ -162,7 +162,7 @@ namespace PredictedAdaptedEncoding
         }
         if (APCManagerPtr_)
         {
-            APCManagerPtr_->RegisterAdaptivePackedCellContainer(this);
+            APCManagerPtr_->RegisterAPCFromManager_(this);
         }
         RefreshAPCMeta_();
     }
@@ -260,7 +260,7 @@ namespace PredictedAdaptedEncoding
             return;
         }
         
-        if (!SegmentIODefinitionPtr_->HasThisFlag(
+        if (!SegmentIODefinitionPtr_->HasThisControlEnumFlag(
             SegmentIODefinition::ControlEnumOfAPCSegment::ENABLE_BRANCHING
         ))
         {
@@ -275,36 +275,10 @@ namespace PredictedAdaptedEncoding
         AdaptivePackedCellContainer* grown_apc = GrowSharedNodeByRegionKind(rel_mask_hint);
         if (grown_apc)
         {
-            APCManagerPtr_->RegisterAdaptivePackedCellContainer(grown_apc);
+            APCManagerPtr_->RegisterAPCFromManager_(grown_apc);
         }
         
     }
-
-
-
-    AdaptivePackedCellContainer* PackedCellContainerManager::GetAPCPtrFromBranchId(uint32_t branch_id) noexcept
-    {
-        if (branch_id == NO_VAL || branch_id == SegmentIODefinition::BRANCH_SENTINAL)
-        {
-            return nullptr;
-        }
-        NodeOfAdaptivePackedCellContainer_* cur_node_of_apc_ptr = RegistryHeadOfAPCNodesPtr_.load(MoLoad_);
-        while (cur_node_of_apc_ptr)
-        {
-            AdaptivePackedCellContainer* apc_ptr = cur_node_of_apc_ptr->APCContainerPtr;
-            if (apc_ptr && !cur_node_of_apc_ptr->DeadAPC.load(MoLoad_))
-            {
-                if (apc_ptr->GetBranchId() == branch_id)
-                {
-                    return apc_ptr;
-                }
-            }
-            cur_node_of_apc_ptr = cur_node_of_apc_ptr->RegistryNextPtr;
-        }
-        return nullptr;
-    }
-
-
     
     size_t AdaptivePackedCellContainer::OccupancyAddOrSubAndGetAfterChange(int delta) noexcept
     {
@@ -537,7 +511,7 @@ namespace PredictedAdaptedEncoding
             return nullptr;
         }
 
-        if (!SegmentIODefinitionPtr_->HasThisFlag(SegmentIODefinition::ControlEnumOfAPCSegment::ENABLE_BRANCHING))
+        if (!SegmentIODefinitionPtr_->HasThisControlEnumFlag(SegmentIODefinition::ControlEnumOfAPCSegment::ENABLE_BRANCHING))
         {
             return nullptr;
         }

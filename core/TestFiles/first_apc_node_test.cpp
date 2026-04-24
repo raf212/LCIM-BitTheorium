@@ -820,6 +820,6 @@ int main()
     B.FreeAll();
     A.FreeAll();
 
-    manager.StopPCCManager();
+    manager.StopAPCManager();
     return 0;
 }

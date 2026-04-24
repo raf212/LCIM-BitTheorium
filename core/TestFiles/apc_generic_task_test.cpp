@@ -181,7 +181,7 @@ static bool PublishTaskIdCell(
                     apc_address.OccupancyAddOrSubAndGetAfterChange(+1);
                     if (apc_address.GetBranchPlugin()->ShouldSplitNow())
                     {
-                        apc_mannager_address.RequestBranchCreationForTheAdaptivePackedCellContainer(&apc_address);
+                        apc_mannager_address.RequestAPCSegmentCreationFromManager_(&apc_address);
                     }
                     return true;
                 }
@@ -302,7 +302,7 @@ int main()
         leaf_branches_struct[i].APC_UniqPtr->InitOwned(branch_capacity, branch_cfg_default);
         leaf_branches_struct[i].APC_UniqPtr->SetManagerForGlobalAPC(&apc_manager);
         leaf_branches_struct[i].APC_UniqPtr->InitRegionIdx(branch_cfg_default.RegionSize);
-        apc_manager.RequestBranchCreationForTheAdaptivePackedCellContainer(leaf_branches_struct[i].APC_UniqPtr.get());
+        apc_manager.RequestAPCSegmentCreationFromManager_(leaf_branches_struct[i].APC_UniqPtr.get());
     }
 
     std::atomic<size_t> producer_done{0};
@@ -533,7 +533,7 @@ int main()
             branch.APC_UniqPtr->FreeAll();
         }
     }
-    apc_manager.StopPCCManager();
+    apc_manager.StopAPCManager();
 
     std::cout << "Adaptive Packed Cell Container :: Fair Prime Test :: DONE\n";
     return 0;

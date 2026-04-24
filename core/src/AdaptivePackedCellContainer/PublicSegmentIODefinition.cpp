@@ -281,7 +281,7 @@ namespace PredictedAdaptedEncoding
                 return false;
             }
 
-            bool is_already_in_flight = HasThisFlag(ControlEnumOfAPCSegment::SPLIT_INFLIGHT);
+            bool is_already_in_flight = HasThisControlEnumFlag(ControlEnumOfAPCSegment::SPLIT_INFLIGHT);
             if (is_already_in_flight)
             {
                 return false;
@@ -360,7 +360,7 @@ namespace PredictedAdaptedEncoding
                 return false;
             }
 
-            if (HasThisFlag(ControlEnumOfAPCSegment::LAYOUT_MUTATION_INFLIGHT))
+            if (HasThisControlEnumFlag(ControlEnumOfAPCSegment::LAYOUT_MUTATION_INFLIGHT))
             {
                 return false;
             }

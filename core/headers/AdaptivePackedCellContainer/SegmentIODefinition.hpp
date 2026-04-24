@@ -55,7 +55,7 @@ public:
         DEAD_APC = 1U << 1,
         RECLAIMATION_REQUST_FOR_JUST_THIS_APC = 1u << 2,
         RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN = 1u << 3,
-        REQUEST_SEGMENTATION = 1u << 4,
+        REQUEST_NEW_SEGMENTATION = 1u << 4,
         IN_WORK_STACK = 1u << 5,
         IN_CLEANUP_STACK = 1u << 6
     };
@@ -264,11 +264,31 @@ public:
         return UpdateAPCModeFlagsInHeader_(static_cast<uint32_t>(desired_segment_flag), NO_VAL, MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS);
     }
 
-    bool HasThisFlag(ControlEnumOfAPCSegment flag) noexcept
+    bool HasThisControlEnumFlag(ControlEnumOfAPCSegment flag) noexcept
     {
         return (ReadAPCModeFlags_() & static_cast<uint32_t>(flag)) != 0u;
     }
 
+    bool ClearOneControlEnumFlagOfAPC(ControlEnumOfAPCSegment desired_control_flag) noexcept
+    {
+        return UpdateAPCModeFlagsInHeader_(NO_VAL, static_cast<uint32_t>(desired_control_flag), MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS);
+    }
+
+    bool TurnOnAManagerControlFlag(ManagerControlFlagBits desired_manager_control_flag) noexcept
+    {
+        return UpdateAPCModeFlagsInHeader_(static_cast<uint32_t>(desired_manager_control_flag), NO_VAL, MetaIndexOfAPCNode::MANAGER_CONTROL_FLAGS);
+    }
+
+    bool ClearOneManagerControlFlag(ManagerControlFlagBits desired_manager_control_flag) noexcept
+    {
+        return UpdateAPCModeFlagsInHeader_(NO_VAL, static_cast<uint32_t>(desired_manager_control_flag), MetaIndexOfAPCNode::MANAGER_CONTROL_FLAGS);
+    }
+
+    bool HasThisManageControlFlag(ManagerControlFlagBits desired_manager_contgrol_flag) noexcept
+    {
+        return (ReadMetaCellValue32(MetaIndexOfAPCNode::MANAGER_CONTROL_FLAGS) & static_cast<uint32_t>(desired_manager_contgrol_flag)) != NO_VAL;
+    }
+    
     void SetGraphNodeFlag() noexcept
     {
         TurnOnASegmentFlag(ControlEnumOfAPCSegment::IS_GRAPH_NODE);
@@ -276,7 +296,7 @@ public:
 
     bool IsGraphNode() noexcept
     {
-        return HasThisFlag(ControlEnumOfAPCSegment::IS_GRAPH_NODE);
+        return HasThisControlEnumFlag(ControlEnumOfAPCSegment::IS_GRAPH_NODE);
     }
 
     uint32_t PayloadEndRead() noexcept
@@ -302,11 +322,6 @@ public:
     uint32_t CurrentBranchDepthRead() noexcept
     {
         return ReadMetaCellValue32(MetaIndexOfAPCNode::BRANCH_DEPTH);
-    }
-
-    bool ClearOneControlEnumFlagOfAPC(ControlEnumOfAPCSegment desired_control_flag) noexcept
-    {
-        return UpdateAPCModeFlagsInHeader_(NO_VAL, static_cast<uint32_t>(desired_control_flag), MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS);
     }
 
     size_t PayloadCapacityFromHeader() noexcept

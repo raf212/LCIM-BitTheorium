@@ -240,7 +240,7 @@ int main()
 
     TASK_APC.InitOwned(apc_capacity, task_cfg);
     TASK_APC.SetManagerForGlobalAPC(&apc_manager);
-    apc_manager.RequestForReclaimationOfTheAdaptivePackedCellContainer(&TASK_APC);
+    apc_manager.ReclaimationRequestOfAPCSegmentFromManager_(&TASK_APC);
 
     std::atomic<size_t> producer_done{0};
     std::atomic<uint64_t> task_processed{0};
@@ -484,7 +484,7 @@ int main()
     std::cout << "  num_of_tasks: " << num_of_tasks << "\n";
 
     TASK_APC.FreeAll();
-    apc_manager.StopPCCManager();
+    apc_manager.StopAPCManager();
 
     std::cout << "Adaptive Packed Cell Container :: Fair Prime Test :: DONE\n";
     return 0;

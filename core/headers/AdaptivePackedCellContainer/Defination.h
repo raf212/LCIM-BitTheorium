@@ -41,6 +41,7 @@ namespace PredictedAdaptedEncoding
     #define PAUSE_THRESHOLD 16
     #define YIELD_THRESHOLD 48
     #define MINIMUM_SLEEP_THRASHOLD_US 8
-
+    //manager
+    #define BIT_PATTERN_THREAD_TOKEN_GENERATOR 0xA5A5A5A5u
 
 }

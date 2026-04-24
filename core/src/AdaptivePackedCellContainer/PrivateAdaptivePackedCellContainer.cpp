@@ -39,7 +39,7 @@ namespace PredictedAdaptedEncoding
         
         try 
         {
-            PackedCellContainerManager::Instance().UnRegisterAdaptivePackedCellContainer(this);
+            PackedCellContainerManager::Instance().UnRegisterAPCFromManager_(this);
         }
         catch (...)
         {
@@ -64,41 +64,6 @@ namespace PredictedAdaptedEncoding
         {
             SegmentIODefinitionPtr_.reset();
         }        
-    }
-
-    void PackedCellContainerManager::ProcessRemainingWorkOfAPC_(NodeOfAdaptivePackedCellContainer_* batch_head_apc_ptr, uint64_t min_epoch) noexcept
-    {
-        (void)min_epoch;
-        while (batch_head_apc_ptr)
-        {
-            NodeOfAdaptivePackedCellContainer_* next_apc = batch_head_apc_ptr->StackNextPtr.load(MoLoad_);
-            NodeOfAdaptivePackedCellContainer_* node_ptr = batch_head_apc_ptr;
-            if (node_ptr->DeadAPC.load(MoLoad_) || node_ptr->APCContainerPtr == nullptr)
-            {
-                PushANodeAtHeadInStackOfAdaptivePackedCellContainer_(CleanUpStackHead_, node_ptr);
-                batch_head_apc_ptr = next_apc;
-                continue;
-            }
-            AdaptivePackedCellContainer* current_apc_ptr = node_ptr->APCContainerPtr;
-            if (current_apc_ptr)
-            {
-                if (node_ptr->RequestedBranchedAPC.exchange(NO_VAL, std::memory_order_acq_rel))
-                {
-                    try 
-                    {
-                        current_apc_ptr->TryCreateBranchIfNeeded();
-                    }
-                    catch (...)
-                    {
-                        if (Logger_)
-                        {
-                            Logger_("BM", "TryCreateBranchIfNeeded threw");
-                        }
-                    }
-                }
-            }
-            batch_head_apc_ptr = next_apc;   
-        }
     }
 
     void AdaptivePackedCellContainer::RefreshAPCMeta_() noexcept

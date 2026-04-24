@@ -74,17 +74,10 @@ namespace PredictedAdaptedEncoding
 
     void AdaptivePackedCellContainer::SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager) noexcept
     {
-        if (pointer_of_global_apc_manager)
+        APCManagerPtr_ = pointer_of_global_apc_manager;
+        if (AdaptiveBackoffOfAPCPtr_ == nullptr && APCManagerPtr_ != nullptr)
         {
-            try
-            {
-                pointer_of_global_apc_manager->StartAPCManager();
-                APCManagerPtr_ = pointer_of_global_apc_manager;
-            }
-            catch(...)
-            {
-                pointer_of_global_apc_manager = nullptr;
-            }
+            AdaptiveBackoffOfAPCPtr_ = &APCManagerPtr_->GetManagersAdaptiveBackoff();
         }
     }
 
@@ -731,5 +724,36 @@ namespace PredictedAdaptedEncoding
         return true;
     }
 
+    void AdaptivePackedCellContainer::ClearAllManagerLinksAndFlags() noexcept
+    {
+        RegistryNextAPCPtr_.store(nullptr, MoStoreSeq_);
+        WorkNextAPCPtr_.store(nullptr, MoStoreSeq_);
+        CleanupNextAPCPtr_.store(nullptr, MoStoreSeq_);
+        const packed64_t idle = OwnedMasterClockConfPtr_->ComposeValue32WithCurrentThreadStamp16(NO_VAL);
+        BackingPtr[static_cast<size_t>(MetaIndexOfAPCNode::MANAGER_CONTROL_FLAGS)].store(idle, MoStoreSeq_);
+    }
 
+
+    void AdaptivePackedCellContainer::FreeAll() noexcept
+    {
+        if (!IfAPCBranchValid() && !OwnedMasterClockConfPtr_)
+        {
+            return;
+        }
+        
+        ClearAllManagerLinksAndFlags();
+
+        AdaptiveBackoffOfAPCPtr_ = nullptr;
+        OwnedMasterClockConfPtr_.reset();   
+        if (BackingPtr && SegmentIODefinitionPtr_ && SegmentIODefinitionPtr_->IsBranchOwnedByFlag())
+        {
+            SegmentIODefinitionPtr_->ReleseOwneshipFlag();
+            delete[] BackingPtr;
+        }
+        BackingPtr = nullptr;
+        RegionRelArray_.reset();
+        RegionEpochArray_.reset();
+        RelBitmaps_.clear();
+        SegmentIODefinitionPtr_.reset();
+    }
 }

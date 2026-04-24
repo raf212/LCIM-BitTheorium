@@ -136,7 +136,6 @@ private:
 
     void InitDefaultAPCSegmentedNodeLayout_() noexcept;
 
-    std::optional<CompleteAPCNodeRegionsLayout> ReadAndGetFullRegionLayout_() noexcept;
 
     bool WriteAllRegionsLayoutToHeader_(const CompleteAPCNodeRegionsLayout& full_layout) noexcept;
 
@@ -228,6 +227,8 @@ public:
     bool SetLayOutBounds(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t begain, uint32_t end) noexcept;
 
     std::optional<LayoutBoundsOfSingleRelNodeClass> ReadLayoutBounds(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
+    std::optional<CompleteAPCNodeRegionsLayout> ReadAndGetFullRegionLayout_() noexcept;
+
 
     bool TrySetLayoutMutationInFlight() noexcept;
 

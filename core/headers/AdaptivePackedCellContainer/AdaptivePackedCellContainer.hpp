@@ -78,6 +78,7 @@ private:
     bool RebuildSharedChainSegmentMetatdataFromRoot_() noexcept;
 
     bool RebuildRegionIndexFromPayload_() noexcept;
+    uint32_t SuggestedInternalAPCExpension_(CompleteAPCNodeRegionsLayout* complete_layout, uint8_t prefared_percentage_of_free = 50) noexcept;
 
     inline bool IfValidPayloadIndex_(size_t idx) const noexcept
     {
@@ -276,6 +277,8 @@ public:
     {
         CleanupNextAPCPtr_.store(apc_ptr, MoStoreSeq_);
     }
+
+    void ClearAllManagerLinksAndFlags() noexcept;
 
     //Paired Pointer functions-- have to separate into a class or struct for better use and update 
     PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;

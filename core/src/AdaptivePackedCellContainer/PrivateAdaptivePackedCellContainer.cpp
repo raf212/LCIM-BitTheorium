@@ -30,42 +30,6 @@ namespace PredictedAdaptedEncoding
         UpdateConsumerCursorPlacement(static_cast<uint32_t>(PayloadBegin()));
     }
 
-    void AdaptivePackedCellContainer::FreeAll() noexcept
-    {
-        if (!BackingPtr && !IfAPCBranchValid() && !OwnedMasterClockConfPtr_)
-        {
-            return;
-        }
-        
-        try 
-        {
-            PackedCellContainerManager::Instance().UnRegisterAPCFromManager_(this);
-        }
-        catch (...)
-        {
-
-        }
-        AdaptiveBackoffOfAPCPtr_ = nullptr;
-        OwnedMasterClockConfPtr_.reset();   
-        if (BackingPtr)
-        {
-            if (SegmentIODefinitionPtr_ && SegmentIODefinitionPtr_->IsBranchOwnedByFlag())
-            {
-                SegmentIODefinitionPtr_->ReleseOwneshipFlag();
-                delete[] BackingPtr;
-            }
-            BackingPtr = nullptr;
-        }
-
-        RegionRelArray_.reset();
-        RegionEpochArray_.reset();
-        RelBitmaps_.clear();
-        if (SegmentIODefinitionPtr_)
-        {
-            SegmentIODefinitionPtr_.reset();
-        }        
-    }
-
     void AdaptivePackedCellContainer::RefreshAPCMeta_() noexcept
     {
         if (!IfAPCBranchValid())
@@ -296,67 +260,111 @@ namespace PredictedAdaptedEncoding
 
     PublishResult AdaptivePackedCellContainer::TryPublishToRegionLocal_(APCPagedNodeRelMaskClasses region_kind, packed64_t packed_cell, bool force_rel_mask, uint16_t max_tries) noexcept
     {
-        PublishResult result{PublishStatus::INVALID, SIZE_MAX};
+        PublishResult failed_result{PublishStatus::INVALID, SIZE_MAX};
         if (!IfAPCBranchValid())
         {
-            return result;
+            return failed_result;
         }
-
-        const auto maybe_current_region_bounds = SegmentIODefinitionPtr_->ReadLayoutBounds(region_kind);
-        if (!maybe_current_region_bounds.has_value() || maybe_current_region_bounds->GetPayloadSpan() == 0)
-        {
-            return result;
-        }
-        const LayoutBoundsOfSingleRelNodeClass current_region_bounds = * maybe_current_region_bounds;
-        const size_t region_capacity = current_region_bounds.GetPayloadSpan();
         if (force_rel_mask)
         {
             packed_cell = APCAndPagedNodeHelpers::SetRelMaskForPagedNode(packed_cell, region_kind);
         }
         
-        uint16_t tries = 0;
-        while (tries++ < max_tries)
+        const auto maybe_current_region_bounds = SegmentIODefinitionPtr_->ReadLayoutBounds(region_kind);
+        if (!maybe_current_region_bounds|| maybe_current_region_bounds->IsEmpty())
         {
-            const size_t next_sequense = NextProducerSequence();
-            if (next_sequense == SIZE_MAX)
+            return failed_result;
+        }
+        auto TryPublishOnceInBounds = [&](const LayoutBoundsOfSingleRelNodeClass& current_region_bounds)->PublishResult
+        {
+            const uint32_t begin_idx = current_region_bounds.BeginIndex;
+            const uint32_t end_idx = current_region_bounds.EndIndex;
+            const size_t span = (end_idx > begin_idx) ? (end_idx - begin_idx) : 0;
+
+            const size_t next_producer_sequense = NextProducerSequence();
+            if (next_producer_sequense == SIZE_MAX)
             {
-                result.ResultStatus = PublishStatus::FULL;
-                return result;
+                return failed_result;   
             }
 
-            size_t idx = current_region_bounds.BeginIndex + ((next_sequense - PayloadBegin()) % region_capacity);
-            const size_t step = MakeProbeStepCoPrime_(next_sequense * ID_HASH_GOLDEN_CONST, region_capacity);
-            for (size_t prob = 0; prob < region_capacity; prob++)
+            if (span == 0)
             {
-                packed64_t current_cell = BackingPtr[idx].load(MoLoad_);
-                if (PackedCell64_t::ExtractLocalityFromPacked(current_cell) == PackedCellLocalityTypes::ST_IDLE)
+                failed_result.ResultStatus = PublishStatus::FULL;
+                return failed_result;
+            }
+            const size_t seed_idx = (next_producer_sequense > PayloadBegin()) ? (next_producer_sequense - PayloadBegin()) : 0;
+            const size_t base = begin_idx + (seed_idx % span);
+            const size_t step = MakeProbeStepCoPrime_(seed_idx + 1u, span);
+            for (size_t tries = 0; tries < max_tries; tries++)
+            {
+                const size_t current_index = begin_idx + ((base - begin_idx + tries * step) % span);
+                packed64_t current_cell = BackingPtr[current_index].load(MoLoad_);
+                if (PackedCell64_t::ExtractLocalityFromPacked(current_cell) != PackedCellLocalityTypes::ST_IDLE)
                 {
-                    const packed64_t current_cell_claimed = PackedCell64_t::SetLocalityInPacked(current_cell, PackedCellLocalityTypes::ST_CLAIMED);
-                    packed64_t expected_cell = current_cell;
-                    if (BackingPtr[idx].compare_exchange_strong(expected_cell, current_cell_claimed, OnExchangeSuccess, OnExchangeFailure))
+                    continue;
+                }
+                const packed64_t claimd_local_inplace_cell = PackedCell64_t::SetLocalityInPacked(current_cell, PackedCellLocalityTypes::ST_CLAIMED);
+                packed64_t expected_cell = current_cell;
+                if (!BackingPtr[current_index].compare_exchange_strong(expected_cell, claimd_local_inplace_cell, OnExchangeSuccess, OnExchangeFailure))
+                {
+                    if (AdaptiveBackoffOfAPCPtr_)
                     {
-                        BackingPtr[idx].store(PackedCell64_t::SetLocalityInPacked(packed_cell, PackedCellLocalityTypes::ST_PUBLISHED));
-                        BackingPtr[idx].notify_all();
-                        OccupancyAddOrSubAndGetAfterChange(+1);
-                        UpdateRegionRelMaskForIdx_(region_kind);
-                        SegmentIODefinitionPtr_->TouchLocalMetaClock48();
-                        RefreshAPCMeta_();
-                        result.ResultStatus = PublishStatus::OK;
-                        result.Index = idx;
-                        return result;
+                        AdaptiveBackoffOfAPCPtr_->AdaptiveBackOffPacked(expected_cell);
                     }
                     SegmentIODefinitionPtr_->TotalCASFailForThisBranchIncreaseAndGet(1);
+                    continue;
                 }
-                idx = current_region_bounds.BeginIndex + ((idx - current_region_bounds.BeginIndex + step) % region_capacity);
+                BackingPtr[current_index].store(packed_cell, MoStoreSeq_);
+                BackingPtr[current_index].notify_all();
+                OccupancyAddOrSubAndGetAfterChange(+1);
+                UpdateRegionRelMaskForIdx_(region_kind);
+                SegmentIODefinitionPtr_->TouchLocalMetaClock48();
+                RefreshAPCMeta_();
+                return {PublishStatus::OK, current_index};
             }
-            const size_t observed_idx = current_region_bounds.BeginIndex  + ((next_sequense - PayloadBegin()) % region_capacity);
-            if (APCManagerPtr_)
+            failed_result.ResultStatus = PublishStatus::FULL;
+            return failed_result;
+        };
+
+        PublishResult first = TryPublishOnceInBounds(*maybe_current_region_bounds);
+        if (first.ResultStatus == PublishStatus::OK)
+        {
+            return first;
+        }
+        auto maybe_complete_layout = SegmentIODefinitionPtr_->ReadAndGetFullRegionLayout_();
+        if (!maybe_complete_layout.has_value())
+        {
+            failed_result.ResultStatus = PublishStatus::FULL;
+            return failed_result;
+        }
+        CompleteAPCNodeRegionsLayout complete_layout = *maybe_complete_layout;
+        const uint32_t suggested_expension = SuggestedInternalAPCExpension_(&complete_layout);
+        if (suggested_expension != 0 && SegmentIODefinitionPtr_->TryExtendASegmentInOwnAPC(
+            region_kind,
+            suggested_expension,
+            ContainerConf::APCSegmentExtendOrder::PRIORITY
+        ))
+        {
+            auto maybe_extended_bounds = SegmentIODefinitionPtr_->ReadLayoutBounds(region_kind);
+            if (maybe_extended_bounds)
             {
-                APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(BackingPtr[observed_idx].load(MoLoad_));
+                PublishResult second = TryPublishOnceInBounds(*maybe_extended_bounds);
+                if (second.ResultStatus == PublishStatus::OK)
+                {
+                    return second;
+                }
             }
         }
-        result.ResultStatus = PublishStatus::FULL;
-        return result;
+        return failed_result;
+    }
+
+    uint32_t AdaptivePackedCellContainer::SuggestedInternalAPCExpension_(CompleteAPCNodeRegionsLayout* complete_layout, uint8_t prefared_percentage_of_free) noexcept
+    {
+        complete_layout->NormalizePercentagesIfNeeded();
+        LayoutBoundsOfSingleRelNodeClass* free_layout = complete_layout->GetALayoutByRelMask(APCPagedNodeRelMaskClasses::FREE_SLOT);
+        const uint32_t suggested_expension = static_cast<uint32_t>(((GetPayloadCapacity() * (free_layout->InitialOrCurrentPercentage)) / 100) / (100 / prefared_percentage_of_free));
+        return suggested_expension;
+
     }
 
     size_t AdaptivePackedCellContainer::FindGreatestCommonDivisor_(size_t a, size_t b) noexcept

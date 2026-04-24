@@ -200,7 +200,7 @@ namespace PredictedAdaptedEncoding
 
     void PackedCellContainerManager::RegisterAPCFromManager_(AdaptivePackedCellContainer* apc_ptr) noexcept
     {
-        if (!apc_ptr)
+        if (!apc_ptr || !apc_ptr->IfAPCBranchValid())
         {
             return;
         }
@@ -209,10 +209,11 @@ namespace PredictedAdaptedEncoding
             return;
         }
         AdaptivePackedCellContainer* head_apc_ptr = RegistryHeadAPC_.load(MoLoad_);
-        while (!RegistryHeadAPC_.compare_exchange_weak(head_apc_ptr, apc_ptr, std::memory_order_release, std::memory_order_relaxed))
+        do
         {
             apc_ptr->StoreRegistryNextAPC(head_apc_ptr);
-        }
+        } while (!RegistryHeadAPC_.compare_exchange_weak(head_apc_ptr, apc_ptr, std::memory_order_release, std::memory_order_relaxed));
+
         ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
         ManagerWakeCounter_.notify_all();
     }
@@ -274,7 +275,7 @@ namespace PredictedAdaptedEncoding
             {
                 return current_apc_ptr;
             }
-            current_apc_ptr->LoadRegistryNextAPC();
+            current_apc_ptr = current_apc_ptr->LoadRegistryNextAPC();
         }
         return nullptr;
     }

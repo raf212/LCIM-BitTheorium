@@ -116,10 +116,6 @@ private:
         PackedCellContainerPtr_[index].notify_all();
     }
 
-    uint32_t ReadAPCModeFlags_() noexcept
-    {
-        return (ReadMetaCellValue32(MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS));
-    }
 
     bool TurnOnMultipleSegmentFlagsAtOnce_(uint32_t use_or_between_flags = NO_VAL) noexcept
     {
@@ -267,7 +263,7 @@ public:
 
     bool HasThisControlEnumFlag(ControlEnumOfAPCSegment flag) noexcept
     {
-        return (ReadAPCModeFlags_() & static_cast<uint32_t>(flag)) != 0u;
+        return (ReadMetaCellValue32(MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS) & static_cast<uint32_t>(flag)) != 0u;
     }
 
     bool ClearOneControlEnumFlagOfAPC(ControlEnumOfAPCSegment desired_control_flag) noexcept

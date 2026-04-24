@@ -178,14 +178,19 @@ namespace PredictedAdaptedEncoding
 
     bool SegmentIODefinition::UpdateAPCModeFlagsInHeader_(uint32_t flags_to_turn_on, uint32_t flags_to_turn_off, MetaIndexOfAPCNode desired_flag_idx) noexcept
     {
-        if (desired_flag_idx != MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS || desired_flag_idx != MetaIndexOfAPCNode::MANAGER_CONTROL_FLAGS)
+        if (desired_flag_idx != MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS && desired_flag_idx != MetaIndexOfAPCNode::MANAGER_CONTROL_FLAGS)
         {
             return false;
         }
         
         while (true)
         {
-            const uint32_t current_flags = ReadAPCModeFlags_();
+            const uint32_t current_flags = ReadMetaCellValue32(desired_flag_idx);
+            if (current_flags == BRANCH_SENTINAL)
+            {
+                return false;
+            }
+            
             uint32_t next_flags = current_flags;
             next_flags |= flags_to_turn_on;
             next_flags &= ~flags_to_turn_off;

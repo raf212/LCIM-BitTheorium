@@ -14,14 +14,9 @@ namespace PredictedAdaptedEncoding
     private:
         bool RegionWakeUrgency_(APCPagedNodeRelMaskClasses region_kind, packed64_t packed_cell, tag8_t min_wake_threshold = DEFAULT_INTERNAL_PRIORITY) noexcept;
 
-
     public:
         APCSegmentsCausalCordinator() noexcept = default;
         ~APCSegmentsCausalCordinator() = default;
-
-        
+  
     };
-
-    
-
 }

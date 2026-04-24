@@ -8,7 +8,7 @@ namespace PredictedAdaptedEncoding
     {
         if (APCPtr_ != nullptr && APCPtr_->IfAPCBranchValid())
         {
-            SegmentIODefinitionPtr_ = APCPtr_->GetBranchPlugin();
+            SegmentIODefinitionPtr_ = APCPtr_->GetSegmentIOPtr();
         }
         
     }
@@ -63,7 +63,7 @@ namespace PredictedAdaptedEncoding
             SegmentIODefinitionPtr_ = nullptr;
             return;
         }
-        SegmentIODefinitionPtr_ = APCPtr_->GetBranchPlugin();
+        SegmentIODefinitionPtr_ = APCPtr_->GetSegmentIOPtr();
     }
 
 

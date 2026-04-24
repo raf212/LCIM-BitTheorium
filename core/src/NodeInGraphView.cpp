@@ -7,7 +7,7 @@ namespace PredictedAdaptedEncoding
 {
     void NodeInGraphView::AutoSetBranchPlugin_() noexcept
     {
-        BranchPluginPtr_ = APCPtr_->GetBranchPlugin();        
+        BranchPluginPtr_ = APCPtr_->GetSegmentIOPtr();        
     }
 
     GraphPortView NodeInGraphView::GetGraphPortView() noexcept
@@ -41,11 +41,11 @@ namespace PredictedAdaptedEncoding
         }
         
         BranchPluginPtr_->SetGraphNodeFlag();
-        target_apc->GetBranchPlugin()->SetGraphNodeFlag();
+        target_apc->GetSegmentIOPtr()->SetGraphNodeFlag();
         const uint32_t target_id = target_apc->GetBranchId();
         const uint32_t self_id = APCPtr_->GetBranchId();
         bool bind_ok = BranchPluginPtr_->TryBindPortTarget(MetaIndexOfAPCNode::FEEDFORWARD_OUT_TARGET_ID, target_id);
-        bool bind_ok_2 = target_apc->GetBranchPlugin()->TryBindPortTarget(
+        bool bind_ok_2 = target_apc->GetSegmentIOPtr()->TryBindPortTarget(
             MetaIndexOfAPCNode::FEEDFORWARD_IN_TARGET_ID, self_id
         );
 
@@ -61,11 +61,11 @@ namespace PredictedAdaptedEncoding
         }
         
         BranchPluginPtr_->SetGraphNodeFlag();
-        target_apc->GetBranchPlugin()->SetGraphNodeFlag();
+        target_apc->GetSegmentIOPtr()->SetGraphNodeFlag();
         const uint32_t target_id = target_apc->GetBranchId();
         const uint32_t self_id = APCPtr_->GetBranchId();
         bool bind_ok = BranchPluginPtr_->TryBindPortTarget(MetaIndexOfAPCNode::FEEDBACKWARD_OUT_TARGET_ID, target_id);
-        bool bind_ok_2 = target_apc->GetBranchPlugin()->TryBindPortTarget(
+        bool bind_ok_2 = target_apc->GetSegmentIOPtr()->TryBindPortTarget(
             MetaIndexOfAPCNode::FEEDBACKWARD_IN_TARGET_ID, self_id
         );
 

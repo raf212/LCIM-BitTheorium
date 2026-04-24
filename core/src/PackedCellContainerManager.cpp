@@ -204,7 +204,7 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        if (!apc_ptr->GetBranchPlugin()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REGISTERED_APC))
+        if (!apc_ptr->GetSegmentIOPtr()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REGISTERED_APC))
         {
             return;
         }
@@ -223,8 +223,8 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        apc_ptr->GetBranchPlugin()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC);
-        if (apc_ptr->GetBranchPlugin()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_CLEANUP_STACK))
+        apc_ptr->GetSegmentIOPtr()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC);
+        if (apc_ptr->GetSegmentIOPtr()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_CLEANUP_STACK))
         {
             PushTOAPCManagerStack_(CleanupStackHeadAPC_, apc_ptr, true);
             ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
@@ -238,8 +238,8 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        apc_ptr->GetBranchPlugin()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN);
-        if (apc_ptr->GetBranchPlugin()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_CLEANUP_STACK))
+        apc_ptr->GetSegmentIOPtr()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN);
+        if (apc_ptr->GetSegmentIOPtr()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_CLEANUP_STACK))
         {
             PushTOAPCManagerStack_(CleanupStackHeadAPC_, apc_ptr, true);
             ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
@@ -249,12 +249,12 @@ namespace PredictedAdaptedEncoding
 
     void PackedCellContainerManager::RequestAPCSegmentCreationFromManager_(AdaptivePackedCellContainer* apc_ptr) noexcept
     {
-        if (!apc_ptr || apc_ptr->GetBranchPlugin()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC))
+        if (!apc_ptr || apc_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC))
         {
             return;
         }
-        apc_ptr->GetBranchPlugin()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REQUEST_NEW_SEGMENTATION);
-        if (apc_ptr->GetBranchPlugin()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_WORK_STACK))
+        apc_ptr->GetSegmentIOPtr()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REQUEST_NEW_SEGMENTATION);
+        if (apc_ptr->GetSegmentIOPtr()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_WORK_STACK))
         {
             PushTOAPCManagerStack_(WorkStackHeadAPC_, apc_ptr, false);
             ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
@@ -268,7 +268,7 @@ namespace PredictedAdaptedEncoding
         while (current_apc_ptr)
         {
             if (
-                !current_apc_ptr->GetBranchPlugin()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC) &&
+                !current_apc_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC) &&
                 current_apc_ptr->GetBranchId() == branch_id
             )
             {
@@ -300,12 +300,12 @@ namespace PredictedAdaptedEncoding
         {
             AdaptivePackedCellContainer* next_apc_ptr = batch_head_apc_ptr->LoadWorkNextAPC();
             batch_head_apc_ptr->StoreWorkNextAPC(nullptr);
-            batch_head_apc_ptr->GetBranchPlugin()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_WORK_STACK);
-            if (!batch_head_apc_ptr->GetBranchPlugin()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC))
+            batch_head_apc_ptr->GetSegmentIOPtr()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_WORK_STACK);
+            if (!batch_head_apc_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC))
             {
-                if (batch_head_apc_ptr->GetBranchPlugin()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::REQUEST_NEW_SEGMENTATION))
+                if (batch_head_apc_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::REQUEST_NEW_SEGMENTATION))
                 {
-                    batch_head_apc_ptr->GetBranchPlugin()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REQUEST_NEW_SEGMENTATION);
+                    batch_head_apc_ptr->GetSegmentIOPtr()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REQUEST_NEW_SEGMENTATION);
                     batch_head_apc_ptr->TryCreateBranchIfNeeded(APCPagedNodeRelMaskClasses::FREE_SLOT);
                 }
             }
@@ -319,17 +319,17 @@ namespace PredictedAdaptedEncoding
         {
             AdaptivePackedCellContainer* next_apc_ptr = batch_head_ptr->LoadCleanupNextAPC();
             batch_head_ptr->StoreCleanupNextAPC(nullptr);
-            batch_head_ptr->GetBranchPlugin()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_CLEANUP_STACK);
-            const bool reclaim_requested = batch_head_ptr->GetBranchPlugin()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN);
-            const bool dead = batch_head_ptr->GetBranchPlugin()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC);
+            batch_head_ptr->GetSegmentIOPtr()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_CLEANUP_STACK);
+            const bool reclaim_requested = batch_head_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN);
+            const bool dead = batch_head_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC);
             if (reclaim_requested && min_epoch != std::numeric_limits<uint64_t>::max())
             {
-                batch_head_ptr->GetBranchPlugin()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN);
+                batch_head_ptr->GetSegmentIOPtr()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN);
             }
 
             if (dead)
             {
-                batch_head_ptr->GetBranchPlugin()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REGISTERED_APC);
+                batch_head_ptr->GetSegmentIOPtr()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REGISTERED_APC);
             }
             batch_head_ptr = next_apc_ptr;
         }
@@ -346,7 +346,7 @@ namespace PredictedAdaptedEncoding
         {
             AdaptivePackedCellContainer* next_apc_ptr = current_apc_ptr->LoadRegistryNextAPC();
             current_apc_ptr->StoreCleanupNextAPC(nullptr);
-            if (current_apc_ptr->GetBranchPlugin()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC))
+            if (current_apc_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC))
             {
                 if (!new_head)
                 {

@@ -21,7 +21,7 @@ namespace PredictedAdaptedEncoding
         PackedCellContainerManager* manager_ptr
     ) noexcept
     {
-        if (!apc_ptr || !manager_ptr || !apc_ptr->GetBranchPlugin())
+        if (!apc_ptr || !manager_ptr || !apc_ptr->GetSegmentIOPtr())
         {
             return apc_ptr;
         }
@@ -29,7 +29,7 @@ namespace PredictedAdaptedEncoding
         AdaptivePackedCellContainer* current = apc_ptr;
         while (current)
         {
-            SegmentIODefinition* plugin = current->GetBranchPlugin();
+            SegmentIODefinition* plugin = current->GetSegmentIOPtr();
             if (!plugin)
             {
                 break;
@@ -62,7 +62,7 @@ namespace PredictedAdaptedEncoding
         AdaptivePackedCellContainer& any_member
     ) noexcept
     {
-        if (!any_member.IfAPCBranchValid() || !any_member.GetBranchPlugin())
+        if (!any_member.IfAPCBranchValid() || !any_member.GetSegmentIOPtr())
         {
             return true;
         }
@@ -82,7 +82,7 @@ namespace PredictedAdaptedEncoding
                 return false;
             }
 
-            SegmentIODefinition* plugin = current->GetBranchPlugin();
+            SegmentIODefinition* plugin = current->GetSegmentIOPtr();
             if (!plugin)
             {
                 break;
@@ -131,7 +131,7 @@ namespace PredictedAdaptedEncoding
                 return true;
             }
 
-            SegmentIODefinition* plugin = current->GetBranchPlugin();
+            SegmentIODefinition* plugin = current->GetSegmentIOPtr();
             if (!plugin)
             {
                 break;

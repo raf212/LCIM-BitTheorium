@@ -341,7 +341,7 @@ namespace PredictedAdaptedEncoding
             {
                 break;
             }
-            SegmentIODefinition* current_segment_io = current_apc_ptr->GetBranchPlugin();
+            SegmentIODefinition* current_segment_io = current_apc_ptr->GetSegmentIOPtr();
             if (!current_segment_io)
             {
                 break;
@@ -400,7 +400,7 @@ namespace PredictedAdaptedEncoding
             {
                 break;
             }
-            SegmentIODefinition* current_branch_plugin = current_apc_ptr->GetBranchPlugin();
+            SegmentIODefinition* current_branch_plugin = current_apc_ptr->GetSegmentIOPtr();
             uint32_t next_apc_id = current_branch_plugin->ReadMetaCellValue32(MetaIndexOfAPCNode::SHARED_NEXT_ID);
             if (next_apc_id == NO_VAL || next_apc_id == SegmentIODefinition::BRANCH_SENTINAL)
             {
@@ -529,12 +529,12 @@ namespace PredictedAdaptedEncoding
         };
 
         AdaptivePackedCellContainer* root_apc_ptr = FindSharedRootOrThis();
-        if (!root_apc_ptr ||!root_apc_ptr->GetBranchPlugin())
+        if (!root_apc_ptr ||!root_apc_ptr->GetSegmentIOPtr())
         {
             ClearSplitFlag();
             return nullptr;
         }
-        SegmentIODefinition* root_Segment_io_ptr = root_apc_ptr->GetBranchPlugin();
+        SegmentIODefinition* root_Segment_io_ptr = root_apc_ptr->GetSegmentIOPtr();
         const uint32_t root_branch_id = root_apc_ptr->GetBranchId();
         const uint32_t root_logical_id = root_apc_ptr->GetLogicalId();
         const uint32_t shared_group_id = (root_apc_ptr->GetSharedId() == NO_VAL || root_apc_ptr->GetSharedId() == SegmentIODefinition::BRANCH_SENTINAL) ?
@@ -572,7 +572,7 @@ namespace PredictedAdaptedEncoding
             return nullptr;
         }
 
-        if (!new_child_segment_ptr || !new_child_segment_ptr->GetBranchPlugin())
+        if (!new_child_segment_ptr || !new_child_segment_ptr->GetSegmentIOPtr())
         {
             if (new_child_segment_ptr)
             {
@@ -583,7 +583,7 @@ namespace PredictedAdaptedEncoding
             return nullptr;
         }
         
-        SegmentIODefinition* new_child_Segment_io_ptr = new_child_segment_ptr->GetBranchPlugin();
+        SegmentIODefinition* new_child_Segment_io_ptr = new_child_segment_ptr->GetSegmentIOPtr();
 
         const uint32_t new_child_branch_id = new_child_segment_ptr->GetBranchId();
         if (new_child_branch_id == NO_VAL || new_child_branch_id == SegmentIODefinition::BRANCH_SENTINAL || new_child_branch_id == root_branch_id)
@@ -630,7 +630,7 @@ namespace PredictedAdaptedEncoding
             tail_apc_ptr = tail_apc_ptr->GetNextSharedSegment();
         }
         if (
-            !tail_apc_ptr->GetBranchPlugin()->TryBindShareNext(new_child_branch_id) || 
+            !tail_apc_ptr->GetSegmentIOPtr()->TryBindShareNext(new_child_branch_id) || 
             !new_child_Segment_io_ptr->TryBindSharedPrevious(tail_apc_ptr->GetBranchId())
         )
         {
@@ -639,7 +639,7 @@ namespace PredictedAdaptedEncoding
             ClearSplitFlag();
             return nullptr;
         }
-        tail_apc_ptr->GetBranchPlugin()->TurnOnASegmentFlag(
+        tail_apc_ptr->GetSegmentIOPtr()->TurnOnASegmentFlag(
             SegmentIODefinition::ControlEnumOfAPCSegment::HAS_SHARED_NEXT
         );
         new_child_Segment_io_ptr->TurnOnASegmentFlag(
@@ -661,7 +661,7 @@ namespace PredictedAdaptedEncoding
     bool AdaptivePackedCellContainer::RebuildSharedChainSegmentMetatdataFromRoot_() noexcept
     {
         AdaptivePackedCellContainer* root_apc_ptr = FindSharedRootOrThis();
-        if (!root_apc_ptr || !root_apc_ptr->GetBranchPlugin())
+        if (!root_apc_ptr || !root_apc_ptr->GetSegmentIOPtr())
         {
             return false;
         }
@@ -673,7 +673,7 @@ namespace PredictedAdaptedEncoding
         AdaptivePackedCellContainer* current_apc = root_apc_ptr;
         while (current_apc)
         {
-            if (!current_apc->GetBranchPlugin())
+            if (!current_apc->GetSegmentIOPtr())
             {
                 return false;
             }
@@ -683,7 +683,7 @@ namespace PredictedAdaptedEncoding
         const uint32_t group_size = static_cast<uint32_t>(apc_chain.size());
         for (size_t i = 0; i < apc_chain.size(); i++)
         {
-            SegmentIODefinition* segment_io_ptr = apc_chain[i]->GetBranchPlugin();
+            SegmentIODefinition* segment_io_ptr = apc_chain[i]->GetSegmentIOPtr();
             if (!segment_io_ptr)
             {
                 return false;

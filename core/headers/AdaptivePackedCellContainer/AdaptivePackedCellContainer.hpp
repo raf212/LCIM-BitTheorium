@@ -152,11 +152,11 @@ public:
 
     size_t OccupancyAddOrSubAndGetAfterChange(int delta = 0) noexcept;
 
-    SegmentIODefinition* GetBranchPlugin() noexcept
+    SegmentIODefinition* GetSegmentIOPtr() noexcept
     {
         return SegmentIODefinitionPtr_.get();
     }
-    const SegmentIODefinition* GetBranchPlugin() const noexcept
+    const SegmentIODefinition* GetSegmentIOPtr() const noexcept
     {
         return SegmentIODefinitionPtr_.get();
     }

@@ -179,7 +179,7 @@ static bool PublishTaskIdCell(
                     apc_address.BackingPtr[idx].store(published_cell, MoStoreSeq_);
                     apc_address.BackingPtr[idx].notify_all();
                     apc_address.OccupancyAddOrSubAndGetAfterChange(+1);
-                    if (apc_address.GetBranchPlugin()->ShouldSplitNow())
+                    if (apc_address.GetSegmentIOPtr()->ShouldSplitNow())
                     {
                         apc_mannager_address.RequestAPCSegmentCreationFromManager_(&apc_address);
                     }

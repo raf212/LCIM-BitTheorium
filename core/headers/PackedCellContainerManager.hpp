@@ -78,39 +78,20 @@ namespace PredictedAdaptedEncoding
             std::atomic<AdaptivePackedCellContainer*> WorkStackHeadAPC_{nullptr};
             std::atomic<AdaptivePackedCellContainer*> CleanupStackHeadAPC_{nullptr};
 
-
-            struct NodeOfAdaptivePackedCellContainer_
-            {
-                AdaptivePackedCellContainer* APCContainerPtr{nullptr};
-                std::atomic<uint32_t> ReclaimationNeededAPC{0};
-                std::atomic<uint32_t> RequestedBranchedAPC{0};
-                std::atomic<uint32_t> DeadAPC{0};
-
-                NodeOfAdaptivePackedCellContainer_* RegistryNextPtr{nullptr};
-                std::atomic<NodeOfAdaptivePackedCellContainer_*> StackNextPtr{nullptr};
-                uint64_t DebugId = 0;
-            };
-
             std::atomic<size_t>ThreadFreelistHead_{SIZE_MAX};
             size_t MaxThreads_ = 4096;
             size_t  ThreadTableCapacity_{0};
             std::unique_ptr<std::atomic<size_t>[]> ThreadNextIdxPtr_;
             std::unique_ptr<std::atomic<uint64_t>[]> ThreadEpochArrayPtr_;
             std::unique_ptr<std::atomic<uint64_t>[]> ThreadWaitSlotArrayPtr_;
-            bool UseNodePool_ = false;
+            // bool UseNodePool_ = false;
 
             std::atomic<bool> RunningManager_{false};
             std::thread ManagerThread_;
-            unsigned ManagersIntervalMilliSecond_{25};
             std::atomic<uint64_t>GlobalEpoch_{1};
 
-            Timer48 Timer48APCManager_;
             AtomicAdaptiveBackoff AdaptiveBackOffOfAPCManager_;
-            std::atomic<size_t> UnregistersSinceCompact_{0};
-            size_t CompactionTriggerThreshold_ = 1024;
             std::atomic<uint64_t> ManagerWakeCounter_{0};
-            std::function<void(const char*, const char*)> Logger_;
-
 
 
             size_t AllocateThreadSlots_() noexcept;

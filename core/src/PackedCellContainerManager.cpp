@@ -220,11 +220,12 @@ namespace PredictedAdaptedEncoding
     
     void PackedCellContainerManager::UnRegisterAPCFromManager_(AdaptivePackedCellContainer* apc_ptr) noexcept
     {
-        if (!apc_ptr)
+        if (!apc_ptr || !apc_ptr->IfAPCBranchValid())
         {
             return;
         }
-        apc_ptr->GetSegmentIOPtr()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC);
+        apc_ptr->GetSegmentIOPtr()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC);
+        
         if (apc_ptr->GetSegmentIOPtr()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_CLEANUP_STACK))
         {
             PushTOAPCManagerStack_(CleanupStackHeadAPC_, apc_ptr, true);
@@ -265,6 +266,11 @@ namespace PredictedAdaptedEncoding
 
     AdaptivePackedCellContainer* PackedCellContainerManager::GetAPCPtrFromBranchId(uint32_t branch_id) noexcept
     {
+        if (branch_id == NO_VAL || branch_id == SegmentIODefinition::BRANCH_SENTINAL)
+        {
+            return nullptr;
+        }
+        
         AdaptivePackedCellContainer* current_apc_ptr = RegistryHeadAPC_.load(MoLoad_);
         while (current_apc_ptr)
         {
@@ -320,17 +326,23 @@ namespace PredictedAdaptedEncoding
         {
             AdaptivePackedCellContainer* next_apc_ptr = batch_head_ptr->LoadCleanupNextAPC();
             batch_head_ptr->StoreCleanupNextAPC(nullptr);
-            batch_head_ptr->GetSegmentIOPtr()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_CLEANUP_STACK);
-            const bool reclaim_requested = batch_head_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN);
+            SegmentIODefinition* segment_io_ptr = batch_head_ptr->GetSegmentIOPtr();
+            if (!segment_io_ptr)
+            {
+                batch_head_ptr = next_apc_ptr;
+                continue;
+            }
+            
+            segment_io_ptr->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_CLEANUP_STACK);
+            const bool reclaim_requested = segment_io_ptr->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN);
             const bool dead = batch_head_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC);
             if (reclaim_requested && min_epoch != std::numeric_limits<uint64_t>::max())
             {
                 batch_head_ptr->GetSegmentIOPtr()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN);
             }
-
             if (dead)
             {
-                batch_head_ptr->GetSegmentIOPtr()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REGISTERED_APC);
+                segment_io_ptr->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REGISTERED_APC);
             }
             batch_head_ptr = next_apc_ptr;
         }
@@ -340,29 +352,19 @@ namespace PredictedAdaptedEncoding
     {
         AdaptivePackedCellContainer* old_head = RegistryHeadAPC_.load(MoLoad_);
         AdaptivePackedCellContainer* new_head = nullptr;
-        AdaptivePackedCellContainer* tail = nullptr;
-
         AdaptivePackedCellContainer* current_apc_ptr = old_head;
         while (current_apc_ptr)
         {
             AdaptivePackedCellContainer* next_apc_ptr = current_apc_ptr->LoadRegistryNextAPC();
             current_apc_ptr->StoreCleanupNextAPC(nullptr);
-            if (current_apc_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC))
+            if (current_apc_ptr->IfAPCBranchValid() && !current_apc_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC))
             {
-                if (!new_head)
-                {
-                    new_head = current_apc_ptr;
-                    tail = current_apc_ptr;
-                }
-                else
-                {
-                    tail->StoreRegistryNextAPC(current_apc_ptr);
-                    tail = current_apc_ptr;
-                }
+                current_apc_ptr->StoreRegistryNextAPC(new_head);
+                new_head = current_apc_ptr;
             }
             current_apc_ptr = next_apc_ptr;
         }
-        
+        RegistryHeadAPC_.store(new_head, MoStoreSeq_);
     }
 
     void PackedCellContainerManager::ManagerManinLoop_() noexcept

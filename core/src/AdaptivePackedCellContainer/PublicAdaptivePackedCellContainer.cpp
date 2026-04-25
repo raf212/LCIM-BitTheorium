@@ -330,16 +330,12 @@ namespace PredictedAdaptedEncoding
         AdaptivePackedCellContainer* current_apc_ptr = this;
         while (current_apc_ptr)
         {
-            if (!current_apc_ptr->IfAPCBranchValid())
-            {
-                break;
-            }
             SegmentIODefinition* current_segment_io = current_apc_ptr->GetSegmentIOPtr();
             if (!current_segment_io)
             {
                 break;
             }
-            const uint32_t previous_id = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::SHARED_PREVIOUS_ID);
+            const uint32_t previous_id = current_segment_io->ReadMetaCellValue32(MetaIndexOfAPCNode::SHARED_PREVIOUS_ID);
             if (previous_id == NO_VAL || previous_id == SegmentIODefinition::BRANCH_SENTINAL)
             {
                 break;
@@ -411,23 +407,44 @@ namespace PredictedAdaptedEncoding
 
     bool AdaptivePackedCellContainer::TryPublishRegionalSharedGrowthOnce(APCPagedNodeRelMaskClasses region_kind, packed64_t packed_cell, std::atomic<uint64_t>* growth_counter) noexcept
     {
-        const PublishResult local_result = PublishCellByRegionMAskTraverseStartsFromThisAPC(region_kind, packed_cell);
+        PublishResult local_result = PublishCellByRegionMAskTraverseStartsFromThisAPC(region_kind, packed_cell);
         if (local_result.ResultStatus == PublishStatus::OK)
         {
             return true;
         }
+
+        if (SegmentIODefinitionPtr_)
+        {
+            auto full_layout = SegmentIODefinitionPtr_->ReadAndGetFullRegionLayout_();
+            const uint32_t grow_amount = SuggestedInternalAPCExpension_(full_layout ? &(*full_layout) : nullptr, 50);
+            if (grow_amount > 0 && SegmentIODefinitionPtr_->TryExtendASegmentInOwnAPC(
+                region_kind,
+                grow_amount,
+                ContainerConf::APCSegmentExtendOrder::PRIORITY
+            ))
+            {
+                local_result = PublishCellByRegionMAskTraverseStartsFromThisAPC(region_kind, packed_cell);
+                if (local_result.ResultStatus == PublishStatus::OK)
+                {
+                    return true;
+                }
+            }
+        }
         
-        AdaptivePackedCellContainer* grown_apc = GrowSharedNodeByRegionKind(region_kind);
+        AdaptivePackedCellContainer* grown_apc = GrowSharedNodeByRegionKind(region_kind, true);
         if (grown_apc)
         {
             if (growth_counter)
             {
                 growth_counter->fetch_add(1, std::memory_order_relaxed);
             }
-            return grown_apc->PublishCellByRegionMAskTraverseStartsFromThisAPC(region_kind, packed_cell).ResultStatus == PublishStatus::OK;
+            const PublishResult ok = PublishCellByRegionMAskTraverseStartsFromThisAPC(region_kind, packed_cell);
+            if (ok.ResultStatus == PublishStatus::OK)
+            {
+                return true;
+            }
         }
         return false;
-        
     }
 
 

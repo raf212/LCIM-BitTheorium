@@ -48,10 +48,10 @@ namespace
         std::atomic<uint64_t> SharedGrowC{0};
         std::atomic<uint64_t> SharedGrowD{0};
 
-        std::atomic<uint64_t> StaleDroppedB{0};
-        std::atomic<uint64_t> StaleDroppedC{0};
-        std::atomic<uint64_t> StaleDroppedD{0};
-        std::atomic<uint64_t> StaleDroppedE{0};
+        std::atomic<uint64_t> OlderClockObservedB{0};
+        std::atomic<uint64_t> OlderClockObservedC{0};
+        std::atomic<uint64_t> OlderClockObservedD{0};
+        std::atomic<uint64_t> OlderClockObservedE{0};
 
         // retry counts only
         std::atomic<uint64_t> RetryPublishA{0};
@@ -74,15 +74,14 @@ namespace
         const uint16_t incoming = PackedCell64_t::ExtractClk16(cell);
         uint16_t seen = state.LastAcceptedClk16.load(std::memory_order_relaxed);
 
-        while (seen < incoming &&
-               !state.LastAcceptedClk16.compare_exchange_weak(
-                    seen,
-                    incoming,
-                    std::memory_order_relaxed,
-                    std::memory_order_relaxed))
+        while (APCAndPagedNodeHelpers::INewerClock16(incoming, seen))
         {
+            if (state.LastAcceptedClk16.compare_exchange_weak(seen, incoming, std::memory_order_relaxed, std::memory_order_relaxed))
+            {
+                return true;
+            }
         }
-        return true;
+        return false;
     }
 
 
@@ -121,11 +120,12 @@ namespace
     )
     {
         std::cout << name
-                  << " branch=" << apc.GetBranchId()
-                  << " logical=" << apc.GetLogicalId()
-                  << " shared=" << apc.GetSharedId()
-                  << " occ=" << apc.OccupancyAddOrSubAndGetAfterChange(0)
-                  << "\n";
+                << " branch=" << apc.GetBranchId()
+                << " logical=" << apc.GetLogicalId()
+                << " shared=" << apc.GetSharedId()
+                << " A real published : " 
+                << apc.CountPublishedInRegion(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
+                << " Occupancy = " << apc.OccupancyAddOrSubAndGetAfterChange() << "\n";
     }
 }
 
@@ -291,8 +291,7 @@ int main()
 
                 if (!AcceptByCausalClockDemo(causalB[worker_id], in))
                 {
-                    stats.StaleDroppedB.fetch_add(1, std::memory_order_relaxed);
-                    continue;
+                    stats.OlderClockObservedB.fetch_add(1, std::memory_order_relaxed);
                 }
 
                 if (!APCAndPagedNodeHelpers::IsCellPublishedMode32Generic(in))
@@ -370,8 +369,7 @@ int main()
 
                 if (!AcceptByCausalClockDemo(causalC[worker_id], in))
                 {
-                    stats.StaleDroppedC.fetch_add(1, std::memory_order_relaxed);
-                    continue;
+                    stats.OlderClockObservedC.fetch_add(1, std::memory_order_relaxed);
                 }
 
                 if (!APCAndPagedNodeHelpers::IsCellPublishedMode32Generic(in))
@@ -448,8 +446,7 @@ int main()
 
                 if (!AcceptByCausalClockDemo(causalD[worker_id], in))
                 {
-                    stats.StaleDroppedD.fetch_add(1, std::memory_order_relaxed);
-                    continue;
+                    stats.OlderClockObservedD.fetch_add(1, std::memory_order_relaxed);
                 }
 
                 if (!APCAndPagedNodeHelpers::IsCellPublishedMode32Generic(in))
@@ -529,8 +526,7 @@ int main()
 
                 if (!AcceptByCausalClockDemo(causalE[worker_id], in))
                 {
-                    stats.StaleDroppedE.fetch_add(1, std::memory_order_relaxed);
-                    continue;
+                    stats.OlderClockObservedE.fetch_add(1, std::memory_order_relaxed);
                 }
 
                 if (!APCAndPagedNodeHelpers::IsMode32TypedPublishedCell<float>(in))
@@ -585,10 +581,10 @@ int main()
     std::cout << "C shared grows         : " << stats.SharedGrowC.load() << "\n";
     std::cout << "D shared grows         : " << stats.SharedGrowD.load() << "\n";
 
-    std::cout << "B stale dropped        : " << stats.StaleDroppedB.load() << "\n";
-    std::cout << "C stale dropped        : " << stats.StaleDroppedC.load() << "\n";
-    std::cout << "D stale dropped        : " << stats.StaleDroppedD.load() << "\n";
-    std::cout << "E stale dropped        : " << stats.StaleDroppedE.load() << "\n";
+    std::cout << "B Older Clock Observed        : " << stats.OlderClockObservedB.load() << "\n";
+    std::cout << "C Older Clock Observed        : " << stats.OlderClockObservedC.load() << "\n";
+    std::cout << "D Older Clock Observed        : " << stats.OlderClockObservedD.load() << "\n";
+    std::cout << "E Older Clock Observed        : " << stats.OlderClockObservedE.load() << "\n";
 
     std::cout << "Retry publish A        : " << stats.RetryPublishA.load() << "\n";
     std::cout << "Retry publish B        : " << stats.RetryPublishB.load() << "\n";

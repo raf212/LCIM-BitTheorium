@@ -438,7 +438,7 @@ namespace PredictedAdaptedEncoding
             {
                 growth_counter->fetch_add(1, std::memory_order_relaxed);
             }
-            const PublishResult ok = PublishCellByRegionMAskTraverseStartsFromThisAPC(region_kind, packed_cell);
+            const PublishResult ok = grown_apc->PublishCellByRegionMAskTraverseStartsFromThisAPC(region_kind, packed_cell);
             if (ok.ResultStatus == PublishStatus::OK)
             {
                 return true;

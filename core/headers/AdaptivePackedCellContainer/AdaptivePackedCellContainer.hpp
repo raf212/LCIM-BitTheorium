@@ -18,10 +18,9 @@ static_assert(__cpp_lib_atomic_wait, "C++ must suppoet atomic wait/notify");
 
 class PackedCellContainerManager;
 
-class AdaptivePackedCellContainer
+class AdaptivePackedCellContainer : public SegmentIODefinition
 {
 public:
-    std::atomic<packed64_t>* BackingPtr{nullptr};
 
     struct QSBRGuard;
 
@@ -37,11 +36,7 @@ public:
     };
     
 protected:
-    Timer48 LocalTimer48_;
-    AtomicAdaptiveBackoff* AdaptiveBackoffOfAPCPtr_{nullptr};
-    std::unique_ptr<MasterClockConf> OwnedMasterClockConfPtr_;
     PackedCellContainerManager* APCManagerPtr_{nullptr};
-    std::unique_ptr<SegmentIODefinition> SegmentIODefinitionPtr_;
     static inline std::atomic<uint32_t> GlobalBranchIdAlloc_{1};
     static inline thread_local PackedCellContainerManager::ThreadHandlePCCM  ThreadHandleAPCTL_ = {};
     
@@ -64,7 +59,7 @@ protected:
 
     void RefreshAPCMeta_() noexcept;
 
-    size_t SuggestedChildCapacity_() const noexcept;
+    size_t SuggestedChildCapacity_() noexcept;
 
     std::optional<packed64_t> TryConsumeAndIdleFromRegionLocal_(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept;
 
@@ -80,7 +75,7 @@ protected:
     bool RebuildRegionIndexFromPayload_() noexcept;
     uint32_t SuggestedInternalAPCExpension_(CompleteAPCNodeRegionsLayout* complete_layout, uint8_t prefared_percentage_of_free = 50) noexcept;
 
-    inline bool IfValidPayloadIndex_(size_t idx) const noexcept
+    inline bool IfValidPayloadIndex_(size_t idx) noexcept
     {
         return (BackingPtr && idx >= PayloadBegin() && idx < GetPayloadEnd());
     }
@@ -145,31 +140,18 @@ public:
     AdaptivePackedCellContainer* FindSharedRootOrThis() noexcept;
     AdaptivePackedCellContainer* GetNextSharedSegment() noexcept;
     bool IsAPCSharedChainEmpty() noexcept;
-    uint32_t GetBranchId() const noexcept;
-    uint32_t GetLogicalId() const noexcept;
-    uint32_t GetSharedId() const noexcept;
+    uint32_t GetBranchId() noexcept;
+    uint32_t GetLogicalId() noexcept;
+    uint32_t GetSharedId() noexcept;
     size_t ReserveProducerSlots(size_t number_of_slots) noexcept;
     size_t NextProducerSequence() noexcept;
 
     size_t OccupancyAddOrSubAndGetAfterChange(int delta = 0) noexcept;
 
-    SegmentIODefinition* GetSegmentIOPtr() noexcept
-    {
-        return SegmentIODefinitionPtr_.get();
-    }
-    const SegmentIODefinition* GetSegmentIOPtr() const noexcept
-    {
-        return SegmentIODefinitionPtr_.get();
-    }
 
-    inline size_t GetPayloadCapacity() const noexcept
+    inline size_t GetPayloadEnd() noexcept
     {
-        return SegmentIODefinitionPtr_ ? SegmentIODefinitionPtr_->PayloadCapacityFromHeader() : NO_VAL;
-    }
-
-    inline size_t GetPayloadEnd() const noexcept
-    {
-        return SegmentIODefinitionPtr_ ? SegmentIODefinitionPtr_->PayloadEndRead() : SIZE_MAX;
+        return static_cast<size_t>(PayloadEndRead());
     }
 
     static constexpr uint32_t PayloadBegin() noexcept
@@ -177,9 +159,9 @@ public:
         return SegmentIODefinition::METACELL_COUNT;
     }
     
-    inline bool IfAPCBranchValid() const noexcept
+    inline bool IfAPCBranchValid() noexcept
     {
-        return (BackingPtr && GetPayloadCapacity() >= MINIMUM_BRANCH_CAPACITY - PayloadBegin());
+        return (BackingPtr && PayloadCapacityFromHeader() >= MINIMUM_BRANCH_CAPACITY - PayloadBegin());
     }
 
     uint32_t ProducerORConsumerCursorSetAndGet_(std::optional<uint32_t> cursor_placement = std::nullopt, int32_t increment_or_decrement_of_cursor = 0, 
@@ -188,7 +170,7 @@ public:
 
     uint32_t GetProducerCursorPlacement() noexcept
     {
-        return SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
+        return ReadMetaCellValue32(MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
     }
 
     bool UpdateProducerCursorPlacement(uint32_t new_cursor_placement_idx) noexcept
@@ -207,7 +189,7 @@ public:
 
     uint32_t GetConsumerCursorPlacement() noexcept
     {
-        return SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
+        return ReadMetaCellValue32(MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
     }
 
     bool UpdateConsumerCursorPlacement(uint32_t new_cursor_value) noexcept
@@ -224,7 +206,7 @@ public:
         return will_return;
     }
 
-    inline bool IfIndexValid(size_t idx) const noexcept
+    inline bool IfIndexValid(size_t idx) noexcept
     {
         if (IfAPCBranchValid() && idx < GetPayloadEnd())
         {

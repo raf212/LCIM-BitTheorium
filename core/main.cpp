@@ -14,7 +14,7 @@ using namespace PredictedAdaptedEncoding;
 
 namespace
 {
-    constexpr uint32_t VALUE_COUNT = 256u;
+    constexpr uint32_t VALUE_COUNT = 25600u;
     constexpr uint32_t PRODUCER_COUNT = 2u;
     constexpr uint32_t WORKERS_PER_STAGE = 3u;
     constexpr uint32_t MAX_ATTEMPTS = 4096u;
@@ -95,7 +95,6 @@ namespace
 
     static void PrintNode(const char* name, APCSegmentsCausalCordinator& node)
     {
-        auto* sio = node.GetSegmentIOPtr();
 
         std::cout << name
                   << " branch=" << node.GetBranchId()
@@ -107,15 +106,10 @@ namespace
                   << " STATE=" << node.CountPublishedInRegion(APCPagedNodeRelMaskClasses::STATE_SLOT)
                   << " ERROR=" << node.CountPublishedInRegion(APCPagedNodeRelMaskClasses::ERROR_SLOT)
                   << " AUX=" << node.CountPublishedInRegion(APCPagedNodeRelMaskClasses::AUX_SLOT);
-
-        if (sio)
-        {
-            std::cout << " accFF=" << sio->ReadLastAcceptedClok16ForThisSegment(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
-                      << " emitFF=" << sio->ReadLastEmittedClok16ForThisSegment(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
-                      << " accFB=" << sio->ReadLastAcceptedClok16ForThisSegment(APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE)
-                      << " emitFB=" << sio->ReadLastEmittedClok16ForThisSegment(APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE);
-        }
-
+        std::cout << " accFF=" << node.ReadLastAcceptedClok16ForThisSegment(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
+                    << " emitFF=" << node.ReadLastEmittedClok16ForThisSegment(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
+                    << " accFB=" << node.ReadLastAcceptedClok16ForThisSegment(APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE)
+                    << " emitFB=" << node.ReadLastEmittedClok16ForThisSegment(APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE);
         std::cout << "\n";
     }
 }

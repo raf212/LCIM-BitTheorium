@@ -204,7 +204,7 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        if (!apc_ptr->GetSegmentIOPtr()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REGISTERED_APC))
+        if (!apc_ptr->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REGISTERED_APC))
         {
             return;
         }
@@ -224,9 +224,9 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        apc_ptr->GetSegmentIOPtr()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC);
+        apc_ptr->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC);
         
-        if (apc_ptr->GetSegmentIOPtr()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_CLEANUP_STACK))
+        if (apc_ptr->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_CLEANUP_STACK))
         {
             PushTOAPCManagerStack_(CleanupStackHeadAPC_, apc_ptr, true);
             ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
@@ -240,8 +240,8 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        apc_ptr->GetSegmentIOPtr()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN);
-        if (apc_ptr->GetSegmentIOPtr()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_CLEANUP_STACK))
+        apc_ptr->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN);
+        if (apc_ptr->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_CLEANUP_STACK))
         {
             PushTOAPCManagerStack_(CleanupStackHeadAPC_, apc_ptr, true);
             ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
@@ -251,12 +251,12 @@ namespace PredictedAdaptedEncoding
 
     void PackedCellContainerManager::RequestAPCSegmentCreationFromManager_(AdaptivePackedCellContainer* apc_ptr) noexcept
     {
-        if (!apc_ptr || apc_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC))
+        if (!apc_ptr || apc_ptr->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC))
         {
             return;
         }
-        apc_ptr->GetSegmentIOPtr()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REQUEST_NEW_SEGMENTATION);
-        if (apc_ptr->GetSegmentIOPtr()->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_WORK_STACK))
+        apc_ptr->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REQUEST_NEW_SEGMENTATION);
+        if (apc_ptr->TurnOnAManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_WORK_STACK))
         {
             PushTOAPCManagerStack_(WorkStackHeadAPC_, apc_ptr, false);
             ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
@@ -275,7 +275,7 @@ namespace PredictedAdaptedEncoding
         while (current_apc_ptr)
         {
             if (
-                !current_apc_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC) &&
+                !current_apc_ptr->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC) &&
                 current_apc_ptr->GetBranchId() == branch_id
             )
             {
@@ -292,10 +292,15 @@ namespace PredictedAdaptedEncoding
         for (size_t i = 0; i < ThreadTableCapacity_; i++)
         {
             uint64_t value_thread_epoch = ThreadEpochArrayPtr_[i].load(MoLoad_);
-            if (value_thread_epoch == THREAD_SENTINEL_ && value_thread_epoch < min_epoch)
+            if (value_thread_epoch == THREAD_SENTINEL_)
             {
                 continue;
             }
+            if (value_thread_epoch < min_epoch)
+            {
+                min_epoch = value_thread_epoch;
+            }
+            
         }
         return min_epoch;
     }
@@ -307,12 +312,12 @@ namespace PredictedAdaptedEncoding
         {
             AdaptivePackedCellContainer* next_apc_ptr = batch_head_apc_ptr->LoadWorkNextAPC();
             batch_head_apc_ptr->StoreWorkNextAPC(nullptr);
-            batch_head_apc_ptr->GetSegmentIOPtr()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_WORK_STACK);
-            if (!batch_head_apc_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC))
+            batch_head_apc_ptr->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_WORK_STACK);
+            if (!batch_head_apc_ptr->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC))
             {
-                if (batch_head_apc_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::REQUEST_NEW_SEGMENTATION))
+                if (batch_head_apc_ptr->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::REQUEST_NEW_SEGMENTATION))
                 {
-                    batch_head_apc_ptr->GetSegmentIOPtr()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REQUEST_NEW_SEGMENTATION);
+                    batch_head_apc_ptr->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REQUEST_NEW_SEGMENTATION);
                     batch_head_apc_ptr->TryCreateBranchIfNeeded(APCPagedNodeRelMaskClasses::FREE_SLOT);
                 }
             }
@@ -326,23 +331,22 @@ namespace PredictedAdaptedEncoding
         {
             AdaptivePackedCellContainer* next_apc_ptr = batch_head_ptr->LoadCleanupNextAPC();
             batch_head_ptr->StoreCleanupNextAPC(nullptr);
-            SegmentIODefinition* segment_io_ptr = batch_head_ptr->GetSegmentIOPtr();
-            if (!segment_io_ptr)
+            if (!batch_head_ptr)
             {
                 batch_head_ptr = next_apc_ptr;
                 continue;
             }
             
-            segment_io_ptr->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_CLEANUP_STACK);
-            const bool reclaim_requested = segment_io_ptr->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN);
-            const bool dead = batch_head_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC);
+            batch_head_ptr->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::IN_CLEANUP_STACK);
+            const bool reclaim_requested = batch_head_ptr->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN);
+            const bool dead = batch_head_ptr->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC);
             if (reclaim_requested && min_epoch != std::numeric_limits<uint64_t>::max())
             {
-                batch_head_ptr->GetSegmentIOPtr()->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN);
+                batch_head_ptr->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::RECLAIMATION_REQUEST_FOR_WHOLE_CHAIN);
             }
             if (dead)
             {
-                segment_io_ptr->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REGISTERED_APC);
+                batch_head_ptr->ClearOneManagerControlFlag(SegmentIODefinition::ManagerControlFlagBits::REGISTERED_APC);
             }
             batch_head_ptr = next_apc_ptr;
         }
@@ -357,7 +361,7 @@ namespace PredictedAdaptedEncoding
         {
             AdaptivePackedCellContainer* next_apc_ptr = current_apc_ptr->LoadRegistryNextAPC();
             current_apc_ptr->StoreCleanupNextAPC(nullptr);
-            if (current_apc_ptr->IfAPCBranchValid() && !current_apc_ptr->GetSegmentIOPtr()->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC))
+            if (current_apc_ptr->IfAPCBranchValid() && !current_apc_ptr->HasThisManageControlFlag(SegmentIODefinition::ManagerControlFlagBits::DEAD_APC))
             {
                 current_apc_ptr->StoreRegistryNextAPC(new_head);
                 new_head = current_apc_ptr;

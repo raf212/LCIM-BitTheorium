@@ -10,6 +10,7 @@ namespace PredictedAdaptedEncoding
 class SegmentIODefinition
 {
 public:
+    std::atomic<packed64_t>* BackingPtr{nullptr};
     static constexpr size_t METACELL_COUNT = PackedCell64_t::METACELL_COUNT_FIRST;
     static constexpr uint32_t BRANCH_MAGIC = 0x41504342u;//big-endian
     static constexpr uint32_t EOF_HEADER = 0x72616600;//big-endian
@@ -66,22 +67,23 @@ public:
 
     bool ValidMeteIdx(MetaIndexOfAPCNode idx) const noexcept
     {
-        return PackedCellContainerPtr_ && static_cast<size_t>(idx) < BranchCapacity_ && static_cast<size_t>(idx) < METACELL_COUNT;
+        return BackingPtr && static_cast<size_t>(idx) < BranchCapacity_ && static_cast<size_t>(idx) < METACELL_COUNT;
     }
 
     packed64_t ReadFullMetaCell(MetaIndexOfAPCNode idx) noexcept
     {
         if (ValidMeteIdx(idx))
         {
-            return PackedCellContainerPtr_[static_cast<size_t>(idx)].load(MoLoad_);
+            return BackingPtr[static_cast<size_t>(idx)].load(MoLoad_);
         }
         return APC_SENTENAL;
     }
     
-private:
-    std::atomic<packed64_t>* PackedCellContainerPtr_{nullptr};
+protected:
+    Timer48 LocalTimer48_;
+    AtomicAdaptiveBackoff* AdaptiveBackoffOfAPCPtr_{nullptr};
+    std::unique_ptr<MasterClockConf> OwnedMasterClockConfPtr_;
     size_t BranchCapacity_{0};
-    MasterClockConf* MasterClockConfPtr_{nullptr};
 
     packed64_t PackValue32InPackedCellwithClock16_(
         val32_t value32,
@@ -92,9 +94,9 @@ private:
         PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType
     ) noexcept
     {
-        if (MasterClockConfPtr_)
+        if (OwnedMasterClockConfPtr_)
         {
-            return MasterClockConfPtr_->ComposeValue32WithCurrentThreadStamp16(value32, rel_mask, priority, locality, reloffset_mode32, dtype);
+            return OwnedMasterClockConfPtr_->ComposeValue32WithCurrentThreadStamp16(value32, rel_mask, priority, locality, reloffset_mode32, dtype);
         }
         strl16_t strl_moded32 = MakeSTRLMode32_t(priority, locality, static_cast<tag8_t>(rel_mask), reloffset_mode32, dtype);
         return PackedCell64_t::ComposeValue32u_64(value32, NO_VAL, strl_moded32);
@@ -112,8 +114,8 @@ private:
         {
             return;
         }
-        PackedCellContainerPtr_[index].store(PackValue32InPackedCellwithClock16_(value32, priority, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask4), MoStoreSeq_);
-        PackedCellContainerPtr_[index].notify_all();
+        BackingPtr[index].store(PackValue32InPackedCellwithClock16_(value32, priority, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask4), MoStoreSeq_);
+        BackingPtr[index].notify_all();
     }
 
 
@@ -161,16 +163,10 @@ public:
 
     SegmentIODefinition() noexcept = default;
 
-    void BindBranchPluginToAPC(std::atomic<packed64_t>* packed_cells, size_t capacity, MasterClockConf* master_clock_ptr) noexcept
-    {
-        PackedCellContainerPtr_ = packed_cells;
-        BranchCapacity_ = capacity;
-        MasterClockConfPtr_ = master_clock_ptr;
-    }
 
     bool IsBound() const noexcept
     {
-        return PackedCellContainerPtr_ != nullptr && BranchCapacity_ >= METACELL_COUNT;
+        return BackingPtr != nullptr && BranchCapacity_ >= METACELL_COUNT;
     }
 
     size_t PayloadCapacity() const noexcept
@@ -233,11 +229,6 @@ public:
     clk16_t ReadLastAcceptedClok16ForThisSegment(APCPagedNodeRelMaskClasses region_kind) noexcept;
     clk16_t ReadLastEmittedClok16ForThisSegment(APCPagedNodeRelMaskClasses region_kind) noexcept;
 
-    void SetMasterClockPtr(MasterClockConf* master_clock_ptr) noexcept
-    {
-        MasterClockConfPtr_ = master_clock_ptr;
-    }
-    
     uint32_t ForceOccupancyUpdateAndReturn(uint32_t new_occupancy) noexcept
     {
         WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT, new_occupancy);
@@ -365,9 +356,9 @@ public:
 
     std::atomic<packed64_t>* GetAPCBackinghPtr() noexcept
     {
-        if (PackedCellContainerPtr_)
+        if (BackingPtr)
         {
-            return PackedCellContainerPtr_;
+            return BackingPtr;
         }
         return nullptr;
     }

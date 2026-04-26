@@ -28,10 +28,11 @@ class AdaptivePackedCellContainer;
     private:
         Timer48& MasterTimer48_;
         unsigned TimerDownShift_ = 10u;
-        SegmentIODefinition* SegmentIODefinitionPtr_ = nullptr;
         AdaptivePackedCellContainer* APCPtr_ = nullptr;
     public:
-        explicit MasterClockConf(AdaptivePackedCellContainer* apc_ptr, Timer48& master_timer) noexcept;
+        explicit MasterClockConf(AdaptivePackedCellContainer* apc_ptr, Timer48& master_timer) noexcept :
+            APCPtr_(apc_ptr), MasterTimer48_(master_timer)
+        {}
         MasterClockConf(const MasterClockConf&) = delete;
         MasterClockConf& operator = (const MasterClockConf&) = delete;
         MasterClockConf(MasterClockConf&&) = delete;
@@ -75,16 +76,8 @@ class AdaptivePackedCellContainer;
             return GetImmidiateDownShiftedClock16(NowTicks48());
         }
 
-        void AttachCurrentThreadSegment() noexcept;
-
         std::optional<uint64_t> ReconstructCellClock16toFull48BySegmentLocalClock48(size_t index_of_packed_cell) noexcept;
 
-
-
-        inline SegmentIODefinition* GETAttachedTLSAPCSegmentIO() const noexcept
-        {
-            return SegmentIODefinitionPtr_;
-        }
 
         inline packed64_t ComposeValue32WithCurrentThreadStamp16(
             val32_t provided_cell_value32,

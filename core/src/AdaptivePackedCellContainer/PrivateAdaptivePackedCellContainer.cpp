@@ -10,22 +10,18 @@ namespace PredictedAdaptedEncoding
             (static_cast<uint64_t>(sequense_number) * ID_HASH_GOLDEN_CONST) ^ (static_cast<uint64_t>(sequense_number >> (VALBITS + 1)))
         );
         size_t step = 1;
-        if (GetPayloadCapacity() > 1)
+        if (PayloadCapacityFromHeader() > 1)
         {
-            step = static_cast<size_t>((mix_hash % (GetPayloadCapacity() - 1)) + 1);
+            step = static_cast<size_t>((mix_hash % (PayloadCapacityFromHeader() - 1)) + 1);
         }
         return step;
     }
 
     void AdaptivePackedCellContainer::InitZeroState_() noexcept
     {
-        if (!SegmentIODefinitionPtr_)
-        {
-            return;
-        }
-        SegmentIODefinitionPtr_->ForceOccupancyUpdateAndReturn(0);
-        SegmentIODefinitionPtr_->MakeAPCBranchOwned();
-        SegmentIODefinitionPtr_->ResetTotalCASFailureForThisBranch();
+        ForceOccupancyUpdateAndReturn(0);
+        MakeAPCBranchOwned();
+        ResetTotalCASFailureForThisBranch();
         UpdateProducerCursorPlacement(static_cast<uint32_t>(PayloadBegin()));
         UpdateConsumerCursorPlacement(static_cast<uint32_t>(PayloadBegin()));
     }
@@ -36,23 +32,23 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        if (SegmentIODefinitionPtr_->ShouldSplitNow())
+        if (ShouldSplitNow())
         {
-            SegmentIODefinitionPtr_->TurnOnASegmentFlag(SegmentIODefinition::ControlEnumOfAPCSegment::SATURATED);
+            TurnOnASegmentFlag(SegmentIODefinition::ControlEnumOfAPCSegment::SATURATED);
         }
         else
         {
-            SegmentIODefinitionPtr_->ClearOneControlEnumFlagOfAPC(SegmentIODefinition::ControlEnumOfAPCSegment::SATURATED);
+            ClearOneControlEnumFlagOfAPC(SegmentIODefinition::ControlEnumOfAPCSegment::SATURATED);
         }
         if (OwnedMasterClockConfPtr_)
         {
-            SegmentIODefinitionPtr_->TouchLocalMetaClock48();
+            TouchLocalMetaClock48();
         }
 
-        uint32_t current_group_size = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::NODE_GROUP_SIZE);
+        uint32_t current_group_size = ReadMetaCellValue32(MetaIndexOfAPCNode::NODE_GROUP_SIZE);
         if (current_group_size == NO_VAL)
         {
-            SegmentIODefinitionPtr_->JustUpdateValueOfMeta32(
+            JustUpdateValueOfMeta32(
                 MetaIndexOfAPCNode::NODE_GROUP_SIZE,
                 current_group_size,
                 1u
@@ -61,9 +57,9 @@ namespace PredictedAdaptedEncoding
         
     }
 
-    size_t AdaptivePackedCellContainer::SuggestedChildCapacity_() const noexcept
+    size_t AdaptivePackedCellContainer::SuggestedChildCapacity_() noexcept
     {
-        const size_t payload_capacity = GetPayloadCapacity();
+        const size_t payload_capacity = PayloadCapacityFromHeader();
         const size_t child_payload_size = std::max<size_t>(MINIMUM_BRANCH_CAPACITY, payload_capacity / 2);
         return child_payload_size + PayloadBegin();
     }
@@ -72,15 +68,7 @@ namespace PredictedAdaptedEncoding
         bool* did_changed_easy_return, const MetaIndexOfAPCNode cursors_meta_idx
     ) noexcept
     {
-        if (!SegmentIODefinitionPtr_)
-        {
-            if (did_changed_easy_return)
-            {
-                *did_changed_easy_return = false;
-            }
-            return SegmentIODefinition::BRANCH_SENTINAL;
-        }
-        if (GetPayloadEnd() <= PayloadBegin())
+        if (PayloadCapacityFromHeader() <= PayloadBegin())
         {
             if (did_changed_easy_return)
             {
@@ -91,7 +79,7 @@ namespace PredictedAdaptedEncoding
         
         while (true)
         {
-            const uint32_t current_cursor_placement = SegmentIODefinitionPtr_->ReadMetaCellValue32(cursors_meta_idx);
+            const uint32_t current_cursor_placement = ReadMetaCellValue32(cursors_meta_idx);
             uint32_t desired_cursor_place = current_cursor_placement;
             if (cursor_placement.has_value())
             {
@@ -162,7 +150,7 @@ namespace PredictedAdaptedEncoding
                 }
                 return current_cursor_placement;
             }
-            if (SegmentIODefinitionPtr_->JustUpdateValueOfMeta32(cursors_meta_idx, current_cursor_placement, desired_cursor_place))
+            if (JustUpdateValueOfMeta32(cursors_meta_idx, current_cursor_placement, desired_cursor_place))
             {
                 if (did_changed_easy_return)
                 {
@@ -180,7 +168,7 @@ namespace PredictedAdaptedEncoding
         {
             return std::nullopt;
         }
-        const auto maybe_current_region_bounds = SegmentIODefinitionPtr_->ReadLayoutBounds(region_kind);
+        const auto maybe_current_region_bounds = ReadLayoutBounds(region_kind);
         if (!maybe_current_region_bounds.has_value() || maybe_current_region_bounds->GetPayloadSpan() == 0)
         {
             return std::nullopt;
@@ -211,7 +199,7 @@ namespace PredictedAdaptedEncoding
                 {
                     APCManagerPtr_->GetCellsAdaptiveBackoffFromManager(expected_cell);
                 }
-                SegmentIODefinitionPtr_->TotalCASFailForThisBranchIncreaseAndGet(1);
+                TotalCASFailForThisBranchIncreaseAndGet(1);
                 continue;
             }
             const PackedMode old_mode = PackedCell64_t::ExtractModeOfPackedCellFromPacked(current_cell);
@@ -244,13 +232,13 @@ namespace PredictedAdaptedEncoding
         }
         while (true)
         {
-            const val32_t current_branch_rel_mask = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::READY_REL_MASK);
+            const val32_t current_branch_rel_mask = ReadMetaCellValue32(MetaIndexOfAPCNode::READY_REL_MASK);
             const uint32_t next_mask = current_branch_rel_mask | ready_bit;
             if (next_mask == current_branch_rel_mask)
             {
                 return;
             }
-            if (SegmentIODefinitionPtr_->JustUpdateValueOfMeta32(MetaIndexOfAPCNode::READY_REL_MASK, current_branch_rel_mask, next_mask))
+            if (JustUpdateValueOfMeta32(MetaIndexOfAPCNode::READY_REL_MASK, current_branch_rel_mask, next_mask))
             {
                 return;
             }
@@ -270,7 +258,7 @@ namespace PredictedAdaptedEncoding
             packed_cell = APCAndPagedNodeHelpers::SetRelMaskForPagedNode(packed_cell, region_kind);
         }
         
-        const auto maybe_current_region_bounds = SegmentIODefinitionPtr_->ReadLayoutBounds(region_kind);
+        const auto maybe_current_region_bounds = ReadLayoutBounds(region_kind);
         if (!maybe_current_region_bounds|| maybe_current_region_bounds->IsEmpty())
         {
             return failed_result;
@@ -311,14 +299,14 @@ namespace PredictedAdaptedEncoding
                     {
                         AdaptiveBackoffOfAPCPtr_->AdaptiveBackOffPacked(expected_cell);
                     }
-                    SegmentIODefinitionPtr_->TotalCASFailForThisBranchIncreaseAndGet(1);
+                    TotalCASFailForThisBranchIncreaseAndGet(1);
                     continue;
                 }
                 BackingPtr[current_index].store(packed_cell, MoStoreSeq_);
                 BackingPtr[current_index].notify_all();
                 OccupancyAddOrSubAndGetAfterChange(+1);
                 UpdateRegionRelMaskForIdx_(region_kind);
-                SegmentIODefinitionPtr_->TouchLocalMetaClock48();
+                TouchLocalMetaClock48();
                 RefreshAPCMeta_();
                 return {PublishStatus::OK, current_index};
             }
@@ -331,7 +319,7 @@ namespace PredictedAdaptedEncoding
         {
             return first;
         }
-        auto maybe_complete_layout = SegmentIODefinitionPtr_->ReadAndGetFullRegionLayout_();
+        auto maybe_complete_layout = ReadAndGetFullRegionLayout_();
         if (!maybe_complete_layout.has_value())
         {
             failed_result.ResultStatus = PublishStatus::FULL;
@@ -339,13 +327,13 @@ namespace PredictedAdaptedEncoding
         }
         CompleteAPCNodeRegionsLayout complete_layout = *maybe_complete_layout;
         const uint32_t suggested_expension = SuggestedInternalAPCExpension_(&complete_layout);
-        if (suggested_expension != 0 && SegmentIODefinitionPtr_->TryExtendASegmentInOwnAPC(
+        if (suggested_expension != 0 && TryExtendASegmentInOwnAPC(
             region_kind,
             suggested_expension,
             ContainerConf::APCSegmentExtendOrder::PRIORITY
         ))
         {
-            auto maybe_extended_bounds = SegmentIODefinitionPtr_->ReadLayoutBounds(region_kind);
+            auto maybe_extended_bounds = ReadLayoutBounds(region_kind);
             if (maybe_extended_bounds)
             {
                 PublishResult second = TryPublishOnceInBounds(*maybe_extended_bounds);
@@ -362,7 +350,7 @@ namespace PredictedAdaptedEncoding
     {
         complete_layout->NormalizePercentagesIfNeeded();
         LayoutBoundsOfSingleRelNodeClass* free_layout = complete_layout->GetALayoutByRelMask(APCPagedNodeRelMaskClasses::FREE_SLOT);
-        const uint32_t suggested_expension = static_cast<uint32_t>(((GetPayloadCapacity() * (free_layout->InitialOrCurrentPercentage)) / 100) / (100 / prefared_percentage_of_free));
+        const uint32_t suggested_expension = static_cast<uint32_t>(((PayloadCapacityFromHeader() * (free_layout->InitialOrCurrentPercentage)) / 100) / (100 / prefared_percentage_of_free));
         return suggested_expension;
 
     }
@@ -402,7 +390,7 @@ namespace PredictedAdaptedEncoding
         {
             return false;
         }
-        const size_t region_size = static_cast<size_t>(SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::REGION_SIZE));
+        const size_t region_size = static_cast<size_t>(ReadMetaCellValue32(MetaIndexOfAPCNode::REGION_SIZE));
         if (region_size == 0)
         {
             RegionRelArray_.reset();
@@ -411,7 +399,7 @@ namespace PredictedAdaptedEncoding
             return true;
         }
 
-        const size_t number_of_regions = (GetPayloadCapacity() + region_size - 1u) / region_size;
+        const size_t number_of_regions = (PayloadCapacityFromHeader() + region_size - 1u) / region_size;
         RegionRelArray_.reset(new std::atomic<uint8_t>[number_of_regions]);
         RegionEpochArray_.reset(new std::atomic<uint64_t>[number_of_regions]);
         const size_t words = (number_of_regions + MAX_VAL - 1) / MAX_VAL;
@@ -420,7 +408,7 @@ namespace PredictedAdaptedEncoding
         for (size_t region = 0; region < number_of_regions; region++)
         {
             const size_t base = region * region_size;
-            const size_t capacity_end = std::min(GetPayloadCapacity(), base + region_size);
+            const size_t capacity_end = std::min(PayloadCapacityFromHeader(), base + region_size);
             uint32_t region_ready_mask = NO_VAL;
             uint64_t region_epoch = NO_VAL;
             for (size_t i = base; i < capacity_end; i++)
@@ -452,9 +440,9 @@ namespace PredictedAdaptedEncoding
                 }
             }
         }
-        const uint32_t expected_mask = SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::READY_REL_MASK);
+        const uint32_t expected_mask = ReadMetaCellValue32(MetaIndexOfAPCNode::READY_REL_MASK);
 
-        SegmentIODefinitionPtr_->JustUpdateValueOfMeta32(
+        JustUpdateValueOfMeta32(
             MetaIndexOfAPCNode::READY_REL_MASK,
             expected_mask,
             global_ready_mask

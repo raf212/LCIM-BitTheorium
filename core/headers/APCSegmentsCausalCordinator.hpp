@@ -26,12 +26,10 @@ private:
 
     bool TryAdvanceClock_(MetaIndexOfAPCNode idx, clk16_t candidate) noexcept
     {
-        SegmentIODefinition* sio = GetSegmentIOPtr();
-        if (!sio) return false;
 
         while (true)
         {
-            const uint32_t current32 = sio->ReadMetaCellValue32(idx);
+            const uint32_t current32 = ReadMetaCellValue32(idx);
             const clk16_t current = static_cast<clk16_t>(current32);
 
             if (current32 != NO_VAL &&
@@ -40,7 +38,7 @@ private:
                 return false;
             }
 
-            if (sio->JustUpdateValueOfMeta32(idx, current32, static_cast<uint32_t>(candidate), false))
+            if (JustUpdateValueOfMeta32(idx, current32, static_cast<uint32_t>(candidate), false))
             {
                 return true;
             }

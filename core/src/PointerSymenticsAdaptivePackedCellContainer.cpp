@@ -36,11 +36,11 @@ namespace PredictedAdaptedEncoding
             if (curent_ptr_position == RelOffsetMode32::REL_OFFSET_HEAD_PTR)
             {
                 head_idx = probable_idx;
-                tail_idx = (probable_idx + 1) % GetPayloadCapacity();
+                tail_idx = (probable_idx + 1) % PayloadCapacityFromHeader();
             }
             else if (curent_ptr_position == RelOffsetMode32::RELOFFSET_TAIL_PTR)
             {
-                head_idx = (probable_idx + GetPayloadCapacity() - 1) % GetPayloadCapacity();
+                head_idx = (probable_idx + PayloadCapacityFromHeader() - 1) % PayloadCapacityFromHeader();
                 tail_idx = probable_idx;
             }
             else
@@ -207,7 +207,7 @@ namespace PredictedAdaptedEncoding
         {
             return { PublishStatus::INVALID, SIZE_MAX};
         }
-        if (GetPayloadCapacity() < MINIMUM_BRANCH_CAPACITY)
+        if (PayloadCapacityFromHeader() < MINIMUM_BRANCH_CAPACITY)
         {
             return {PublishStatus::FULL, SIZE_MAX};
         }
@@ -221,7 +221,7 @@ namespace PredictedAdaptedEncoding
             return {PublishStatus::INVALID, SIZE_MAX};
         }
         
-        size_t start = PayloadBegin() + ((next_sequence - PayloadBegin()) % GetPayloadCapacity());
+        size_t start = PayloadBegin() + ((next_sequence - PayloadBegin()) % PayloadCapacityFromHeader());
         size_t step = GetHashedRendomizedStep_(next_sequence);
         int probes = 0;
         size_t idx = start;
@@ -240,7 +240,7 @@ namespace PredictedAdaptedEncoding
                 packed64_t expected_head = cur_head;
                 if (!BackingPtr[head].compare_exchange_strong(expected_head, claimed_cur_head, OnExchangeSuccess, OnExchangeFailure))
                 {
-                    SegmentIODefinitionPtr_->TotalCASFailForThisBranchIncreaseAndGet(1);
+                    TotalCASFailForThisBranchIncreaseAndGet(1);
                 }
                 else
                 {
@@ -249,7 +249,7 @@ namespace PredictedAdaptedEncoding
                     {
                         BackingPtr[head].store(cur_head, MoStoreSeq_);
                         BackingPtr[head].notify_all();
-                        SegmentIODefinitionPtr_->TotalCASFailForThisBranchIncreaseAndGet(1);
+                        TotalCASFailForThisBranchIncreaseAndGet(1);
                     }
                     else
                     {
@@ -270,11 +270,11 @@ namespace PredictedAdaptedEncoding
                 }
             }
             ++probes;
-            if ((max_probs >=0 && probes >= max_probs) || probes >= static_cast<int>(GetPayloadCapacity()))
+            if ((max_probs >=0 && probes >= max_probs) || probes >= static_cast<int>(PayloadCapacityFromHeader()))
             {
                 return {PublishStatus::FULL, SIZE_MAX};
             }
-            idx = (((idx - PayloadBegin()) + step) % GetPayloadCapacity()) + PayloadBegin();
+            idx = (((idx - PayloadBegin()) + step) % PayloadCapacityFromHeader()) + PayloadBegin();
         }
     }
 
@@ -290,10 +290,10 @@ namespace PredictedAdaptedEncoding
                 return true;
             }
             packed64_t observed = 0;
-            if (BackingPtr && GetPayloadCapacity() > 0)
+            if (BackingPtr && PayloadCapacityFromHeader() > 0)
             {
                 size_t idx = ( PayloadBegin() +
-                    (std::hash<std::thread::id>{}(std::this_thread::get_id()) % GetPayloadCapacity())
+                    (std::hash<std::thread::id>{}(std::this_thread::get_id()) % PayloadCapacityFromHeader())
                 );
                 observed = BackingPtr[idx].load(MoLoad_);
             }
@@ -302,9 +302,9 @@ namespace PredictedAdaptedEncoding
                 auto& backoff = APCManagerPtr_->GetManagersAdaptiveBackoff();
                 backoff.AdaptiveBackOffPacked(observed);
             }
-            if (SegmentIODefinitionPtr_ && 
-                SegmentIODefinitionPtr_->HasThisControlEnumFlag(SegmentIODefinition::ControlEnumOfAPCSegment::ENABLE_BRANCHING) && 
-                SegmentIODefinitionPtr_->ShouldSplitNow() && APCManagerPtr_
+            if (
+                HasThisControlEnumFlag(SegmentIODefinition::ControlEnumOfAPCSegment::ENABLE_BRANCHING) && 
+                ShouldSplitNow() && APCManagerPtr_
             )
             {
                 APCManagerPtr_->RequestAPCSegmentCreationFromManager_(this);

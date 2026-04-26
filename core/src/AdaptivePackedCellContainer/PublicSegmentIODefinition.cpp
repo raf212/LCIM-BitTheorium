@@ -12,16 +12,16 @@ namespace PredictedAdaptedEncoding
             return NO_VAL;
         }
         size_t index = static_cast<size_t>(idx);
-        return PackedCell64_t::ExtractValue32(PackedCellContainerPtr_[index].load(MoLoad_));
+        return PackedCell64_t::ExtractValue32(BackingPtr[index].load(MoLoad_));
     }
 
     void SegmentIODefinition::TouchLocalMetaClock48() noexcept
     {
-        if (!MasterClockConfPtr_)
+        if (!OwnedMasterClockConfPtr_)
         {
             return;
         }
-        MasterClockConfPtr_->TouchSegmentLocalClock48HighPriority();
+        OwnedMasterClockConfPtr_->TouchSegmentLocalClock48HighPriority();
     }
 
     packed64_t SegmentIODefinition::PackPureClock48AsPackedCell(
@@ -38,9 +38,9 @@ namespace PredictedAdaptedEncoding
             return PackedCell64_t::ComposeCLK48u_64(NO_VAL, MakeStrl4ForMode48_t(PriorityPhysics::ERROR_DEPENDENCY, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY, rel_mask, reloffset, dtype));
         }
         
-        if (MasterClockConfPtr_)
+        if (OwnedMasterClockConfPtr_)
         {
-            return MasterClockConfPtr_->ComposePureClockCell48();
+            return OwnedMasterClockConfPtr_->ComposePureClockCell48();
         }
         
         strl16_t strl_clock48 = MakeStrl4ForMode48_t(priority, locality, rel_mask, reloffset, dtype);
@@ -56,8 +56,8 @@ namespace PredictedAdaptedEncoding
     {
         size_t idx = static_cast<size_t>(MetaIndexOfAPCNode::LOCAL_CLOCK48);
         packed64_t wanted_cell = PackPureClock48AsPackedCell(meta_clock_48, priority, PackedCellLocalityTypes::ST_PUBLISHED);
-        PackedCellContainerPtr_[idx].store(wanted_cell, MoStoreSeq_);
-        PackedCellContainerPtr_[idx].notify_all();
+        BackingPtr[idx].store(wanted_cell, MoStoreSeq_);
+        BackingPtr[idx].notify_all();
     }
 
     bool SegmentIODefinition::JustUpdateValueOfMeta32(
@@ -72,7 +72,7 @@ namespace PredictedAdaptedEncoding
             return false;
         }
         const size_t index = static_cast<size_t>(idx);
-        packed64_t expected_packed = PackedCellContainerPtr_[index].load(MoLoad_);
+        packed64_t expected_packed = BackingPtr[index].load(MoLoad_);
         if (PackedCell64_t::ExtractValue32(expected_packed) != expected_value)
         {
             return false;
@@ -83,12 +83,12 @@ namespace PredictedAdaptedEncoding
         }
         strl16_t current_strl = PackedCell64_t::ExtractSTRL(expected_packed);
         clk16_t current_clock16 = PackedCell64_t::ExtractClk16(expected_packed);
-        if (refresh_clock16 && MasterClockConfPtr_)
+        if (refresh_clock16 && OwnedMasterClockConfPtr_)
         {
-            current_clock16 = MasterClockConfPtr_->NowClock16();
+            current_clock16 = OwnedMasterClockConfPtr_->NowClock16();
         }
         const packed64_t desired_packed = PackedCell64_t::ComposeValue32u_64(desired_value, current_clock16, current_strl);
-        return PackedCellContainerPtr_[index].compare_exchange_strong(
+        return BackingPtr[index].compare_exchange_strong(
             expected_packed,
             desired_packed,
             OnExchangeSuccess,

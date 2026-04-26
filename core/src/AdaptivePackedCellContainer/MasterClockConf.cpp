@@ -3,16 +3,6 @@
 namespace PredictedAdaptedEncoding
 {
 
-    MasterClockConf::MasterClockConf(AdaptivePackedCellContainer* apc_ptr, Timer48& master_timer) noexcept :
-        MasterTimer48_(master_timer), APCPtr_(apc_ptr)
-    {
-        if (APCPtr_ != nullptr && APCPtr_->IfAPCBranchValid())
-        {
-            SegmentIODefinitionPtr_ = APCPtr_->GetSegmentIOPtr();
-        }
-        
-    }
-
     packed64_t MasterClockConf::RefreshPackedCellClockOnly(
         packed64_t provided_packed_cell,
         APCPagedNodeRelMaskClasses force_rel_mask,
@@ -56,17 +46,6 @@ namespace PredictedAdaptedEncoding
         return provided_packed_cell;
     }
 
-    void MasterClockConf::AttachCurrentThreadSegment() noexcept
-    {
-        if (APCPtr_ == nullptr)
-        {
-            SegmentIODefinitionPtr_ = nullptr;
-            return;
-        }
-        SegmentIODefinitionPtr_ = APCPtr_->GetSegmentIOPtr();
-    }
-
-
     std::optional<packed64_t> MasterClockConf::TouchPackedCellClockAndGetCellWithNewClock(
         size_t index_of_packed_cell,
         APCPagedNodeRelMaskClasses force_rel_mask,
@@ -105,7 +84,7 @@ std::optional<uint64_t> MasterClockConf::ReconstructCellClock16toFull48BySegment
     size_t index_of_packed_cell
 ) noexcept
 {
-    if (APCPtr_ == nullptr || SegmentIODefinitionPtr_ == nullptr)
+    if (APCPtr_ == nullptr)
     {
         return std::nullopt;
     }
@@ -118,8 +97,7 @@ std::optional<uint64_t> MasterClockConf::ReconstructCellClock16toFull48BySegment
     const packed64_t packed_cell = APCPtr_->BackingPtr[index_of_packed_cell].load(MoLoad_);
     const clk16_t stored_clk16 = PackedCell64_t::ExtractClk16(packed_cell);
 
-    const packed64_t local_clock_cell =
-        SegmentIODefinitionPtr_->ReadFullMetaCell(MetaIndexOfAPCNode::LOCAL_CLOCK48);
+    const packed64_t local_clock_cell = APCPtr_->ReadFullMetaCell(MetaIndexOfAPCNode::LOCAL_CLOCK48);
 
     const uint64_t local_clock48 = PackedCell64_t::ExtractClk48(local_clock_cell) & MaskBits(CLK_B48);
 
@@ -138,7 +116,7 @@ std::optional<uint64_t> MasterClockConf::ReconstructCellClock16toFull48BySegment
 
     bool MasterClockConf::TouchSegmentLocalClock48HighPriority() noexcept
     {
-        if (!APCPtr_ || !SegmentIODefinitionPtr_)
+        if (!APCPtr_)
         {
             return false;
         }
@@ -150,7 +128,7 @@ std::optional<uint64_t> MasterClockConf::ReconstructCellClock16toFull48BySegment
 
     bool MasterClockConf::TryAdvanceSegmentsLastAcceptedClock(APCPagedNodeRelMaskClasses desired_rel_class) noexcept
     {
-        if (!APCPtr_ || !SegmentIODefinitionPtr_)
+        if (!APCPtr_)
         {
             return false;
         }
@@ -170,13 +148,13 @@ std::optional<uint64_t> MasterClockConf::ReconstructCellClock16toFull48BySegment
         clk16_t candidate_clock16 = NowClock16();
         while (true)
         {
-            uint32_t current32 = SegmentIODefinitionPtr_->ReadMetaCellValue32(idx);
+            uint32_t current32 = APCPtr_->ReadMetaCellValue32(idx);
             const clk16_t current_segment_clock16 = static_cast<clk16_t>(current32);
             if (!APCAndPagedNodeHelpers::INewerClock16(candidate_clock16, current_segment_clock16))
             {
                 return true;
             }
-            if (SegmentIODefinitionPtr_->JustUpdateValueOfMeta32(idx, current32, static_cast<uint32_t>(candidate_clock16), false))
+            if (APCPtr_->JustUpdateValueOfMeta32(idx, current32, static_cast<uint32_t>(candidate_clock16), false))
             {
                 return true;
             }

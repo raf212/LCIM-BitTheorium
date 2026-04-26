@@ -3,7 +3,6 @@
 namespace PredictedAdaptedEncoding
 {
     //packedCell
-    #define NO_VAL 0u
     #define ZERO_PRIORITY 0u
     #define MAX_VAL 64u
     #define LN_OF_BYTE_IN_BITS 8u
@@ -43,5 +42,7 @@ namespace PredictedAdaptedEncoding
     #define MINIMUM_SLEEP_THRASHOLD_US 8
     //manager
     #define BIT_PATTERN_THREAD_TOKEN_GENERATOR 0xA5A5A5A5u
+
+    static constexpr unsigned NO_VAL = 0u;
 
 }

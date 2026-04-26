@@ -39,6 +39,7 @@ namespace PredictedAdaptedEncoding
         }
         public:
         static constexpr size_t METACELL_COUNT_FIRST = 96;
+        static constexpr uint8_t REL_OFFSET_GENERIC_VALUE = 0;
         static inline packed64_t MakeInitialPacked(PackedMode mode, PackedCellDataType pcdata_type = PackedCellDataType::UnsignedPCellDataType, tag8_t rel_mask = NO_VAL, PriorityPhysics priority = PriorityPhysics::IDLE) noexcept
         {
             packed64_t p = 0;

@@ -134,6 +134,72 @@ namespace PredictedAdaptedEncoding
         };
     };
 
+    struct APCAndPagedNodeHelpers
+    {
+        static constexpr uint8_t HIGH_FOUR_NIBBLE = 0x0Fu;
+        static constexpr uint8_t HIGH_ALL_EIGHT_NIBBLE = 0xFFu;
+        static constexpr size_t SIZE_OF_APCPagedNodeRelMaskClasses = 16u;
+
+        static inline bool INewerClock16(clk16_t candidate, clk16_t baseline) noexcept
+        {
+            if (candidate == baseline)
+            {
+                return false;
+            }
+            return static_cast<uint16_t>(candidate - baseline) < HALF16Bit_THRESHOLD_WRAP;
+            
+        }
+        static APCPagedNodeRelMaskClasses ExtractPagedRelMaskFromPacked (packed64_t packed_cell) noexcept
+        {
+            return static_cast<APCPagedNodeRelMaskClasses>(PackedCell64_t::ExtractRelMaskFromPacked(packed_cell));
+        }
+
+        static inline bool IsCellPublishedMode32Generic (packed64_t packed_cell) noexcept
+        {
+            return PackedCell64_t::ExtractModeOfPackedCellFromPacked(packed_cell) == PackedMode::MODE_VALUE32 && 
+                PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
+                static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell)) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
+        }
+        
+        template<typename PCDT>
+        static inline bool IsMode32TypedPublishedCell(packed64_t packed_cell) noexcept
+        {
+            if (!IsCellPublishedMode32Generic(packed_cell))
+            {
+                return false;
+            }
+            return PackedCell64_t::ExtractPCellDataTypeFromPacked(packed_cell)  == PackedCellTypeBridge<PCDT>::DType;
+        }
+
+        static packed64_t SetRelMaskForPagedNode(packed64_t packed_cell, APCPagedNodeRelMaskClasses rel_mask) noexcept
+        {
+            return PackedCell64_t::SetRelMaskInPacked(packed_cell, static_cast<tag8_t>(rel_mask));
+        }
+
+        static constexpr uint32_t ReadyBitForRelClass(APCPagedNodeRelMaskClasses desired_rel_class) noexcept
+        {
+            const uint32_t rel_class = static_cast<uint8_t>(desired_rel_class) & HIGH_FOUR_NIBBLE;
+            if (rel_class == static_cast<uint8_t>(APCPagedNodeRelMaskClasses::NONE) || rel_class == static_cast<uint8_t>(APCPagedNodeRelMaskClasses::NANNULL))
+            {
+                return NO_VAL;
+            }
+            return (1u << rel_class);
+        }
+
+        static constexpr uint32_t ReadyRelationBitMapForPackedCell(packed64_t packed_cell) noexcept
+        {
+            return ReadyBitForRelClass(ExtractPagedRelMaskFromPacked(packed_cell));
+        }
+        //will be removed
+        static bool CanCellBeConsumedForThisRegion(packed64_t packed_cell, APCPagedNodeRelMaskClasses region_kind) noexcept
+        {
+            return PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
+                ExtractPagedRelMaskFromPacked(packed_cell) == region_kind &&
+                static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell)) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
+        }
+
+
+    };
     
     struct LayoutBoundsOfSingleRelNodeClass
     {
@@ -211,6 +277,22 @@ namespace PredictedAdaptedEncoding
         constexpr uint32_t ComputeWantedSpanFromTotal(uint32_t total_payload_span) const noexcept
         {
             return (static_cast<uint32_t>(InitialOrCurrentPercentage) * total_payload_span) / 100u;
+        }
+
+        inline bool DoseThisIndexPhysicallyExistInThisRegion(size_t index) const noexcept
+        {
+            return index >= BeginIndex && index < EndIndex;
+        }
+        inline bool CanCellBEConsumedForThisPhysicalRegion(
+            packed64_t packed_cell,
+            APCPagedNodeRelMaskClasses region_kind,
+            size_t idx
+        ) noexcept
+        {
+            return DoseThisIndexPhysicallyExistInThisRegion(idx) && 
+                PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
+                APCAndPagedNodeHelpers::ExtractPagedRelMaskFromPacked(packed_cell) == region_kind &&
+                PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell) == PackedCell64_t::REL_OFFSET_GENERIC_VALUE;
         }
 
     };
@@ -349,97 +431,15 @@ namespace PredictedAdaptedEncoding
         size_t Index{SIZE_MAX};
     };
 
-
-    struct APCAndPagedNodeHelpers
+    enum class APCOccupancyQuery : uint8_t
     {
-        static constexpr uint8_t HIGH_FOUR_NIBBLE = 0x0Fu;
-        static constexpr uint8_t HIGH_ALL_EIGHT_NIBBLE = 0xFFu;
-        static constexpr size_t SIZE_OF_APCPagedNodeRelMaskClasses = 16u;
-
-        static inline bool INewerClock16(clk16_t candidate, clk16_t baseline) noexcept
-        {
-            if (candidate == baseline)
-            {
-                return false;
-            }
-            return static_cast<uint16_t>(candidate - baseline) < HALF16Bit_THRESHOLD_WRAP;
-            
-        }
-        static APCPagedNodeRelMaskClasses ExtractPagedRelMaskFromPacked (packed64_t packed_cell) noexcept
-        {
-            return static_cast<APCPagedNodeRelMaskClasses>(PackedCell64_t::ExtractRelMaskFromPacked(packed_cell));
-        }
-
-        static inline bool IsCellPublishedMode32Generic (packed64_t packed_cell) noexcept
-        {
-            return PackedCell64_t::ExtractModeOfPackedCellFromPacked(packed_cell) == PackedMode::MODE_VALUE32 && 
-                PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
-                static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell)) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
-        }
-        
-        template<typename PCDT>
-        static inline bool IsMode32TypedPublishedCell(packed64_t packed_cell) noexcept
-        {
-            if (!IsCellPublishedMode32Generic(packed_cell))
-            {
-                return false;
-            }
-            return PackedCell64_t::ExtractPCellDataTypeFromPacked(packed_cell)  == PackedCellTypeBridge<PCDT>::DType;
-        }
-
-        static bool CanCellBeConsumedForThisRegion(packed64_t packed_cell, APCPagedNodeRelMaskClasses region_kind) noexcept
-        {
-            return PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
-                ExtractPagedRelMaskFromPacked(packed_cell) == region_kind &&
-                static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell)) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
-        }
-
-        static packed64_t SetRelMaskForPagedNode(packed64_t packed_cell, APCPagedNodeRelMaskClasses rel_mask) noexcept
-        {
-            return PackedCell64_t::SetRelMaskInPacked(packed_cell, static_cast<tag8_t>(rel_mask));
-        }
-
-        static constexpr uint32_t ReadyBitForRelClass(APCPagedNodeRelMaskClasses desired_rel_class) noexcept
-        {
-            const uint32_t rel_class = static_cast<uint8_t>(desired_rel_class) & HIGH_FOUR_NIBBLE;
-            if (rel_class == static_cast<uint8_t>(APCPagedNodeRelMaskClasses::NONE) || rel_class == static_cast<uint8_t>(APCPagedNodeRelMaskClasses::NANNULL))
-            {
-                return NO_VAL;
-            }
-            return (1u << rel_class);
-        }
-
-        static constexpr uint32_t ReadyRelationBitMapForPackedCell(packed64_t packed_cell) noexcept
-        {
-            return ReadyBitForRelClass(ExtractPagedRelMaskFromPacked(packed_cell));
-        }
-
-
-        // static packed64_t PackValue32withAPCPageNodeClasses(val32_t value32, APCPagedNodeRelMaskClasses rel_mask, PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
-        //                     MasterClockConf* master_clock_ptr = nullptr ,PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType, PriorityPhysics priority = PriorityPhysics::IDLE,
-        //                     RelOffsetMode32 rel_offset = RelOffsetMode32::RELOFFSET_GENERIC_VALUE, clk16_t clock16 = NO_VAL) noexcept
-        // {
-        //     packed64_t desired = 0;
-        //     if (master_clock_ptr)
-        //     {
-        //         desired = master_clock_ptr->ComposeValue32WithCurrentThreadStamp16(
-        //             value32,
-        //             static_cast<tag8_t>(rel_mask),
-        //             priority,
-        //             locality,
-        //             rel_offset,
-        //             dtype
-        //         );
-        //     }
-        //     else
-        //     {
-        //         desired = PackedCell64_t::ComposeValue32u_64(value32, clock16, 
-        //                 MakeSTRLMode32_t(priority, locality, static_cast<tag8_t>(rel_mask), rel_offset, dtype)
-        //             );
-        //     }
-        //     return desired;
-        // }
+        NON_IDLE_PAYLOAD = 0,
+        PUBLISHABLE_FOR_ANY_REGION = 1,
+        IDLE_FOR_DESIRED_REGION = 2,
+        RESERVED_OR_CLAIMED = 3
     };
+
+
     
 
 

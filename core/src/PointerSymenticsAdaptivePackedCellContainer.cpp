@@ -1,5 +1,5 @@
 #include "APCSegmentsCausalCordinator.hpp"
-#include "PackedCellContainerManager.hpp"
+#include "AdaptivePackedCellContainer/PointerSymenticsAdaptivePackedCellContainer.hpp"
 #include <iostream>
 
 namespace PredictedAdaptedEncoding
@@ -14,7 +14,7 @@ namespace PredictedAdaptedEncoding
         );
         return assembeled64;
     }
-    std::optional<AcquirePairedPointerStruct> AdaptivePackedCellContainer::AcquirePairedAtomicPtr(
+    std::optional<AcquirePairedPointerStruct> PointerSymenticsAdaptivePackedCellContainer::AcquirePairedAtomicPtr(
         size_t probable_idx, bool claim_ownership, int max_claim_attempts
     ) noexcept
     {
@@ -115,7 +115,7 @@ namespace PredictedAdaptedEncoding
         return std::nullopt;
     }
 
-    bool AdaptivePackedCellContainer::ReleaseAcquiredPairedPtr(const AcquirePairedPointerStruct& acquired_paired_pointer_struct, PackedCellLocalityTypes desired_locality) noexcept
+    bool PointerSymenticsAdaptivePackedCellContainer::ReleaseAcquiredPairedPtr(const AcquirePairedPointerStruct& acquired_paired_pointer_struct, PackedCellLocalityTypes desired_locality) noexcept
     {
         if (!acquired_paired_pointer_struct.Ownership)
         {
@@ -151,7 +151,7 @@ namespace PredictedAdaptedEncoding
         return true;
     }
 
-    void AdaptivePackedCellContainer::RetireAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_paired_pointer_struct) noexcept
+    void PointerSymenticsAdaptivePackedCellContainer::RetireAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_paired_pointer_struct) noexcept
     {
         if (!acquired_paired_pointer_struct.Ownership)
         {
@@ -173,7 +173,7 @@ namespace PredictedAdaptedEncoding
     }
 
     template<typename PtrDtype>
-    std::optional<PtrDtype> AdaptivePackedCellContainer::ViewPointerMemoryIfAssembeled(size_t probable_idx) noexcept
+    std::optional<PtrDtype> PointerSymenticsAdaptivePackedCellContainer::ViewPointerMemoryIfAssembeled(size_t probable_idx) noexcept
     {
         static_assert(std::is_trivially_copyable_v<PtrDtype>, "Data Type must be trivally copyable");
         auto maybe_ptr = AcquirePairedAtomicPtr(probable_idx, false);
@@ -201,7 +201,7 @@ namespace PredictedAdaptedEncoding
     }
 
 
-    PublishResult AdaptivePackedCellContainer::PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask_with_ptrflag, int max_probs) noexcept
+    PublishResult PointerSymenticsAdaptivePackedCellContainer::PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask_with_ptrflag, int max_probs) noexcept
     {
         if (!IfAPCBranchValid())
         {
@@ -278,7 +278,7 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    bool AdaptivePackedCellContainer::PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries)
+    bool PointerSymenticsAdaptivePackedCellContainer::PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries)
     {
         int publish_attempt = 0;
 

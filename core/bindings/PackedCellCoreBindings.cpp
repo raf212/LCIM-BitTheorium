@@ -294,16 +294,16 @@ PYBIND11_MODULE(atomiccim_bind, m) {
         .def("GetNextProducerSequence", &AdaptivePackedCellContainer::NextProducerSequence,
             "Get next producer sequence by -> Internal Block allocation"
         )
-        .def("PublishHeapPointerPairFrmAddress",
-            [](AdaptivePackedCellContainer &self, uint64_t address_ptr, uint8_t rel_mask, int max_probes)
-            {
-                void* obj = reinterpret_cast<void*>(static_cast<std::uintptr_t>(address_ptr));
-                PublishResult pr = self.PublishHeapPtrPair_(obj, rel_mask, max_probes);
-                return py::make_tuple(pr.ResultStatus, pr.Index);
-            },
-            py::arg("address_ptr"), py::arg("rel_mask") = 0, py::arg("max_probes") = -1,
-            "Publish a pointer pair using raw address (unsafe). Returns (status, index)."
-        )
+        // .def("PublishHeapPointerPairFrmAddress",
+        //     [](AdaptivePackedCellContainer &self, uint64_t address_ptr, uint8_t rel_mask, int max_probes)
+        //     {
+        //         void* obj = reinterpret_cast<void*>(static_cast<std::uintptr_t>(address_ptr));
+        //         PublishResult pr = self.PublishHeapPtrPair_(obj, rel_mask, max_probes);
+        //         return py::make_tuple(pr.ResultStatus, pr.Index);
+        //     },
+        //     py::arg("address_ptr"), py::arg("rel_mask") = 0, py::arg("max_probes") = -1,
+        //     "Publish a pointer pair using raw address (unsafe). Returns (status, index)."
+        // )
 
         ;
 }

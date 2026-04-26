@@ -1,8 +1,7 @@
 
 #pragma once
 
-#include "PackedCell.hpp"
-#include "PackedStRel.h"
+#include "PackedCell/PackedCell.hpp"
 #include "APCHelpers.hpp"
 #include "MasterClockConf.hpp"
 

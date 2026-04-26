@@ -280,6 +280,21 @@ public:
 
     void ClearAllManagerLinksAndFlags() noexcept;
 
+    uint32_t CountLocalExactOccupancy(
+        APCOccupancyQuery query,
+        APCPagedNodeRelMaskClasses region_class = APCPagedNodeRelMaskClasses::NANNULL
+    ) noexcept;
+
+    uint32_t CountExactTotalChainOccupancy(
+        APCOccupancyQuery occupancy_query,
+        APCPagedNodeRelMaskClasses region_class = APCPagedNodeRelMaskClasses::NANNULL
+    ) noexcept;
+    
+    uint32_t ReconcileOccupancySnapshotFromPayload() noexcept;
+
+    bool IsIndicatedRegionPhysicallyEmpty(APCPagedNodeRelMaskClasses desired_region_class) noexcept;
+
+    bool RebuildExectReadyMask() noexcept;
 
 };
 

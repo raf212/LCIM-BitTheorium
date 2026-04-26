@@ -739,30 +739,124 @@ namespace PredictedAdaptedEncoding
         RelBitmaps_.clear();
     }
 
-    // uint32_t AdaptivePackedCellContainer::CountLocalExactOccupancy(
-    //     APCOccupancyQuery query,
-    //     APCPagedNodeRelMaskClasses region_class = APCPagedNodeRelMaskClasses::NANNULL
-    // ) noexcept
-    // {
-    //     if (!IfAPCBranchValid())
-    //     {
-    //         return NO_VAL;
-    //     }
+    uint32_t AdaptivePackedCellContainer::CountLocalExactOccupancy(
+        APCOccupancyQuery query,
+        APCPagedNodeRelMaskClasses region_class
+    ) noexcept
+    {
+        if (!IfAPCBranchValid())
+        {
+            return NO_VAL;
+        }
 
-    //     std::optional<LayoutBoundsOfSingleRelNodeClass> maybe_bounds_of_desired_region;
-    //     if (region_class != APCPagedNodeRelMaskClasses::NANNULL)
-    //     {
-    //         maybe_bounds_of_desired_region = ReadLayoutBounds(region_class);
-    //         if (!maybe_bounds_of_desired_region || maybe_bounds_of_desired_region->IsEmpty())
-    //         {
-    //             return NO_VAL;
-    //         }
-    //     }
+        std::optional<LayoutBoundsOfSingleRelNodeClass> maybe_bounds_of_desired_region;
+        if (region_class != APCPagedNodeRelMaskClasses::NANNULL)
+        {
+            maybe_bounds_of_desired_region = ReadLayoutBounds(region_class);
+            if (!maybe_bounds_of_desired_region || maybe_bounds_of_desired_region->IsEmpty())
+            {
+                return NO_VAL;
+            }
+        }
         
-    //     const size_t begin_idx = maybe_bounds_of_desired_region->BeginIndex;
-    //     const size_t end_idx = maybe_bounds_of_desired_region->EndIndex;
+        const size_t begin_idx = maybe_bounds_of_desired_region->BeginIndex;
+        const size_t end_idx = maybe_bounds_of_desired_region->EndIndex;
+        uint32_t count = 0;
+        for (size_t i = begin_idx; i < end_idx; i++)
+        {
+            const packed64_t packed_cell_current = BackingPtr[i].load(MoLoad_);
+            const PackedCellLocalityTypes locality_current_cell = PackedCell64_t::ExtractLocalityFromPacked(packed_cell_current);
+            switch (query)
+            {
+            case APCOccupancyQuery::NON_IDLE_PAYLOAD:
+                if (locality_current_cell != PackedCellLocalityTypes::ST_IDLE)
+                {
+                    count++;
+                }
+                break;
+            case APCOccupancyQuery::PUBLISHED_IN_ANY_REGION:
+                if (locality_current_cell == PackedCellLocalityTypes::ST_PUBLISHED)
+                {
+                    count++;
+                }
+                break;
+            case APCOccupancyQuery::PUBLISHED_IN_DESIRED_REGION:
+                if (maybe_bounds_of_desired_region->CanCellBEConsumedForThisPhysicalRegion(packed_cell_current, region_class, i))
+                {
+                    count++;
+                }
+            case APCOccupancyQuery::RESERVED_OR_CLAIMED:
+                if (locality_current_cell == PackedCellLocalityTypes::ST_CLAIMED)
+                {
+                    count++;
+                }
+                break;
+            default:
+                break;
+            }
+        }
+        return count;
+    }
 
-        
-    // }
+    uint32_t AdaptivePackedCellContainer::CountExactTotalChainOccupancy(
+        APCOccupancyQuery occupancy_query,
+        APCPagedNodeRelMaskClasses region_class
+    ) noexcept
+    {
+        uint32_t total = 0;
+        AdaptivePackedCellContainer* current_apc = FindSharedRootOrThis();
+        while (current_apc)
+        {
+            total += current_apc->CountLocalExactOccupancy(occupancy_query, region_class);
+            AdaptivePackedCellContainer* next_apc = current_apc->GetNextSharedSegment();
+            if (!next_apc || next_apc == current_apc)
+            {
+                break;
+            }
+            current_apc = next_apc;
+        }
+        return total;
+    }
+
+    uint32_t AdaptivePackedCellContainer::ReconcileOccupancySnapshotFromPayload() noexcept
+    {
+        if (!IfAPCBranchValid())
+        {
+            return NO_VAL;
+        }
+
+        const uint32_t exact_local_occ = CountLocalExactOccupancy(APCOccupancyQuery::NON_IDLE_PAYLOAD);
+        const uint32_t old_occupancy = ReadMetaCellValue32(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT);
+        JustUpdateValueOfMeta32(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT, old_occupancy, exact_local_occ);
+        return exact_local_occ;
+    }
+
+    bool AdaptivePackedCellContainer::IsIndicatedRegionPhysicallyEmpty(APCPagedNodeRelMaskClasses desired_region_class) noexcept
+    {
+        return CountLocalExactOccupancy(APCOccupancyQuery::NON_IDLE_PAYLOAD, desired_region_class) == NO_VAL;
+    }
+
+    bool AdaptivePackedCellContainer::RebuildExectReadyMask() noexcept
+    {
+        if (!IfAPCBranchValid())
+        {
+            return false;
+        }
+
+        uint32_t mask = 0;
+        for (uint8_t rel_class = 0; rel_class < APCAndPagedNodeHelpers::SIZE_OF_APCPagedNodeRelMaskClasses; rel_class++)
+        {
+            APCPagedNodeRelMaskClasses current_region = static_cast<APCPagedNodeRelMaskClasses>(rel_class);
+            if (CountExactTotalChainOccupancy(APCOccupancyQuery::PUBLISHED_IN_DESIRED_REGION, current_region) > NO_VAL)
+            {
+                mask |= APCAndPagedNodeHelpers::ReadyBitForRelClass(current_region);
+            }
+        }
+        const uint32_t old_ready_mask = ReadMetaCellValue32(MetaIndexOfAPCNode::READY_REL_MASK);
+        return JustUpdateValueOfMeta32(MetaIndexOfAPCNode::READY_REL_MASK, old_ready_mask, mask);
+    }
+
+
+
 
 }

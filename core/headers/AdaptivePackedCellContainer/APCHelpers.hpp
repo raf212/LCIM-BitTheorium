@@ -434,8 +434,8 @@ namespace PredictedAdaptedEncoding
     enum class APCOccupancyQuery : uint8_t
     {
         NON_IDLE_PAYLOAD = 0,
-        PUBLISHABLE_FOR_ANY_REGION = 1,
-        IDLE_FOR_DESIRED_REGION = 2,
+        PUBLISHED_IN_ANY_REGION = 1,
+        PUBLISHED_IN_DESIRED_REGION = 2,
         RESERVED_OR_CLAIMED = 3
     };
 

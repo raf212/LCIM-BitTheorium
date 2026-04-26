@@ -97,15 +97,18 @@ namespace
     {
 
         std::cout << name
-                  << " branch=" << node.GetBranchId()
-                  << " logical=" << node.GetLogicalId()
-                  << " shared=" << node.GetSharedId()
-                  << " occ=" << node.OccupancyAddOrSubAndGetAfterChange()
-                  << " FF=" << node.CountPublishedInRegion(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
-                  << " FB=" << node.CountPublishedInRegion(APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE)
-                  << " STATE=" << node.CountPublishedInRegion(APCPagedNodeRelMaskClasses::STATE_SLOT)
-                  << " ERROR=" << node.CountPublishedInRegion(APCPagedNodeRelMaskClasses::ERROR_SLOT)
-                  << " AUX=" << node.CountPublishedInRegion(APCPagedNodeRelMaskClasses::AUX_SLOT);
+                << " branch=" << node.GetBranchId()
+                << " logical=" << node.GetLogicalId()
+                << " shared=" << node.GetSharedId()
+                << " occ=" << node.OccupancyAddOrSubAndGetAfterChange()
+                << " exact_nonidle=" << node.CountLocalExactOccupancy(APCOccupancyQuery::NON_IDLE_PAYLOAD)
+                << " FF=" << node.CountExactTotalChainOccupancy(APCOccupancyQuery::PUBLISHED_IN_DESIRED_REGION, APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
+                << " FB=" << node.CountExactTotalChainOccupancy(APCOccupancyQuery::PUBLISHED_IN_DESIRED_REGION, APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE)
+                << " STATE=" << node.CountExactTotalChainOccupancy( APCOccupancyQuery::PUBLISHED_IN_DESIRED_REGION, APCPagedNodeRelMaskClasses::STATE_SLOT)
+                << " ERROR=" << node.CountExactTotalChainOccupancy(APCOccupancyQuery::PUBLISHED_IN_DESIRED_REGION, APCPagedNodeRelMaskClasses::ERROR_SLOT)
+                << " chain_pub_aux=" << node.CountExactTotalChainOccupancy(
+                    APCOccupancyQuery::PUBLISHED_IN_DESIRED_REGION,
+                    APCPagedNodeRelMaskClasses::AUX_SLOT);
         std::cout << " accFF=" << node.ReadLastAcceptedClok16ForThisSegment(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
                     << " emitFF=" << node.ReadLastEmittedClok16ForThisSegment(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
                     << " accFB=" << node.ReadLastAcceptedClok16ForThisSegment(APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE)

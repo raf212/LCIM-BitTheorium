@@ -174,7 +174,7 @@ namespace PredictedAdaptedEncoding
             return std::nullopt;
         }
 
-        const LayoutBoundsOfSingleRelNodeClass current_region_bounds = *maybe_current_region_bounds;
+        LayoutBoundsOfSingleRelNodeClass current_region_bounds = *maybe_current_region_bounds;
         const size_t region_capacity = current_region_bounds.GetPayloadSpan();
 
         if (scan_cursor < current_region_bounds.BeginIndex || scan_cursor >= current_region_bounds.EndIndex)
@@ -186,7 +186,7 @@ namespace PredictedAdaptedEncoding
         {
             const size_t idx = current_region_bounds.BeginIndex + ((scan_cursor - current_region_bounds.BeginIndex + prob) % region_capacity);
             packed64_t current_cell = BackingPtr[idx].load(MoLoad_);
-            if (!APCAndPagedNodeHelpers::CanCellBeConsumedForThisRegion(current_cell, region_kind))
+            if (!current_region_bounds.CanCellBEConsumedForThisPhysicalRegion(current_cell, region_kind, idx))
             {
                 continue;
             }
@@ -208,6 +208,8 @@ namespace PredictedAdaptedEncoding
             BackingPtr[idx].store(PackedCell64_t::MakeInitialPacked(old_mode, old_dtype, static_cast<tag8_t>(region_kind)));
             BackingPtr[idx].notify_all();
             OccupancyAddOrSubAndGetAfterChange(-1);
+            // RebuildExectReadyMask();
+            ReconcileOccupancySnapshotFromPayload();
             RefreshAPCMeta_();
             scan_cursor = idx + 1;
             if (scan_cursor >= current_region_bounds.EndIndex)
@@ -306,6 +308,7 @@ namespace PredictedAdaptedEncoding
                 BackingPtr[current_index].notify_all();
                 OccupancyAddOrSubAndGetAfterChange(+1);
                 UpdateRegionRelMaskForIdx_(region_kind);
+                ReconcileOccupancySnapshotFromPayload();
                 TouchLocalMetaClock48();
                 RefreshAPCMeta_();
                 return {PublishStatus::OK, current_index};

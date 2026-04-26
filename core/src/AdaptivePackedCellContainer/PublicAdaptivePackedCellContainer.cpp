@@ -759,8 +759,8 @@ namespace PredictedAdaptedEncoding
             }
         }
         
-        const size_t begin_idx = maybe_bounds_of_desired_region->BeginIndex;
-        const size_t end_idx = maybe_bounds_of_desired_region->EndIndex;
+        const size_t begin_idx = maybe_bounds_of_desired_region ? maybe_bounds_of_desired_region->BeginIndex : PayloadBegin();
+        const size_t end_idx = maybe_bounds_of_desired_region ? maybe_bounds_of_desired_region->EndIndex : GetPayloadEnd();
         uint32_t count = 0;
         for (size_t i = begin_idx; i < end_idx; i++)
         {
@@ -846,7 +846,7 @@ namespace PredictedAdaptedEncoding
         uint32_t mask = 0;
         for (uint8_t rel_class = 0; rel_class < APCAndPagedNodeHelpers::SIZE_OF_APCPagedNodeRelMaskClasses; rel_class++)
         {
-            APCPagedNodeRelMaskClasses current_region = static_cast<APCPagedNodeRelMaskClasses>(rel_class);
+            const auto current_region = static_cast<APCPagedNodeRelMaskClasses>(rel_class);
             if (CountExactTotalChainOccupancy(APCOccupancyQuery::PUBLISHED_IN_DESIRED_REGION, current_region) > NO_VAL)
             {
                 mask |= APCAndPagedNodeHelpers::ReadyBitForRelClass(current_region);

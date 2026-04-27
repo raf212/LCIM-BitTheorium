@@ -109,7 +109,7 @@ public:
     uint32_t CountPublishedInRegion(APCPagedNodeRelMaskClasses region) noexcept
     {
         uint32_t count = 0;
-        for (size_t i = PayloadBegin(); i < GetPayloadEnd(); ++i)
+        for (size_t i = PayloadBegin(); i < GetTotalCapacityForThisAPC(); ++i)
         {
             packed64_t cell = BackingPtr[i].load(MoLoad_);
             if (APCAndPagedNodeHelpers::CanCellBeConsumedForThisRegion(cell, region))

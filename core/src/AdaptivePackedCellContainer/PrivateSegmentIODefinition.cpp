@@ -8,7 +8,7 @@ namespace PredictedAdaptedEncoding
     void SegmentIODefinition::InitDefaultAPCSegmentedNodeLayout_() noexcept
     {
         const uint32_t payload_begain = METACELL_COUNT;
-        const uint32_t payload_end = PayloadEndRead();
+        const uint32_t payload_end = GetTotalCapacityForThisAPC();
         if (payload_end <= payload_begain)
         {
             return;
@@ -36,7 +36,7 @@ namespace PredictedAdaptedEncoding
     void SegmentIODefinition::BuidDefaultLayoutPlan_(CompleteAPCNodeRegionsLayout& full_layout) noexcept
     {
         const uint32_t payload_begain = METACELL_COUNT;
-        const uint32_t payload_end = PayloadEndRead();
+        const uint32_t payload_end = GetTotalCapacityForThisAPC();
         if (payload_end <= payload_begain)
         {
             return;

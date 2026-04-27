@@ -178,7 +178,7 @@ namespace PredictedAdaptedEncoding
         WriteBrenchMeta32_(MetaIndexOfAPCNode::SPLIT_THRESHOLD_PERCENTAGE, container_configuration.BranchSplitThresholdPercentage, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::SEGMENT_KIND, static_cast<uint32_t>(APCPagedNodeRelMaskClasses::FREE_SLOT), write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::MAX_DEPTH, container_configuration.BranchMaxDepth, write_cell_priority);
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::PAYLOAD_END, safe_capacity, write_cell_priority);                                                                                        
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::TOTAL_CAPACITY_OF_THIS_SEGEMENT, safe_capacity, write_cell_priority);                                                                                        
         WriteOrUpdateMetaClock48(write_cell_priority, NO_VAL);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::LAST_SPLIT_EPOCH, NO_VAL, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::REGION_SIZE, static_cast<uint32_t>(container_configuration.RegionSize), write_cell_priority);
@@ -261,22 +261,42 @@ namespace PredictedAdaptedEncoding
     bool SegmentIODefinition::ShouldSplitNow() noexcept
     {
         const val32_t split_threshold = ReadMetaCellValue32(MetaIndexOfAPCNode::SPLIT_THRESHOLD_PERCENTAGE);
-        const val32_t current_occumancy = ReadMetaCellValue32(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT);
         const val32_t max_depth = ReadMetaCellValue32(MetaIndexOfAPCNode::MAX_DEPTH);
         const val32_t depth_of_current_branch = ReadMetaCellValue32(MetaIndexOfAPCNode::BRANCH_DEPTH);
         if (depth_of_current_branch >= max_depth)
         {
             return false;
         }
-        const size_t payload_capacity = PayloadCapacity();
-        if (payload_capacity == 0)
+
+        auto maybe_compleate_layout = ReadAndGetFullRegionLayout_();
+        if (!maybe_compleate_layout)
         {
             return false;
         }
-        
-        return ((static_cast<uint64_t>(current_occumancy) * 100u) / payload_capacity) >= split_threshold;
+
+        CompleteAPCNodeRegionsLayout compleate_layout_of_this_apc = *maybe_compleate_layout;
+        for (size_t rel_class = 0; rel_class < APCAndPagedNodeHelpers::SIZE_OF_APCPagedNodeRelMaskClasses; rel_class++)
+        {
+            const LayoutBoundsOfSingleRelNodeClass* current_layout = compleate_layout_of_this_apc.GetALayoutByRelMask(static_cast<APCPagedNodeRelMaskClasses>(rel_class));
+            if (!current_layout || current_layout->IsEmpty())
+            {
+                continue;
+            }
+            const uint32_t desired_region_occupancy = ReadRegionOccupancy(current_layout->LAYOUT_CLASS);
+            const uint32_t span = current_layout->GetPayloadSpan();
+            if (span == 0)
+            {
+                continue;
+            }
+            if (((static_cast<uint64_t>(desired_region_occupancy) * 100) / span) >= split_threshold)
+            {
+                return true;
+            } 
+        }
+        return false;
         
     }
+
 
     bool SegmentIODefinition::TryMarkSplitInFlight() noexcept
     {
@@ -329,13 +349,13 @@ namespace PredictedAdaptedEncoding
         current_bounds.BeginIndex = ReadMetaCellValue32(begin_meta);
         current_bounds.EndIndex = ReadMetaCellValue32(end_meta);
         current_bounds.LAYOUT_CLASS = desired_rel_mask;
-        current_bounds.SetOrResetPercentage(ReadMetaCellValue32(MetaIndexOfAPCNode::PAYLOAD_END) - METACELL_COUNT);        
+        current_bounds.SetOrResetPercentage(ReadMetaCellValue32(MetaIndexOfAPCNode::TOTAL_CAPACITY_OF_THIS_SEGEMENT) - METACELL_COUNT);        
         return current_bounds;
     }
 
     bool SegmentIODefinition::SetLayOutBounds(APCPagedNodeRelMaskClasses desired_rel_mask, uint32_t begin, uint32_t end) noexcept
     {
-        if (begin > end || begin < METACELL_COUNT || end > PayloadEndRead())
+        if (begin > end || begin < METACELL_COUNT || end > GetTotalCapacityForThisAPC())
         {
             return false;
         }
@@ -408,7 +428,7 @@ namespace PredictedAdaptedEncoding
             return false;
         }
         const uint32_t payload_begain = METACELL_COUNT;
-        const uint32_t payload_end = PayloadEndRead();
+        const uint32_t payload_end = GetTotalCapacityForThisAPC();
 
         auto IsLayoutValid = [&](CompleteAPCNodeRegionsLayout& compleate_layout_address) noexcept->bool
         {
@@ -580,5 +600,20 @@ namespace PredictedAdaptedEncoding
         }
     }
 
+    bool SegmentIODefinition::WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode idx, uint32_t value) noexcept
+    {
+        while (true)
+        {
+            const uint32_t current_value = ReadMetaCellValue32(idx);
+            if (current_value == value)
+            {
+                return true;
+            }
+            if (JustUpdateValueOfMeta32(idx, current_value, value))
+            {
+                return true;
+            }
+        }
+    }
 
 }

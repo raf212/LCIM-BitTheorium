@@ -96,7 +96,7 @@ namespace PredictedAdaptedEncoding
                     }
                     return current_cursor_placement;
                 }
-                const size_t payload_end = GetPayloadEnd();
+                const size_t payload_end = GetTotalCapacityForThisAPC();
                 const size_t payload_capacity = (payload_end > PayloadBegin()) ? (payload_end - PayloadBegin()) : NO_VAL;
                 if (payload_capacity == 0)
                 {
@@ -137,9 +137,9 @@ namespace PredictedAdaptedEncoding
             {
                 desired_cursor_place = PayloadBegin();
             }
-            else if (desired_cursor_place >= GetPayloadEnd())
+            else if (desired_cursor_place >= GetTotalCapacityForThisAPC())
             {
-                desired_cursor_place = static_cast<uint32_t>(GetPayloadEnd() - 1u);
+                desired_cursor_place = static_cast<uint32_t>(GetTotalCapacityForThisAPC() - 1u);
             }
 
             if (desired_cursor_place == current_cursor_placement)
@@ -205,10 +205,8 @@ namespace PredictedAdaptedEncoding
             const PackedMode old_mode = PackedCell64_t::ExtractModeOfPackedCellFromPacked(current_cell);
             const PackedCellDataType old_dtype = PackedCell64_t::ExtractPCellDataTypeFromPacked(current_cell);
 
-            BackingPtr[idx].store(PackedCell64_t::MakeInitialPacked(old_mode, old_dtype, static_cast<tag8_t>(region_kind)));
+            BackingPtr[idx].store(PackedCell64_t::MakeInitialPacked(old_mode, old_dtype, static_cast<tag8_t>(region_kind)), MoStoreSeq_);
             BackingPtr[idx].notify_all();
-            CombinedOccupancyAddOrSubAndGetAfterChange(-1);
-            RegionOccupancyAddOrSubAndGet(region_kind, -1);
             // RebuildExectReadyMask();
             ReconcileOccupancySnapshotFromPayload();
             RefreshAPCMeta_();
@@ -307,8 +305,6 @@ namespace PredictedAdaptedEncoding
                 }
                 BackingPtr[current_index].store(packed_cell, MoStoreSeq_);
                 BackingPtr[current_index].notify_all();
-                CombinedOccupancyAddOrSubAndGetAfterChange(+1);
-                RegionOccupancyAddOrSubAndGet(region_kind, +1);
                 UpdateRegionRelMaskForIdx_(region_kind);
                 ReconcileOccupancySnapshotFromPayload();
                 TouchLocalMetaClock48();

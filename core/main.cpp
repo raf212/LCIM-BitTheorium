@@ -14,7 +14,7 @@ using namespace PredictedAdaptedEncoding;
 
 namespace
 {
-    constexpr uint32_t VALUE_COUNT = 256u;
+    constexpr uint32_t VALUE_COUNT = 25600u;
     constexpr uint32_t PRODUCER_COUNT = 2u;
     constexpr uint32_t WORKERS_PER_STAGE = 3u;
     constexpr uint32_t MAX_ATTEMPTS = 4096u;
@@ -101,14 +101,12 @@ namespace
                 << " logical=" << node.GetLogicalId()
                 << " shared=" << node.GetSharedId()
                 << " occ=" << node.CombinedOccupancyAddOrSubAndGetAfterChange()
-                << " exact_nonidle=" << node.CountLocalExactOccupancy(APCOccupancyQuery::NON_IDLE_PAYLOAD)
-                << " FF=" << node.CountExactTotalChainOccupancy(APCOccupancyQuery::PUBLISHED_IN_DESIRED_REGION, APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
-                << " FB=" << node.CountExactTotalChainOccupancy(APCOccupancyQuery::PUBLISHED_IN_DESIRED_REGION, APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE)
-                << " STATE=" << node.CountExactTotalChainOccupancy( APCOccupancyQuery::PUBLISHED_IN_DESIRED_REGION, APCPagedNodeRelMaskClasses::STATE_SLOT)
-                << " ERROR=" << node.CountExactTotalChainOccupancy(APCOccupancyQuery::PUBLISHED_IN_DESIRED_REGION, APCPagedNodeRelMaskClasses::ERROR_SLOT)
-                << " chain_pub_aux=" << node.CountExactTotalChainOccupancy(
-                    APCOccupancyQuery::PUBLISHED_IN_DESIRED_REGION,
-                    APCPagedNodeRelMaskClasses::AUX_SLOT);
+                << " exact_nonidle=" << node.GetLocalTotalOccupancy()
+                << " FF=" << node.CountExactTotalChainOccupancy(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
+                << " FB=" << node.CountExactTotalChainOccupancy(APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE)
+                << " STATE=" << node.CountExactTotalChainOccupancy(APCPagedNodeRelMaskClasses::STATE_SLOT)
+                << " ERROR=" << node.CountExactTotalChainOccupancy(APCPagedNodeRelMaskClasses::ERROR_SLOT)
+                << " chain_pub_aux=" << node.CountExactTotalChainOccupancy(APCPagedNodeRelMaskClasses::AUX_SLOT);
         std::cout << " accFF=" << node.ReadLastAcceptedClok16ForThisSegment(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
                     << " emitFF=" << node.ReadLastEmittedClok16ForThisSegment(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
                     << " accFB=" << node.ReadLastAcceptedClok16ForThisSegment(APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE)

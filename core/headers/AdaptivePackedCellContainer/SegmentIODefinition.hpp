@@ -18,6 +18,7 @@ public:
     static constexpr uint32_t BRANCH_SENTINAL = LayoutBoundsOfSingleRelNodeClass::BRANCH_SENTINAL;
     static constexpr packed64_t APC_SENTENAL = UINT64_MAX;
     static constexpr uint8_t TOTAL_LAYOUT_SECTION_IN_APC_CONTAINER_NODE = 8;
+    static constexpr uint8_t OPTIMAL_FREE_LAYOUT_PERCENTAGE = 20;
     
     enum class APCNodeComputeKind : uint32_t
     {
@@ -229,6 +230,13 @@ public:
     clk16_t ReadLastAcceptedClok16ForThisSegment(APCPagedNodeRelMaskClasses region_kind) noexcept;
     clk16_t ReadLastEmittedClok16ForThisSegment(APCPagedNodeRelMaskClasses region_kind) noexcept;
 
+    bool WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode idx, uint32_t value) noexcept;
+
+    uint32_t ReadRegionOccupancy(APCPagedNodeRelMaskClasses desired_region_class) noexcept
+    {
+        return ReadMetaCellValue32(APCAndPagedNodeHelpers::GetOccupancyMetIndexByRegionClass(desired_region_class));
+    }
+
     uint32_t ForceOccupancyUpdateAndReturn(uint32_t new_occupancy) noexcept
     {
         WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT, new_occupancy);
@@ -287,9 +295,9 @@ public:
         return HasThisControlEnumFlag(ControlEnumOfAPCSegment::IS_GRAPH_NODE);
     }
 
-    uint32_t PayloadEndRead() noexcept
+    uint32_t GetTotalCapacityForThisAPC() noexcept
     {
-        return ReadMetaCellValue32(MetaIndexOfAPCNode::PAYLOAD_END);
+        return ReadMetaCellValue32(MetaIndexOfAPCNode::TOTAL_CAPACITY_OF_THIS_SEGEMENT);
     }
 
     uint32_t RegionCountRead() noexcept
@@ -315,7 +323,7 @@ public:
     size_t PayloadCapacityFromHeader() noexcept
     {
         const uint32_t payload_begain = METACELL_COUNT;
-        const uint32_t payload_end  = PayloadEndRead();
+        const uint32_t payload_end  = GetTotalCapacityForThisAPC();
         if (payload_end > payload_begain)
         {
             return static_cast<size_t>(payload_end - payload_begain);

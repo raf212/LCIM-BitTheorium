@@ -30,7 +30,7 @@ namespace PredictedAdaptedEncoding
         MAX_DEPTH = 15,
 
         //payload-Bounds
-        PAYLOAD_END = 16,
+        TOTAL_CAPACITY_OF_THIS_SEGEMENT = 16,
 
         //timing
         LOCAL_CLOCK48 = 17,

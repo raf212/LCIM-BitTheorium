@@ -77,7 +77,7 @@ protected:
 
     inline bool IfValidPayloadIndex_(size_t idx) noexcept
     {
-        return (BackingPtr && idx >= PayloadBegin() && idx < GetPayloadEnd());
+        return (BackingPtr && idx >= PayloadBegin() && idx < GetTotalCapacityForThisAPC());
     }
 
     inline void QSBRCurThreadRegisterIfNeed_() noexcept
@@ -152,11 +152,6 @@ public:
     uint32_t RegionOccupancyAddOrSubAndGet(APCPagedNodeRelMaskClasses desired_region_class, int delta = 0) noexcept;
 
 
-    inline size_t GetPayloadEnd() noexcept
-    {
-        return static_cast<size_t>(PayloadEndRead());
-    }
-
     static constexpr uint32_t PayloadBegin() noexcept
     {
         return SegmentIODefinition::METACELL_COUNT;
@@ -211,7 +206,7 @@ public:
 
     inline bool IfIndexValid(size_t idx) noexcept
     {
-        if (IfAPCBranchValid() && idx < GetPayloadEnd())
+        if (IfAPCBranchValid() && idx < GetTotalCapacityForThisAPC())
         {
             return true;
         }
@@ -265,19 +260,13 @@ public:
 
     void ClearAllManagerLinksAndFlags() noexcept;
 
-    uint32_t CountLocalExactOccupancy(
-        APCOccupancyQuery query,
-        APCPagedNodeRelMaskClasses region_class = APCPagedNodeRelMaskClasses::NANNULL
-    ) noexcept;
+    uint32_t GetLocalTotalOccupancy() noexcept;
 
-    uint32_t CountExactTotalChainOccupancy(
-        APCOccupancyQuery occupancy_query,
-        APCPagedNodeRelMaskClasses region_class = APCPagedNodeRelMaskClasses::NANNULL
-    ) noexcept;
+    uint32_t CountExactLocalRegionalOccupancy(APCPagedNodeRelMaskClasses desired_region_class) noexcept;
+
+    uint32_t CountExactTotalChainOccupancy(APCPagedNodeRelMaskClasses desired_region_class) noexcept;
     
     uint32_t ReconcileOccupancySnapshotFromPayload() noexcept;
-
-    bool IsIndicatedRegionPhysicallyEmpty(APCPagedNodeRelMaskClasses desired_region_class) noexcept;
 
     bool RebuildExectReadyMask() noexcept;
 

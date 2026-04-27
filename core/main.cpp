@@ -100,7 +100,7 @@ namespace
                 << " branch=" << node.GetBranchId()
                 << " logical=" << node.GetLogicalId()
                 << " shared=" << node.GetSharedId()
-                << " occ=" << node.OccupancyAddOrSubAndGetAfterChange()
+                << " occ=" << node.CombinedOccupancyAddOrSubAndGetAfterChange()
                 << " exact_nonidle=" << node.CountLocalExactOccupancy(APCOccupancyQuery::NON_IDLE_PAYLOAD)
                 << " FF=" << node.CountExactTotalChainOccupancy(APCOccupancyQuery::PUBLISHED_IN_DESIRED_REGION, APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
                 << " FB=" << node.CountExactTotalChainOccupancy(APCOccupancyQuery::PUBLISHED_IN_DESIRED_REGION, APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE)

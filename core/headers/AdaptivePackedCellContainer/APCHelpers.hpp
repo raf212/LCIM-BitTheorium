@@ -79,17 +79,40 @@ namespace PredictedAdaptedEncoding
         EDGE_DESCRIPTIOR_END = 54,
         WEIGHT_BEGIN = 55,
         WEIGHT_END = 56,
-        AUX_BEGAIN = 57,
-        AUX_END = 58,
-        FREE_BEGAIN = 59,
-        FREE_END = 60,
+        CONTROL_BEGIN = 57,
+        CONTROL_END = 58,
+        AUX_BEGAIN = 59,
+        AUX_END = 60,
+        FREE_BEGAIN = 61,
+        FREE_END = 62,
+        RESERVED_MESSAGE_2_BEGIN = 63,
+        RESERVED_MESSAGE_2_END = 64,
         //end
 
-        EDGE_TABLE_COUNT = 61,
-        WEIGHT_TABLE_COUNT = 62,
+        EDGE_TABLE_COUNT = 65,
+        WEIGHT_TABLE_COUNT = 66,
 
+        REGION_OCCUPANCY_NONE        = 67,
+        REGION_OCCUPANCY_FF          = 68,
+        REGION_OCCUPANCY_FB          = 69,
+        REGION_OCCUPANCY_LATERAL     = 70,
+        REGION_OCCUPANCY_STATE       = 71,
+        REGION_OCCUPANCY_ERROR       = 72,
+        REGION_OCCUPANCY_EDGE        = 73,
+        REGION_OCCUPANCY_WEIGHT      = 74,
+        REGION_OCCUPANCY_CONTROL     = 75,
+        REGION_OCCUPANCY_AUX         = 76,
+        REGION_OCCUPANCY_FREE        = 77,
+        REGION_OCCUPANCY_MESSAGE_1      = 78,
+        REGION_OCCUPANCY_MESSAGE_2      = 79,
+        REGION_OCCUPANCY_MESSAGE_3      = 80,
+        REGION_OCCUPANCY_MESSAGE_4      = 81,
+        REGION_OCCUPANCY_NANNULL        = 82,
 
-        RESERVED_63 = 63,
+        RETIRE_EPOCH_LOW32     = 83,
+        RETIRE_EPOCH_HIGH32    = 84,
+
+        RESERVED_85 = 85,
         EOF_APC_HEADER = 95
     };
 
@@ -196,6 +219,16 @@ namespace PredictedAdaptedEncoding
             return PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
                 ExtractPagedRelMaskFromPacked(packed_cell) == region_kind &&
                 static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell)) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
+        }
+
+        static constexpr MetaIndexOfAPCNode GetOccupancyMetIndexByRegionClass(
+            APCPagedNodeRelMaskClasses desired_region_class
+        )noexcept
+        {
+            return static_cast<MetaIndexOfAPCNode>(
+                static_cast<size_t>(MetaIndexOfAPCNode::REGION_OCCUPANCY_NONE) +
+                (static_cast<uint8_t>(desired_region_class) & HIGH_FOUR_NIBBLE)
+                );
         }
 
 

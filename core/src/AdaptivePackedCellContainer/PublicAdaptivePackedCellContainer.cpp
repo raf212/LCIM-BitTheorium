@@ -256,16 +256,15 @@ namespace PredictedAdaptedEncoding
         
     }
     
-    size_t AdaptivePackedCellContainer::OccupancyAddOrSubAndGetAfterChange(int delta) noexcept
+    uint32_t AdaptivePackedCellContainer::OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode desired_region_meta_idx, int delta) noexcept
     {
-
         if (delta == 0)
         {
-            return static_cast<size_t>(ReadMetaCellValue32(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT));
+            return static_cast<size_t>(ReadMetaCellValue32(desired_region_meta_idx));
         }
         while (true)
         {
-            packed64_t current_occupancy_cell = ReadFullMetaCell(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT);
+            packed64_t current_occupancy_cell = ReadFullMetaCell(desired_region_meta_idx);
             val32_t current_occupancy = PackedCell64_t::ExtractValue32(current_occupancy_cell);
             if (current_occupancy == BRANCH_SENTINAL)
             {
@@ -284,9 +283,9 @@ namespace PredictedAdaptedEncoding
             }
             
             uint32_t next_occupancy = static_cast<uint32_t>(next_occupancy_winded);
-            if (JustUpdateValueOfMeta32(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT, current_occupancy, next_occupancy))
+            if (JustUpdateValueOfMeta32(desired_region_meta_idx, current_occupancy, next_occupancy))
             {
-                return static_cast<size_t>(next_occupancy);
+                return next_occupancy;
             }
             if (APCManagerPtr_)
             {
@@ -297,6 +296,16 @@ namespace PredictedAdaptedEncoding
         }
     }
 
+    uint32_t AdaptivePackedCellContainer::CombinedOccupancyAddOrSubAndGetAfterChange(int delta) noexcept
+    {
+        return OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT, delta);
+    }
+
+    uint32_t AdaptivePackedCellContainer::RegionOccupancyAddOrSubAndGet(APCPagedNodeRelMaskClasses desired_region_class, int delta) noexcept
+    {
+        const MetaIndexOfAPCNode region_occ_meta_idx = APCAndPagedNodeHelpers::GetOccupancyMetIndexByRegionClass(desired_region_class);
+        return OccupancyAddOrSubAndGetAfterChange_(region_occ_meta_idx, delta);
+    }
 
 
 
@@ -359,7 +368,7 @@ namespace PredictedAdaptedEncoding
         AdaptivePackedCellContainer* current_apc_ptr = FindSharedRootOrThis();
         while (current_apc_ptr)
         {
-            if (current_apc_ptr->OccupancyAddOrSubAndGetAfterChange() > NO_VAL)
+            if (current_apc_ptr->CombinedOccupancyAddOrSubAndGetAfterChange() > NO_VAL)
             {
                 return false;
             }
@@ -781,10 +790,11 @@ namespace PredictedAdaptedEncoding
                 }
                 break;
             case APCOccupancyQuery::PUBLISHED_IN_DESIRED_REGION:
-                if (maybe_bounds_of_desired_region->CanCellBEConsumedForThisPhysicalRegion(packed_cell_current, region_class, i))
+                if (maybe_bounds_of_desired_region && maybe_bounds_of_desired_region->CanCellBEConsumedForThisPhysicalRegion(packed_cell_current, region_class, i))
                 {
                     count++;
                 }
+                break;
             case APCOccupancyQuery::RESERVED_OR_CLAIMED:
                 if (locality_current_cell == PackedCellLocalityTypes::ST_CLAIMED)
                 {

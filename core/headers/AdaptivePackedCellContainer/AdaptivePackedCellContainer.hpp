@@ -108,6 +108,7 @@ protected:
         PackedCellContainerManager::Instance().ExtitCriticalContainer(ThreadHandleAPCTL_);
     }
 
+    uint32_t OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode desired_region_meta_idx, int delta = 0) noexcept;
 
 public:
     AdaptivePackedCellContainer(/* args */) noexcept  = default;
@@ -146,7 +147,9 @@ public:
     size_t ReserveProducerSlots(size_t number_of_slots) noexcept;
     size_t NextProducerSequence() noexcept;
 
-    size_t OccupancyAddOrSubAndGetAfterChange(int delta = 0) noexcept;
+    uint32_t CombinedOccupancyAddOrSubAndGetAfterChange(int delta = 0) noexcept;
+
+    uint32_t RegionOccupancyAddOrSubAndGet(APCPagedNodeRelMaskClasses desired_region_class, int delta = 0) noexcept;
 
 
     inline size_t GetPayloadEnd() noexcept

@@ -196,6 +196,13 @@ namespace PredictedAdaptedEncoding
         InitLogicalNodeIdentity(logical_node_id, resolve_shared_id, is_root_shared);
         InitNodeSemantics(node_compute_kind, aux_param_uint32);
         InitDefaultAPCSegmentedNodeLayout_();
+        for (uint8_t i = 0; i < APCAndPagedNodeHelpers::SIZE_OF_APCPagedNodeRelMaskClasses; i++)
+        {
+            WriteBrenchMeta32_(static_cast<MetaIndexOfAPCNode>(static_cast<size_t>(MetaIndexOfAPCNode::REGION_OCCUPANCY_NONE) + i), 
+                            NO_VAL, write_cell_priority, APCPagedNodeRelMaskClasses::CONTROL_SLOT
+                        );
+        }
+        
         WriteBrenchMeta32_(MetaIndexOfAPCNode::EOF_APC_HEADER, EOF_HEADER, write_cell_priority);
     }
 

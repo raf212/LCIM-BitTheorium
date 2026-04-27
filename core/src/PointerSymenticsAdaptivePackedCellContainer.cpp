@@ -162,7 +162,7 @@ namespace PredictedAdaptedEncoding
         BackingPtr[acquired_paired_pointer_struct.TailIdx].store(idle32, MoStoreSeq_);
         BackingPtr[acquired_paired_pointer_struct.HeadIdx].notify_all();
         BackingPtr[acquired_paired_pointer_struct.TailIdx].notify_all();
-        OccupancyAddOrSubAndGetAfterChange(-1);
+        CombinedOccupancyAddOrSubAndGetAfterChange(-1);
 
         RefreshAPCMeta_();
         if (APCManagerPtr_)
@@ -264,7 +264,7 @@ namespace PredictedAdaptedEncoding
                         BackingPtr[head].store(head_packed, MoStoreSeq_);
                         BackingPtr[tail].notify_all();
                         BackingPtr[head].notify_all();
-                        OccupancyAddOrSubAndGetAfterChange(+1);
+                        CombinedOccupancyAddOrSubAndGetAfterChange(+1);
                         return {PublishStatus::OK, head};
                     }
                 }

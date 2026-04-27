@@ -178,7 +178,7 @@ static bool PublishTaskIdCell(
                     packed64_t published_cell = MakePublishedTaskCellWithStamp16(task_id, apc_mannager_address);
                     apc_address.BackingPtr[idx].store(published_cell, MoStoreSeq_);
                     apc_address.BackingPtr[idx].notify_all();
-                    apc_address.OccupancyAddOrSubAndGetAfterChange(+1);
+                    apc_address.CombinedOccupancyAddOrSubAndGetAfterChange(+1);
                     if (apc_address.GetSegmentIOPtr()->ShouldSplitNow())
                     {
                         apc_mannager_address.RequestAPCSegmentCreationFromManager_(&apc_address);
@@ -211,7 +211,7 @@ static bool TryClaimOneTaskIdCell(
     const size_t payload_begain = apc_address.PayloadBegin();
     const size_t payload_capacity = apc_address.GetPayloadCapacity();
 
-    uint32_t current_occupancy = static_cast<uint32_t>(apc_address.OccupancyAddOrSubAndGetAfterChange());
+    uint32_t current_occupancy = static_cast<uint32_t>(apc_address.CombinedOccupancyAddOrSubAndGetAfterChange());
     if (current_occupancy == 0)
     {
         return false;
@@ -242,7 +242,7 @@ static bool TryClaimOneTaskIdCell(
         packed64_t idle_cell = PackedCell64_t::MakeInitialPacked(PackedMode::MODE_VALUE32);
         apc_address.BackingPtr[idx].store(idle_cell, MoStoreSeq_);
         apc_address.BackingPtr[idx].notify_all();
-        apc_address.OccupancyAddOrSubAndGetAfterChange(-1);
+        apc_address.CombinedOccupancyAddOrSubAndGetAfterChange(-1);
         scan_cursor = idx + 1;
         if (scan_cursor >= payload_begain + payload_capacity)
         {
@@ -400,7 +400,7 @@ int main()
                 bool any_work_left = false;
                 for (unsigned branch = 0; branch < leaf_branch_count; branch++)
                 {
-                    if (leaf_branches_struct[branch].APC_UniqPtr->OccupancyAddOrSubAndGetAfterChange() > 0)
+                    if (leaf_branches_struct[branch].APC_UniqPtr->CombinedOccupancyAddOrSubAndGetAfterChange() > 0)
                     {
                         any_work_left = true;
                         break;

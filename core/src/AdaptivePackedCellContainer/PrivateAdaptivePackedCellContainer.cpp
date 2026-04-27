@@ -207,7 +207,8 @@ namespace PredictedAdaptedEncoding
 
             BackingPtr[idx].store(PackedCell64_t::MakeInitialPacked(old_mode, old_dtype, static_cast<tag8_t>(region_kind)));
             BackingPtr[idx].notify_all();
-            OccupancyAddOrSubAndGetAfterChange(-1);
+            CombinedOccupancyAddOrSubAndGetAfterChange(-1);
+            RegionOccupancyAddOrSubAndGet(region_kind, -1);
             // RebuildExectReadyMask();
             ReconcileOccupancySnapshotFromPayload();
             RefreshAPCMeta_();
@@ -306,7 +307,8 @@ namespace PredictedAdaptedEncoding
                 }
                 BackingPtr[current_index].store(packed_cell, MoStoreSeq_);
                 BackingPtr[current_index].notify_all();
-                OccupancyAddOrSubAndGetAfterChange(+1);
+                CombinedOccupancyAddOrSubAndGetAfterChange(+1);
+                RegionOccupancyAddOrSubAndGet(region_kind, +1);
                 UpdateRegionRelMaskForIdx_(region_kind);
                 ReconcileOccupancySnapshotFromPayload();
                 TouchLocalMetaClock48();

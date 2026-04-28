@@ -24,6 +24,7 @@
     #include <intrin.h>
 #endif
 //STRL->[priority->4 | locality->3 | PackedCell Type->1 | relmask->4 | reloffset->2 | celldatatype->2 ]-> = 16 bit->Bit distribution = [12 | 9 | 8 | 4 | 2 | 0 ]
+//PNLTCOD->[priority->3| Future Paged Node = 2 | locality->2 | PackedCell Type->1 | relmask->4 | reloffset->2 | celldatatype->2 ]-> = 16 bit->Bit distribution = [12 | 9 | 8 | 4 | 2 | 0 ]
 //clk16 =>16 Bits
 
 

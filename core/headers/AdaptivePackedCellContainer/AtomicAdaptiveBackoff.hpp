@@ -1,14 +1,12 @@
 
 #pragma once
 
-#include "PackedCell.hpp"
-#include "PackedStRel.h"
+#include "PackedCell/PackedCell.hpp"
+#include "APCHelpers.hpp"
+#include "MasterClockConf.hpp"
 
-namespace AtomicCScompact
+namespace PredictedAdaptedEncoding
 {
-#define A_BILLION 1000000000ull
-#define THRESHHOLD_64BIT 1e-12
-
 
 static inline void CpuRelaxHint()
 {
@@ -18,19 +16,6 @@ static inline void CpuRelaxHint()
     __asm__ __volatile__("pause" ::: "memory");
 #endif
 }
-
-struct Timer48
-{
-    uint64_t TicksPerSec_ = A_BILLION;
-
-    inline uint64_t NowTicks() const noexcept
-    {
-        using  cns = std::chrono::nanoseconds;
-        auto d = std::chrono::steady_clock::now().time_since_epoch();
-        uint64_t ns_count = static_cast<uint64_t>(std::chrono::duration_cast<cns>(d).count());
-        return ns_count & MaskBits(CLK_B48);
-    }
-};
 
 struct SpinBackoff
 {
@@ -87,7 +72,7 @@ public :
             {
                 newv = sample;
             }
-            if (EMATicks_.compare_exchange_weak(oldv, newv, EXsuccess_, EXfailure_))
+            if (EMATicks_.compare_exchange_weak(oldv, newv, OnExchangeSuccess, OnExchangeFailure))
             {
                 break;
             }
@@ -272,6 +257,21 @@ private:
     mutable std::mt19937_64 Rng_;
     double C_OVER_P_{0.0};
 
+    MasterClockConf* MasterClockConfAABOPtr_ = nullptr;
+
+    //State Machine For Backoff
+    enum class BackOffStage_ : uint8_t
+    {
+        NO_OPERATION = 0,
+        PUSED_CELLS = 1,
+        YIELD_CELLS = 2,
+        SLEEP_CELLS = 3,
+    };
+    std::atomic<BackOffStage_> AdaptiveBackOffStage_{BackOffStage_::NO_OPERATION};
+    std::atomic<int> IdleCount_{0};
+    SpinBackoff AdaptiveSpinBackoff_;
+    std::atomic<bool>ActivityHints_{false};
+
     static inline uint64_t JitterUS_(uint64_t base) noexcept
     {
         thread_local static std::mt19937_64 t_rand((std::random_device())());
@@ -301,7 +301,7 @@ private:
             C_OVER_P_ = Cfg_.CostSpinPerSec / Cfg_.CostPark;
         }
     }
-    inline uint64_t ReconstructPublishTicks_(uint64_t now_ticks, packed64_t packed) const noexcept
+    inline uint64_t ReconstructPublishTicks_(uint64_t now_ticks, packed64_t packed, std::optional<size_t>master_clock_slot_id = std::nullopt) const noexcept
     {
         if (PCMode_ == PackedMode::MODE_CLKVAL48)
         {
@@ -309,13 +309,21 @@ private:
         }
         else
         {
-            clk16_t stored = PackedCell64_t::ExtractClk16(packed);
+            clk16_t stored_clock16 = PackedCell64_t::ExtractClk16(packed);
+            if (MasterClockConfAABOPtr_ && master_clock_slot_id.has_value())
+            {
+                auto maybe_clock = MasterClockConfAABOPtr_->ReconstructCellClock16toFull48BySegmentLocalClock48(master_clock_slot_id.value());
+                if (maybe_clock.has_value())
+                {
+                    return maybe_clock.value();
+                }
+            }
             unsigned ds = Cfg_.DownShift;
             uint64_t now_down = (now_ticks >> ds) & MaskBits(TOTAL_LOW);
-            uint64_t candidate = (((now_down & ~uint64_t(0xFFFFu)) | (static_cast<uint64_t>(stored))));
+            uint64_t candidate = (((now_down & ~uint64_t(0xFFFFu)) | (static_cast<uint64_t>(stored_clock16))));
             if (candidate > now_down)
             {
-                candidate -= (1ull << 16); //why?
+                candidate -= (1ull << CLK_B16); //why?
             }
             uint64_t pub_ticks = (candidate << ds) & MaskBits(TOTAL_LOW);
             return pub_ticks;
@@ -341,24 +349,37 @@ private:
     /* data */
 public:
     AtomicAdaptiveBackoff() noexcept :
-        AtomicAdaptiveBackoff(PCBCfg())
+        AtomicAdaptiveBackoff(PCBCfg(), PackedMode::MODE_VALUE32, nullptr)
     {}
     explicit AtomicAdaptiveBackoff
                 (
                     const PCBCfg& cfg,
                     PackedMode mode = PackedMode::MODE_VALUE32,
-                    Timer48 timer = Timer48()
-                ) :
-        PublicTimer48(timer), Cfg_(cfg), PCMode_(mode), Ema_(cfg.EMACfg),
-        Hist_(cfg.HazardCfg), Rng_(std::random_device{}())
+                    MasterClockConf* master_clock_ptr = nullptr
+                ) noexcept :
+        Cfg_(cfg), PCMode_(mode), Ema_(cfg.EMACfg),
+        Hist_(cfg.HazardCfg), Rng_(std::random_device{}()), MasterClockConfAABOPtr_(master_clock_ptr)
     {
         Recall_C_Over_p_();
     }
     ~AtomicAdaptiveBackoff() = default;
 
+    void AttachMasterClockToAadaptiveBackOff(MasterClockConf* mc) noexcept
+    {
+        MasterClockConfAABOPtr_ = mc;
+    }
+
     void ObserveCompletation(packed64_t pub_p, std::optional<uint64_t>observe_time_ticks = std::nullopt) noexcept
     {
-        uint64_t now = observe_time_ticks.value_or(PublicTimer48.NowTicks());
+        uint64_t now = 0ull;
+        if (MasterClockConfAABOPtr_)
+        {
+            now = MasterClockConfAABOPtr_->NowTicks48();
+        }
+        else
+        {
+            now = observe_time_ticks.value_or(PublicTimer48.NowTicks());
+        }
         uint64_t pub_ticks = ReconstructPublishTicks_(now, pub_p);
         uint64_t age_ticks = (now - pub_ticks) & MaskBits(TOTAL_LOW);
         uint64_t age_us = age_ticks / 1000u; //micro sec conver
@@ -366,11 +387,19 @@ public:
         Hist_.ObserveUS(age_us);
     }
 
-    PCBDecision DecideForSlot(packed64_t slot_payload, std::optional<uint64_t>now_ticks_opt = std::nullopt) const noexcept
+    PCBDecision DecideForSlot(packed64_t slot_payload, std::optional<uint64_t>now_ticks_opt = std::nullopt, std::optional<size_t> master_clock_slot_id_opt = std::nullopt) const noexcept
     {
-        uint64_t now = now_ticks_opt.value_or(PublicTimer48.NowTicks());
+        uint64_t now = 0ull;
+        if (MasterClockConfAABOPtr_)
+        {
+            now = MasterClockConfAABOPtr_->NowTicks48();
+        }
+        else
+        {
+            now = now_ticks_opt.value_or(PublicTimer48.NowTicks());
+        }
         int8_t priority = static_cast<int8_t>(PackedCell64_t::ExtractPriorityFromPacked(slot_payload));
-        uint64_t pub_ticks = ReconstructPublishTicks_(now, slot_payload);
+        uint64_t pub_ticks = ReconstructPublishTicks_(now, slot_payload, master_clock_slot_id_opt);
         uint64_t age_ticks = (now - pub_ticks) & MaskBits(TOTAL_LOW);
         uint64_t age_us = age_ticks / 1000u;
         std::optional<double> hazard_hist = Hist_.ProbHazardAtUS(age_us);
@@ -471,13 +500,132 @@ public:
         return Hist_;
     }
 
+    void NotifyActivity() noexcept
+    {
+        ActivityHints_.store(true, MoStoreUnSeq_);
+    }
+
+    bool IsDeepSleep() const noexcept
+    {
+        return (AdaptiveBackOffStage_.load(std::memory_order_relaxed) == BackOffStage_::SLEEP_CELLS);
+    }
+
     void SetCost(double spin_cost_per_second, double static_park_cost) noexcept
     {
         Cfg_.CostSpinPerSec = spin_cost_per_second;
         Cfg_.CostPark = static_park_cost;
         Recall_C_Over_p_();
     }
-    
+
+    void AutoBackoff() noexcept
+    {
+        if (ActivityHints_.exchange(false, std::memory_order_relaxed))
+        {
+            AdaptiveSpinBackoff_.Reset();
+            AdaptiveBackOffStage_.store(BackOffStage_::NO_OPERATION, MoStoreUnSeq_);
+            IdleCount_.store(0, MoStoreUnSeq_);
+            return;
+        }
+        int idle_count = IdleCount_.fetch_add(1, MoStoreUnSeq_) + 1;
+        BackOffStage_ backoff_stage = AdaptiveBackOffStage_.load(std::memory_order_relaxed);
+        if (idle_count < BURNCYCLE_THRESHOLD)
+        {
+            backoff_stage = BackOffStage_::NO_OPERATION;
+        }
+        else if (idle_count < PAUSE_THRESHOLD)
+        {
+            backoff_stage = BackOffStage_::PUSED_CELLS;
+        }
+        else if (idle_count < YIELD_THRESHOLD)
+        {
+            backoff_stage = BackOffStage_::YIELD_CELLS;
+        }
+        else
+        {
+            backoff_stage = BackOffStage_::SLEEP_CELLS;
+        }
+        
+        AdaptiveBackOffStage_.store(backoff_stage, MoStoreSeq_);
+        switch (backoff_stage)
+        {
+        case BackOffStage_::NO_OPERATION:
+            CpuRelaxHint();
+            break;
+        case BackOffStage_::PUSED_CELLS:
+            AdaptiveSpinBackoff_.SpinOnce();
+            break;
+        case BackOffStage_::YIELD_CELLS:
+            std::this_thread::yield();
+            break;
+        case BackOffStage_::SLEEP_CELLS:
+            uint64_t level = static_cast<uint64_t>(std::min(64, idle_count - 48)); // why 64 and 48 this 2 magic number???
+            uint64_t sleep_micro_second = std::min<uint64_t>(Cfg_.MaxParkUS, Cfg_.BaseUS * (1ull << std::min<unsigned>(30u, static_cast<unsigned>(level))));
+            if (Cfg_.Jitter && sleep_micro_second > MINIMUM_SLEEP_THRASHOLD_US)
+            {
+                sleep_micro_second = JitterUS_(sleep_micro_second);
+            }
+            std::this_thread::sleep_for(std::chrono::microseconds(sleep_micro_second));
+            break;
+        }
+    }
+
+    PCBDecision AdaptiveBackOffPacked(packed64_t packed_cell, std::optional<size_t> master_clock_slot_id_opt = std::nullopt) noexcept
+    {
+        auto decision_slot = DecideForSlot(packed_cell, std::nullopt, master_clock_slot_id_opt);
+        switch (decision_slot.Action)
+        {
+            case PCBAction::SPIN_IMMEDIATE :
+            {
+                CpuRelaxHint();
+                break;
+            }
+            case PCBAction::SPIN_FOR_US :
+            {
+                uint64_t decision_timer_micro_second = decision_slot.SuggestedUs;
+                AdaptiveSpinBackoff_.Reset();
+                auto start_time = std::chrono::steady_clock::now();
+                while (true)
+                {
+                    CpuRelaxHint();
+                    if (std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - start_time
+                    ).count() >= static_cast<int64_t>(decision_timer_micro_second))
+                    {
+                        break;
+                    }
+                }
+                break;
+            }
+            case PCBAction::PARK_FOR_US :
+            {
+                uint64_t decision_timer_micro_second2 = decision_slot.SuggestedUs;
+                if (decision_timer_micro_second2 < 2)
+                {
+                    CpuRelaxHint();
+                }
+                else if (decision_timer_micro_second2 < 2000)
+                {
+                    std::this_thread::sleep_for(std::chrono::microseconds(decision_timer_micro_second2));
+                }
+                else
+                {
+                    std::this_thread::yield();
+                    std::this_thread::sleep_for(std::chrono::microseconds(decision_timer_micro_second2));
+                }
+                break;
+            }
+            case PCBAction::BLOCK_WAIT :
+            {
+                std::this_thread::yield();
+                std::this_thread::sleep_for(std::chrono::microseconds(Cfg_.BaseUS));
+                break; 
+            }
+        }
+        ActivityHints_.store(false, MoStoreUnSeq_);
+        IdleCount_.store(0, MoStoreUnSeq_);
+        AdaptiveBackOffStage_.store(BackOffStage_::NO_OPERATION, MoStoreUnSeq_);
+        return decision_slot;
+    }
 };
 
 

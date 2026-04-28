@@ -11,7 +11,6 @@ namespace PredictedAdaptedEncoding
         //identity
         MAGIC_ID = 0,
         MANAGER_CONTROL_FLAGS = 1,
-        RESERVED_2 = 2,
         //logical-node Identity
         BRANCH_ID = 3,
         LOGICAL_NODE_ID = 4,
@@ -24,7 +23,9 @@ namespace PredictedAdaptedEncoding
         BRANCH_PRIORITY = 9,
         SEGMENT_CONF_FLAGS = 10,
         CURRENT_ACTIVE_THREADS = 11,
-        OCCUPANCY_SNAPSHOT = 12,
+        OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS = 2,
+        OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS = 12,
+        OCCUPANCY_SNAPSHOT_OF_UNDEFINED_CELLS = 85,
         SPLIT_THRESHOLD_PERCENTAGE = 13,
         SEGMENT_KIND = 14,
         MAX_DEPTH = 15,
@@ -40,7 +41,7 @@ namespace PredictedAdaptedEncoding
         REGION_DIR_COUNT = 19,
         REGION_SIZE = 20,
         REGION_COUNT = 21,
-        READY_REL_MASK = 22,
+        PAGED_NODE_READY_BIT = 22,
         PRODUCER_BLOCK_SIZE = 23,
         BACKGROUND_EPOCH_ADVANCE_MS =  24,
         DEFINED_MODE_OF_CURRENT_APC = 25,
@@ -112,7 +113,7 @@ namespace PredictedAdaptedEncoding
         RETIRE_EPOCH_LOW32     = 83,
         RETIRE_EPOCH_HIGH32    = 84,
 
-        RESERVED_85 = 85,
+        RESERVED_86 = 86,
         EOF_APC_HEADER = 95
     };
 
@@ -199,7 +200,7 @@ namespace PredictedAdaptedEncoding
             return PackedCell64_t::SetRelMaskInPacked(packed_cell, static_cast<tag8_t>(rel_mask));
         }
 
-        static constexpr uint32_t ReadyBitForRelClass(APCPagedNodeRelMaskClasses desired_rel_class) noexcept
+        static constexpr uint32_t MakeOneAPCNodeClassReadyBit(APCPagedNodeRelMaskClasses desired_rel_class) noexcept
         {
             const uint32_t rel_class = static_cast<uint8_t>(desired_rel_class) & HIGH_FOUR_NIBBLE;
             if (rel_class == static_cast<uint8_t>(APCPagedNodeRelMaskClasses::NONE) || rel_class == static_cast<uint8_t>(APCPagedNodeRelMaskClasses::NANNULL))
@@ -211,7 +212,7 @@ namespace PredictedAdaptedEncoding
 
         static constexpr uint32_t ReadyRelationBitMapForPackedCell(packed64_t packed_cell) noexcept
         {
-            return ReadyBitForRelClass(ExtractPagedRelMaskFromPacked(packed_cell));
+            return MakeOneAPCNodeClassReadyBit(ExtractPagedRelMaskFromPacked(packed_cell));
         }
         //will be removed
         static bool CanCellBeConsumedForThisRegion(packed64_t packed_cell, APCPagedNodeRelMaskClasses region_kind) noexcept

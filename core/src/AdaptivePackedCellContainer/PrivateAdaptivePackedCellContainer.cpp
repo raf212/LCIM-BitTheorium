@@ -19,7 +19,7 @@ namespace PredictedAdaptedEncoding
 
     void AdaptivePackedCellContainer::InitZeroState_() noexcept
     {
-        ForceOccupancyUpdateAndReturn(0);
+        ForceZeroOccupancy_();
         MakeAPCBranchOwned();
         ResetTotalCASFailureForThisBranch();
         UpdateProducerCursorPlacement(static_cast<uint32_t>(PayloadBegin()));
@@ -226,20 +226,20 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        const uint32_t ready_bit = APCAndPagedNodeHelpers::ReadyBitForRelClass(rel_mask);
+        const uint32_t ready_bit = APCAndPagedNodeHelpers::MakeOneAPCNodeClassReadyBit(rel_mask);
         if (ready_bit == 0)
         {
             return;
         }
         while (true)
         {
-            const val32_t current_branch_rel_mask = ReadMetaCellValue32(MetaIndexOfAPCNode::READY_REL_MASK);
+            const val32_t current_branch_rel_mask = ReadMetaCellValue32(MetaIndexOfAPCNode::PAGED_NODE_READY_BIT);
             const uint32_t next_mask = current_branch_rel_mask | ready_bit;
             if (next_mask == current_branch_rel_mask)
             {
                 return;
             }
-            if (JustUpdateValueOfMeta32(MetaIndexOfAPCNode::READY_REL_MASK, current_branch_rel_mask, next_mask))
+            if (JustUpdateValueOfMeta32(MetaIndexOfAPCNode::PAGED_NODE_READY_BIT, current_branch_rel_mask, next_mask))
             {
                 return;
             }
@@ -421,7 +421,7 @@ namespace PredictedAdaptedEncoding
                     continue;
                 }
                 const APCPagedNodeRelMaskClasses absolute_cell_relation_mask = APCAndPagedNodeHelpers::ExtractPagedRelMaskFromPacked(absolute_packed_cell);
-                region_ready_mask |= APCAndPagedNodeHelpers::ReadyBitForRelClass(absolute_cell_relation_mask);
+                region_ready_mask |= APCAndPagedNodeHelpers::MakeOneAPCNodeClassReadyBit(absolute_cell_relation_mask);
                 region_epoch = std::max<uint64_t>(region_epoch, PackedCell64_t::ExtractClk16(absolute_packed_cell));
                 RegionRelArray_[region].store(static_cast<uint8_t>(region_ready_mask & APCAndPagedNodeHelpers::HIGH_ALL_EIGHT_NIBBLE), MoStoreSeq_);
                 RegionEpochArray_[region].store(region_epoch, MoStoreSeq_);
@@ -441,10 +441,10 @@ namespace PredictedAdaptedEncoding
                 }
             }
         }
-        const uint32_t expected_mask = ReadMetaCellValue32(MetaIndexOfAPCNode::READY_REL_MASK);
+        const uint32_t expected_mask = ReadMetaCellValue32(MetaIndexOfAPCNode::PAGED_NODE_READY_BIT);
 
         JustUpdateValueOfMeta32(
-            MetaIndexOfAPCNode::READY_REL_MASK,
+            MetaIndexOfAPCNode::PAGED_NODE_READY_BIT,
             expected_mask,
             global_ready_mask
         );
@@ -454,6 +454,48 @@ namespace PredictedAdaptedEncoding
 
 
 
+    bool AdaptivePackedCellContainer::ApplyOccupancyTransition_(
+        PackedCellLocalityTypes from,
+        PackedCellLocalityTypes to,
+        APCPagedNodeRelMaskClasses desired_region_class
+    ) noexcept
+    {
+        if (desired_region_class == APCPagedNodeRelMaskClasses::NONE || desired_region_class == APCPagedNodeRelMaskClasses::NANNULL)
+        {
+            return false;
+        }
+        if (from == PackedCellLocalityTypes::ST_IDLE && to == PackedCellLocalityTypes::ST_CLAIMED)
+        {
+            AllClaimedCellsOccupancySnapshotAddOrSubAndGetAfterChange(+1);
+            return true;
+        }
+        if (from == PackedCellLocalityTypes::ST_CLAIMED && to == PackedCellLocalityTypes::ST_PUBLISHED)
+        {
+            AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(+1);
+            AllClaimedCellsOccupancySnapshotAddOrSubAndGetAfterChange(-1);
+            const uint32_t region_occ_after_update = RegionOccupancyAddOrSubAndGet(desired_region_class, +1);
+            TurnOnReadyBitForDesiredPagedNode_(desired_region_class);
+            return region_occ_after_update > NO_VAL;
+        }
+        if (from == PackedCellLocalityTypes::ST_PUBLISHED && to == PackedCellLocalityTypes::ST_CLAIMED)
+        {
+            AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(-1);
+            AllClaimedCellsOccupancySnapshotAddOrSubAndGetAfterChange(+1);
+            RegionOccupancyAddOrSubAndGet(desired_region_class, -1);
+            return ClearTheDesiredPagedNodeReadyBit_(desired_region_class);
+        }
+        if (from == PackedCellLocalityTypes::ST_CLAIMED && to == PackedCellLocalityTypes::ST_IDLE)
+        {
+            AllClaimedCellsOccupancySnapshotAddOrSubAndGetAfterChange(-1);
+            return true;
+        }
+
+        //continue from here after fixing rel.h
+        
+        
+        
+        return false;
+    }
 
 
 }

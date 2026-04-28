@@ -138,10 +138,22 @@ protected:
 
     bool WriteAllRegionsLayoutToHeader_(const CompleteAPCNodeRegionsLayout& full_layout) noexcept;
 
+    bool TurnOnReadyBitForDesiredPagedNode_(APCPagedNodeRelMaskClasses desired_region_class) noexcept;
+
+    bool ClearTheDesiredPagedNodeReadyBit_(APCPagedNodeRelMaskClasses desired_region_class) noexcept;
+
     bool ClearMultipleControlFlags_(uint32_t use_or_between_flags = NO_VAL) noexcept
     {
         return UpdateAPCModeFlagsInHeader_(NO_VAL, use_or_between_flags);
     }
+
+    void ForceZeroOccupancy_() noexcept
+    {
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS, NO_VAL, PriorityPhysics::STRUCTURAL_DEPENDENCY, APCPagedNodeRelMaskClasses::CONTROL_SLOT);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS, NO_VAL, PriorityPhysics::STRUCTURAL_DEPENDENCY, APCPagedNodeRelMaskClasses::CONTROL_SLOT);     
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_UNDEFINED_CELLS, NO_VAL, PriorityPhysics::STRUCTURAL_DEPENDENCY, APCPagedNodeRelMaskClasses::CONTROL_SLOT);        
+    }
+
     
 public:
     packed64_t PackPureClock48AsPackedCell(
@@ -235,14 +247,6 @@ public:
     uint32_t ReadRegionOccupancy(APCPagedNodeRelMaskClasses desired_region_class) noexcept
     {
         return ReadMetaCellValue32(APCAndPagedNodeHelpers::GetOccupancyMetIndexByRegionClass(desired_region_class));
-    }
-
-    uint32_t ForceOccupancyUpdateAndReturn(uint32_t new_occupancy) noexcept
-    {
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT, new_occupancy);
-        uint32_t updated_occupancy = ReadMetaCellValue32(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT);
-        return updated_occupancy;
-        
     }
 
     bool  TryBindShareNext(uint32_t shared_next_id) noexcept

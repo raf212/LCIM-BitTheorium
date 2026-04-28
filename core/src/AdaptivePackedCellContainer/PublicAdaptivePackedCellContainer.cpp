@@ -296,9 +296,19 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    uint32_t AdaptivePackedCellContainer::CombinedOccupancyAddOrSubAndGetAfterChange(int delta) noexcept
+    uint32_t AdaptivePackedCellContainer::AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(int delta) noexcept
     {
-        return OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT, delta);
+        return OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS, delta);
+    }
+
+    uint32_t AdaptivePackedCellContainer::AllClaimedCellsOccupancySnapshotAddOrSubAndGetAfterChange(int delta) noexcept
+    {
+        return OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS, delta);
+    }
+
+    uint32_t AdaptivePackedCellContainer::AllUndefinedCellsOccupancySnapshotAddOrSubAndGetAfterChange(int delta) noexcept
+    {
+        return OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_UNDEFINED_CELLS, delta);
     }
 
     uint32_t AdaptivePackedCellContainer::RegionOccupancyAddOrSubAndGet(APCPagedNodeRelMaskClasses desired_region_class, int delta) noexcept
@@ -368,7 +378,7 @@ namespace PredictedAdaptedEncoding
         AdaptivePackedCellContainer* current_apc_ptr = FindSharedRootOrThis();
         while (current_apc_ptr)
         {
-            if (current_apc_ptr->CombinedOccupancyAddOrSubAndGetAfterChange() > NO_VAL)
+            if (current_apc_ptr->AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange() > NO_VAL)
             {
                 return false;
             }
@@ -816,7 +826,7 @@ namespace PredictedAdaptedEncoding
         }
 
         const uint32_t exact_combined_local_occ = GetLocalTotalOccupancy();
-        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT, exact_combined_local_occ);
+        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS, exact_combined_local_occ);
 
         uint32_t ready_rel_mask = 0;
         for (size_t rel_bit_mask = 0; rel_bit_mask < APCAndPagedNodeHelpers::SIZE_OF_APCPagedNodeRelMaskClasses; rel_bit_mask++)
@@ -830,10 +840,10 @@ namespace PredictedAdaptedEncoding
             WriteExactMetaCellJustNewValue(APCAndPagedNodeHelpers::GetOccupancyMetIndexByRegionClass(region), exact_region_occupancy);
             if (exact_region_occupancy > 0)
             {
-                ready_rel_mask |= APCAndPagedNodeHelpers::ReadyBitForRelClass(region);
+                ready_rel_mask |= APCAndPagedNodeHelpers::MakeOneAPCNodeClassReadyBit(region);
             }
         }
-        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::READY_REL_MASK, ready_rel_mask);
+        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::PAGED_NODE_READY_BIT, ready_rel_mask);
         return exact_combined_local_occ;
     }
 
@@ -851,11 +861,11 @@ namespace PredictedAdaptedEncoding
             const auto current_region = static_cast<APCPagedNodeRelMaskClasses>(rel_class);
             if (CountExactTotalChainOccupancy(current_region) > NO_VAL)
             {
-                mask |= APCAndPagedNodeHelpers::ReadyBitForRelClass(current_region);
+                mask |= APCAndPagedNodeHelpers::MakeOneAPCNodeClassReadyBit(current_region);
             }
         }
-        const uint32_t old_ready_mask = ReadMetaCellValue32(MetaIndexOfAPCNode::READY_REL_MASK);
-        return JustUpdateValueOfMeta32(MetaIndexOfAPCNode::READY_REL_MASK, old_ready_mask, mask);
+        const uint32_t old_ready_mask = ReadMetaCellValue32(MetaIndexOfAPCNode::PAGED_NODE_READY_BIT);
+        return JustUpdateValueOfMeta32(MetaIndexOfAPCNode::PAGED_NODE_READY_BIT, old_ready_mask, mask);
     }
 
 

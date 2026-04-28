@@ -110,6 +110,12 @@ protected:
 
     uint32_t OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode desired_region_meta_idx, int delta = 0) noexcept;
 
+    bool ApplyOccupancyTransition_(
+        PackedCellLocalityTypes from,
+        PackedCellLocalityTypes to,
+        APCPagedNodeRelMaskClasses desired_region_class
+    ) noexcept;
+
 public:
     AdaptivePackedCellContainer(/* args */) noexcept  = default;
 
@@ -147,7 +153,13 @@ public:
     size_t ReserveProducerSlots(size_t number_of_slots) noexcept;
     size_t NextProducerSequence() noexcept;
 
-    uint32_t CombinedOccupancyAddOrSubAndGetAfterChange(int delta = 0) noexcept;
+    uint32_t AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(int delta = 0) noexcept;
+
+    uint32_t AllClaimedCellsOccupancySnapshotAddOrSubAndGetAfterChange(int delta = 0) noexcept;
+
+    uint32_t AllUndefinedCellsOccupancySnapshotAddOrSubAndGetAfterChange(int delta = 0) noexcept;
+
+
 
     uint32_t RegionOccupancyAddOrSubAndGet(APCPagedNodeRelMaskClasses desired_region_class, int delta = 0) noexcept;
 

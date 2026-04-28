@@ -376,7 +376,7 @@ int main()
             bool all_producer_done =
                 producer_done.load(MoLoad_) >= PRODUCER_COUNT;
             size_t final_task_apc_occupancy =
-                TASK_APC.CombinedOccupancyAddOrSubAndGetAfterChange();
+                TASK_APC.AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange();
 
             if (all_producer_done && final_task_apc_occupancy == 0)
             {

@@ -243,5 +243,52 @@ namespace PredictedAdaptedEncoding
             WriteBoundsPairToHeader_(full_layout.FreeLayout);
     }
 
+    bool SegmentIODefinition::TurnOnReadyBitForDesiredPagedNode_(APCPagedNodeRelMaskClasses desired_region_class) noexcept
+    {
+        const uint32_t anew_readybit = APCAndPagedNodeHelpers::MakeOneAPCNodeClassReadyBit(desired_region_class);
+        if (anew_readybit == 0)
+        {
+            return false;
+        }
+        while (true)
+        {
+            const uint32_t compleate_current_paged_node_ready_bit = ReadMetaCellValue32(MetaIndexOfAPCNode::PAGED_NODE_READY_BIT);
+            const uint32_t updated_current_ready_bit = compleate_current_paged_node_ready_bit | anew_readybit;
+            if (updated_current_ready_bit == compleate_current_paged_node_ready_bit)
+            {
+                return true;
+            }
+            if (JustUpdateValueOfMeta32(MetaIndexOfAPCNode::PAGED_NODE_READY_BIT, compleate_current_paged_node_ready_bit, updated_current_ready_bit))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool SegmentIODefinition::ClearTheDesiredPagedNodeReadyBit_(APCPagedNodeRelMaskClasses desired_region_class) noexcept
+    {
+        const uint32_t anew_readybit = APCAndPagedNodeHelpers::MakeOneAPCNodeClassReadyBit(desired_region_class);
+        if (anew_readybit == 0)
+        {
+            return false;
+        }
+        while (true)
+        {
+            const uint32_t compleate_current_paged_node_ready_bit = ReadMetaCellValue32(MetaIndexOfAPCNode::PAGED_NODE_READY_BIT);
+            const uint32_t updated_current_ready_bit = compleate_current_paged_node_ready_bit & ~anew_readybit;
+            if (updated_current_ready_bit == compleate_current_paged_node_ready_bit)
+            {
+                return true;
+            }
+            if (JustUpdateValueOfMeta32(MetaIndexOfAPCNode::PAGED_NODE_READY_BIT, compleate_current_paged_node_ready_bit, updated_current_ready_bit))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
 
 }

@@ -14,7 +14,7 @@ using namespace PredictedAdaptedEncoding;
 
 namespace
 {
-    constexpr uint32_t VALUE_COUNT = 25600u;
+    constexpr uint32_t VALUE_COUNT = 2560u;
     constexpr uint32_t PRODUCER_COUNT = 2u;
     constexpr uint32_t WORKERS_PER_STAGE = 3u;
     constexpr uint32_t MAX_ATTEMPTS = 4096u;
@@ -100,7 +100,7 @@ namespace
                 << " branch=" << node.GetBranchId()
                 << " logical=" << node.GetLogicalId()
                 << " shared=" << node.GetSharedId()
-                << " occ=" << node.CombinedOccupancyAddOrSubAndGetAfterChange()
+                << " occ=" << node.AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange()
                 << " exact_nonidle=" << node.GetLocalTotalOccupancy()
                 << " FF=" << node.CountExactTotalChainOccupancy(APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE)
                 << " FB=" << node.CountExactTotalChainOccupancy(APCPagedNodeRelMaskClasses::FEEDBACKWARD_MESSAGE)

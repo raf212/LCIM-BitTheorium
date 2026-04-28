@@ -70,14 +70,14 @@ namespace PredictedAdaptedEncoding
         PackedCellContainerManager* manager_ptr = any_member.GetAPCManager();
         if (!manager_ptr)
         {
-            return any_member.CombinedOccupancyAddOrSubAndGetAfterChange(0) == 0;
+            return any_member.AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(0) == 0;
         }
 
         AdaptivePackedCellContainer* current = FindSharedRoot_(&any_member, manager_ptr);
 
         while (current)
         {
-            if (current->CombinedOccupancyAddOrSubAndGetAfterChange(0) > 0)
+            if (current->AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(0) > 0)
             {
                 return false;
             }
@@ -337,7 +337,7 @@ namespace
                   << " branch=" << apc.GetBranchId()
                   << " logical=" << apc.GetLogicalId()
                   << " shared=" << apc.GetSharedId()
-                  << " occ=" << apc.CombinedOccupancyAddOrSubAndGetAfterChange(0)
+                  << " occ=" << apc.AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(0)
                   << "\n";
     }
 }
@@ -496,7 +496,7 @@ int main()
                     {
                         std::cout << "[B-" << worker_id << "] heartbeat done="
                                   << total_done_B.load() << "/" << VALUE_COUNT
-                                  << " A_occ=" << A.CombinedOccupancyAddOrSubAndGetAfterChange(0)
+                                  << " A_occ=" << A.AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(0)
                                   << "\n";
                     }
 
@@ -572,7 +572,7 @@ int main()
                     {
                         std::cout << "[C-" << worker_id << "] heartbeat done="
                                   << total_done_C.load() << "/" << VALUE_COUNT
-                                  << " B_occ=" << B.CombinedOccupancyAddOrSubAndGetAfterChange(0)
+                                  << " B_occ=" << B.AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(0)
                                   << "\n";
                     }
 
@@ -648,7 +648,7 @@ int main()
                     {
                         std::cout << "[D-" << worker_id << "] heartbeat done="
                                   << total_done_D.load() << "/" << VALUE_COUNT
-                                  << " C_occ=" << C.CombinedOccupancyAddOrSubAndGetAfterChange(0)
+                                  << " C_occ=" << C.AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(0)
                                   << "\n";
                     }
 
@@ -724,7 +724,7 @@ int main()
                     {
                         std::cout << "[E-" << worker_id << "] heartbeat done="
                                   << total_done_E.load() << "/" << VALUE_COUNT
-                                  << " D_occ=" << D.CombinedOccupancyAddOrSubAndGetAfterChange(0)
+                                  << " D_occ=" << D.AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(0)
                                   << "\n";
                     }
 

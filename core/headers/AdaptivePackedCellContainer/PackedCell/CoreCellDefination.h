@@ -50,9 +50,9 @@ namespace PredictedAdaptedEncoding {
     static constexpr unsigned STBITS   = 8u;
     static constexpr unsigned TOTAL_LOW = 48u;
 
-    static constexpr unsigned PRIO_LEN = 4u;
-    static constexpr unsigned NODE_TYPE = 2u;
-    static constexpr unsigned LOCALITY_LEN = 3u;// will be 2u
+    static constexpr unsigned PRIO_LEN = 3u;
+    static constexpr unsigned NODE_AUTH_LEN = 2u;
+    static constexpr unsigned LOCALITY_LEN = 2u;// will be 2u
     static constexpr unsigned PCTYPE_LEN = 1u;
     static constexpr unsigned RELMASK_LEN = 4u;
     static constexpr unsigned RELOFFSET_LEN = 2u;

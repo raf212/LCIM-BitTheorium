@@ -14,11 +14,11 @@ namespace PredictedAdaptedEncoding
 
         static inline bool IsCellFaulty(packed64_t packed_cell) noexcept
         {
-            if (ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY || packed_cell == PACKED_CELL_SENTINAL)
+            if (packed_cell == PACKED_CELL_SENTINAL)
             {
                 return true;
             }
-            return false;
+            return ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY;
         }
 
         struct AuthoritiveCellView
@@ -84,7 +84,7 @@ namespace PredictedAdaptedEncoding
 
         static inline packed64_t MakeInitialPacked(
             PackedMode cell_mode,
-            PriorityPhysics cell_priority = PriorityPhysics::DEFAULT_PRIORITY,
+            PriorityPhysics cell_priority = PriorityPhysics::IDLE,
             PackedCellLocalityTypes cell_locality = PackedCellLocalityTypes::ST_IDLE,
             APCPagedNodeRelMaskClasses page_class = APCPagedNodeRelMaskClasses::FREE_SLOT,
             PackedCellDataType cell_data_type = PackedCellDataType::UnsignedPCellDataType
@@ -355,6 +355,10 @@ namespace PredictedAdaptedEncoding
             RelOffsetMode32 rel_offset_32
         ) noexcept
         {
+            if (static_cast<PackedMode>(ExtractCellModeFromMETA16_U_(meta16)) != PackedMode::MODE_VALUE32)
+            {
+                return meta16;
+            }
             meta16 = SetCellModeInMETA16(meta16, PackedMode::MODE_VALUE32);
             return SetRelOffsetInMETA16_U(
                 meta16,
@@ -367,6 +371,10 @@ namespace PredictedAdaptedEncoding
             RelOffsetMode48 rel_offset_48
         ) noexcept
         {
+            if (static_cast<PackedMode>(ExtractCellModeFromMETA16_U_(meta16)) != PackedMode::MODE_CLKVAL48)
+            {
+                return meta16;
+            }
             meta16 = SetCellModeInMETA16(meta16, PackedMode::MODE_CLKVAL48);
             return SetRelOffsetInMETA16_U(
                 meta16,

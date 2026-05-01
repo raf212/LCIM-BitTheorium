@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CoreCellMetaLogicDefination.h"
+#include "MetaAndLogicDefinationOfPackedCell.h"
 namespace PredictedAdaptedEncoding
 {
 
@@ -264,6 +264,122 @@ namespace PredictedAdaptedEncoding
             return out_packed_cell_view;      
         }
 
+        static inline constexpr meta16_t SetPriorityInMETA16(
+            meta16_t meta16,
+            PriorityPhysics priority
+        ) noexcept
+        {
+            return SetIndicatedMetaInMeta16(
+                meta16,
+                PRIORITY_SHIFT,
+                PRIORITY_MASK,
+                static_cast<tag8_t>(priority)
+            );
+        }
+
+        static inline constexpr meta16_t SetNodeAuthorityInMETA16(
+            meta16_t meta16,
+            PackedCellNodeAuthority node_authority
+        ) noexcept
+        {
+            return SetIndicatedMetaInMeta16(
+                meta16,
+                NODE_AUTH_SHIFT,
+                NODE_AUTH_MASK,
+                static_cast<tag8_t>(node_authority)
+            );
+        }
+
+        static inline constexpr meta16_t SetLocalityInMETA16(
+            meta16_t meta16,
+            PackedCellLocalityTypes locality
+        ) noexcept
+        {
+            return SetIndicatedMetaInMeta16(
+                meta16,
+                LOCALITY_SHIFT,
+                LOCALITY_MASK,
+                static_cast<tag8_t>(locality)
+            );
+        }
+
+        static inline constexpr meta16_t SetCellModeInMETA16(
+            meta16_t meta16,
+            PackedMode cell_mode
+        ) noexcept
+        {
+            return SetIndicatedMetaInMeta16(
+                meta16,
+                CELL_MODE_SHIFT,
+                CELL_MODE_MASK,
+                static_cast<tag8_t>(cell_mode)
+            );
+        }
+
+        static inline constexpr meta16_t SetPageClassInMETA16(
+            meta16_t meta16,
+            APCPagedNodeRelMaskClasses page_class
+        ) noexcept
+        {
+            return SetIndicatedMetaInMeta16(
+                meta16,
+                RELMASK_SHIFT,
+                RELMASK_MASK,
+                static_cast<tag8_t>(page_class)
+            );
+        }
+
+
+        static inline constexpr meta16_t SetRelOffsetInMETA16_U(
+            meta16_t meta16,
+            tag8_t rel_offset
+        ) noexcept
+        {
+            return SetIndicatedMetaInMeta16(
+                meta16,
+                RELOFFSET_SHIFT,
+                RELOFFSET_MASK,
+                rel_offset
+            );
+        }
+
+        static inline constexpr meta16_t SetRelOffset32InMETA16(
+            meta16_t meta16,
+            RelOffsetMode32 rel_offset_32
+        ) noexcept
+        {
+            meta16 = SetCellModeInMETA16(meta16, PackedMode::MODE_VALUE32);
+            return SetRelOffsetInMETA16_U(
+                meta16,
+                static_cast<tag8_t>(rel_offset_32)
+            );
+        }
+
+        static inline constexpr meta16_t SetRelOffset48InMETA16(
+            meta16_t meta16,
+            RelOffsetMode48 rel_offset_48
+        ) noexcept
+        {
+            meta16 = SetCellModeInMETA16(meta16, PackedMode::MODE_CLKVAL48);
+            return SetRelOffsetInMETA16_U(
+                meta16,
+                static_cast<tag8_t>(rel_offset_48)
+            );
+        }
+
+        static inline constexpr meta16_t SetCellDataTypeInMETA16(
+            meta16_t meta16,
+            PackedCellDataType cell_data_type
+        ) noexcept
+        {
+            return SetIndicatedMetaInMeta16(
+                meta16,
+                PCELL_DETATYPE_SHIFT,
+                PCELL_DATATYPE_MASK,
+                static_cast<tag8_t>(cell_data_type)
+            );
+        }
+
         static inline packed64_t SetPriorityInPacked(packed64_t packed_cell, PriorityPhysics priority) noexcept
         {
             const meta16_t new_desired_meta = SetPriorityInMETA16(ExtractMeta16fromPackedCell(packed_cell), priority);
@@ -301,6 +417,46 @@ namespace PredictedAdaptedEncoding
             return SetMETA16InPacked(packed_cell, new_desired_meta);
         }
 
+        static inline constexpr meta16_t MakeInCellMetaForMode_32t(
+            PriorityPhysics priority = PriorityPhysics::DEFAULT_PRIORITY, 
+            PackedCellNodeAuthority authority = PackedCellNodeAuthority::LOCAL_OR_UNDEFINED,
+            PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_IDLE,
+            APCPagedNodeRelMaskClasses page_class = APCPagedNodeRelMaskClasses::FREE_SLOT,
+            RelOffsetMode32 rel_offset_32 = RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
+            PackedCellDataType cell_data_type = PackedCellDataType::UnsignedPCellDataType
+        ) noexcept
+        {
+            return MakeInCellMetaFromUnsigned_16t_(
+                static_cast<tag8_t>(priority),
+                static_cast<tag8_t>(authority),
+                static_cast<tag8_t>(locality),
+                static_cast<tag8_t>(page_class),
+                static_cast<tag8_t>(rel_offset_32),
+                static_cast<tag8_t>(PackedMode::MODE_VALUE32),
+                static_cast<tag8_t>(cell_data_type)
+            );
+        }
+
+        static inline constexpr meta16_t MakeInCellMetaForMode_48t(
+            PriorityPhysics priority = PriorityPhysics::DEFAULT_PRIORITY, 
+            PackedCellNodeAuthority authority = PackedCellNodeAuthority::LOCAL_OR_UNDEFINED,
+            PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_IDLE,
+            APCPagedNodeRelMaskClasses page_class = APCPagedNodeRelMaskClasses::FREE_SLOT,
+            RelOffsetMode48 rel_offset_48 = RelOffsetMode48::RELOFFSET_GENERIC_VALUE,
+            PackedCellDataType cell_data_type = PackedCellDataType::UnsignedPCellDataType
+        ) noexcept
+        {
+            return MakeInCellMetaFromUnsigned_16t_(
+                static_cast<tag8_t>(priority),
+                static_cast<tag8_t>(authority),
+                static_cast<tag8_t>(locality),
+                static_cast<tag8_t>(page_class),
+                static_cast<tag8_t>(rel_offset_48),
+                static_cast<tag8_t>(PackedMode::MODE_CLKVAL48),
+                static_cast<tag8_t>(cell_data_type)
+            );
+        }
+
         template <typename PCDT>
         static inline std::optional<PCDT> ExtractAnyPackedValueX(packed64_t packed_cell)
         {
@@ -330,6 +486,36 @@ namespace PredictedAdaptedEncoding
         
 
         private:
+
+        static inline constexpr meta16_t ClearIndicatedMeta16Field_(
+            meta16_t meta16,
+            unsigned shift,
+            tag8_t mask
+        ) noexcept
+        {
+            return static_cast<meta16_t>(
+                meta16 & ~static_cast<meta16_t>(
+                    static_cast<meta16_t>(mask) << shift
+                )
+            );
+        }
+
+        static inline constexpr meta16_t SetIndicatedMetaInMeta16(
+            meta16_t meta16,
+            unsigned shift,
+            tag8_t mask,
+            tag8_t value
+        ) noexcept
+        {
+            const meta16_t cleared_indicated = ClearIndicatedMeta16Field_(
+                meta16, shift, mask
+            );
+            const meta16_t only_inserted_meta16 = static_cast<meta16_t>(
+                static_cast<meta16_t>(value & mask) << shift
+            );
+            return static_cast<meta16_t>(cleared_indicated | only_inserted_meta16);
+        }
+
         static inline packed64_t MakeACell_(
             PackedMode cell_mode,
             uint64_t cell_value = NO_VAL,
@@ -396,6 +582,69 @@ namespace PredictedAdaptedEncoding
         }
 
     };
+
+    inline constexpr meta16_t MakeInCellMetaFromUnsigned_16t_(
+        tag8_t priority, tag8_t node_authority,
+        tag8_t locality, tag8_t rel_mask, 
+        tag8_t rel_offset, tag8_t pc_type, 
+        tag8_t pc_datatype
+    ) noexcept
+    {
+
+        meta16_t cell_priority = static_cast<meta16_t>(static_cast<tag8_t>(priority) & PRIORITY_MASK);
+        meta16_t cell_authority = static_cast<meta16_t>(static_cast<tag8_t>(node_authority) & NODE_AUTH_MASK); 
+        meta16_t cell_locality = static_cast<meta16_t>(static_cast<tag8_t>(locality) & LOCALITY_MASK);
+        meta16_t cell_mode = static_cast<meta16_t>(static_cast<tag8_t>(pc_type) & CELL_MODE_MASK);
+        meta16_t relation_mask = static_cast<meta16_t>(rel_mask & RELMASK_MASK);
+        meta16_t relation_offset = static_cast<meta16_t>(static_cast<tag8_t>(rel_offset) & RELOFFSET_MASK);
+        meta16_t cell_data_type = static_cast<meta16_t>(static_cast<unsigned>(pc_datatype) & PCELL_DATATYPE_MASK);
+
+        meta16_t cell_meta = static_cast<meta16_t>(
+            (cell_priority  << (PRIORITY_SHIFT))
+            | (cell_authority << (NODE_AUTH_SHIFT))
+            | (cell_locality << LOCALITY_SHIFT)
+            | (cell_mode << CELL_MODE_SHIFT)
+            | (relation_mask << RELMASK_SHIFT)
+            | (relation_offset << RELOFFSET_SHIFT)
+            | cell_data_type
+        );
+        return cell_meta;
+    }
+
+    static inline constexpr tag8_t ExtractPriorityFromMETA16_U_(meta16_t meta16) noexcept
+    {
+        return static_cast<tag8_t>((meta16 >> PRIORITY_SHIFT) & PRIORITY_MASK);
+    }
+
+    static inline constexpr tag8_t ExtractCellLocalNodeAuthotityFromMETA16_U_(meta16_t meta16) noexcept
+    {
+        return static_cast<tag8_t>((meta16 >> NODE_AUTH_SHIFT ) & NODE_AUTH_MASK);
+    }
+    
+    static inline constexpr tag8_t ExtractLocalityFromMETA16_U_(meta16_t meta16) noexcept
+    {
+        return static_cast<tag8_t>((meta16 >> LOCALITY_SHIFT) & LOCALITY_MASK);
+    }
+
+    static inline constexpr tag8_t ExtractCellModeFromMETA16_U_(meta16_t meta16) noexcept
+    {
+        return static_cast<tag8_t>((meta16 >> CELL_MODE_SHIFT) & CELL_MODE_MASK);
+    }
+
+    static inline constexpr tag8_t ExtractRelMaskFromMETA16_U_(meta16_t meta16) noexcept
+    {
+        return static_cast<tag8_t>((meta16 >> RELMASK_SHIFT) & RELMASK_MASK);
+    }
+
+    static inline constexpr tag8_t ExtractRelOffsetFromMETA16_U_(meta16_t meta16) noexcept
+    {
+        return static_cast<tag8_t>((meta16 >> RELOFFSET_SHIFT) & RELOFFSET_MASK);
+    }
+
+    static inline constexpr tag8_t ExtractValueDataTypeFromMETA16_U_(meta16_t meta16) noexcept
+    {
+        return static_cast<tag8_t>((meta16 >> PCELL_DETATYPE_SHIFT) & PCELL_DATATYPE_MASK);
+    }
 
 
 }

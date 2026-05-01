@@ -204,8 +204,9 @@ namespace PredictedAdaptedEncoding
             }
             const PackedMode old_mode = PackedCell64_t::ExtractModeOfPackedCellFromPacked(current_cell);
             const PackedCellDataType old_dtype = PackedCell64_t::ExtractPCellDataTypeFromPacked(current_cell);
+            const APCPagedNodeRelMaskClasses old_page_class = PackedCell64_t::ExtractRelMaskFromPacked(current_cell);
 
-            BackingPtr[idx].store(PackedCell64_t::MakeInitialPacked(old_mode, old_dtype, static_cast<tag8_t>(region_kind)), MoStoreSeq_);
+            BackingPtr[idx].store(PackedCell64_t::MakeInitialPacked(old_mode, PriorityPhysics::HANDLE_NOW, PackedCellLocalityTypes::ST_IDLE, old_page_class, old_dtype), MoStoreSeq_);
             BackingPtr[idx].notify_all();
             // RebuildExectReadyMask();
             ReconcileOccupancySnapshotFromPayload();
@@ -256,7 +257,7 @@ namespace PredictedAdaptedEncoding
         }
         if (force_rel_mask)
         {
-            packed_cell = APCAndPagedNodeHelpers::SetRelMaskForPagedNode(packed_cell, region_kind);
+            packed_cell = PackedCell64_t::SetPageClassInPacked(packed_cell, region_kind);
         }
         
         const auto maybe_current_region_bounds = ReadLayoutBounds(region_kind);

@@ -204,6 +204,11 @@ namespace PredictedAdaptedEncoding
             return static_cast<PackedCellLocalityTypes>(ExtractLocalityFromMETA16_U_(ExtractMeta16fromPackedCell(packed_cell)));
         }
 
+        static inline PackedCellNodeAuthority ExtractNodeAuthorityFromPacked(packed64_t packed_cell) noexcept
+        {
+            return static_cast<PackedCellNodeAuthority>(ExtractCellLocalNodeAuthotityFromMETA16_U_(ExtractMeta16fromPackedCell(packed_cell)));
+        }
+
         static inline APCPagedNodeRelMaskClasses ExtractRelMaskFromPacked(packed64_t packed_cell) noexcept
         {
             return static_cast<APCPagedNodeRelMaskClasses>(ExtractRelMaskFromMETA16_U_(ExtractMeta16fromPackedCell(packed_cell)));
@@ -463,7 +468,6 @@ namespace PredictedAdaptedEncoding
         static inline std::optional<PCDT> ExtractAnyPackedValueX(packed64_t packed_cell)
         {
             constexpr PackedCellDataType expected_dtype = BridgeOfPackedCellDataType_v<PCDT>;
-            const meta16_t meta16 = ExtractMeta16fromPackedCell(packed_cell);
             if(ExtractPCellDataTypeFromPacked(packed_cell) != expected_dtype)
             {
                 return std::nullopt;

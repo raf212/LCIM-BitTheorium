@@ -30,7 +30,7 @@ namespace PredictedAdaptedEncoding
         while (curent_tries++ < max_claim_attempts)
         {
             packed64_t packed_cell_value64 = BackingPtr[probable_idx].load(MoLoad_);
-            RelOffsetMode32 curent_ptr_position = static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell_value64));
+            RelOffsetMode32 curent_ptr_position = PackedCell64_t::ExtractRelOffset32FromPacked(packed_cell_value64);
             size_t head_idx = SIZE_MAX;
             size_t tail_idx = SIZE_MAX;
             if (curent_ptr_position == RelOffsetMode32::REL_OFFSET_HEAD_PTR)
@@ -201,7 +201,7 @@ namespace PredictedAdaptedEncoding
     }
 
 
-    PublishResult PointerSymenticsAdaptivePackedCellContainer::PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask_with_ptrflag, int max_probs) noexcept
+    PublishResult PointerSymenticsAdaptivePackedCellContainer::PublishHeapPtrPair_(void* object_ptr, APCPagedNodeRelMaskClasses rel_mask_with_ptrflag, int max_probs) noexcept
     {
         if (!IfAPCBranchValid())
         {
@@ -254,12 +254,12 @@ namespace PredictedAdaptedEncoding
                     else
                     {
                         val32_t tail_ptr_val32 = high32_half;
-                        strl16_t strl_tail = MakeSTRLMode32_t(PriorityPhysics::IDLE, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask_with_ptrflag, RelOffsetMode32::RELOFFSET_TAIL_PTR);
+                        meta16_t strl_tail = PackedCell64_t::MakeInCellMetaForMode_32t(PriorityPhysics::IDLE, PackedCellNodeAuthority::LOCAL_OR_UNDEFINED, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask_with_ptrflag, RelOffsetMode32::RELOFFSET_TAIL_PTR);
                         packed64_t tail_packed = PackedCell64_t::ComposeValue32u_64(tail_ptr_val32, 0u, strl_tail);
                         BackingPtr[tail].store(tail_packed, MoStoreSeq_);
 
                         val32_t head_ptr_value32 = low32_half;
-                        strl16_t strl_head = MakeSTRLMode32_t(PriorityPhysics::IDLE, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask_with_ptrflag, RelOffsetMode32::REL_OFFSET_HEAD_PTR);
+                        meta16_t strl_head = PackedCell64_t::MakeInCellMetaForMode_32t(PriorityPhysics::IDLE, PackedCellNodeAuthority::LOCAL_OR_UNDEFINED, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask_with_ptrflag, RelOffsetMode32::REL_OFFSET_HEAD_PTR);
                         packed64_t head_packed = PackedCell64_t::ComposeValue32u_64(head_ptr_value32, 0u, strl_head);
                         BackingPtr[head].store(head_packed, MoStoreSeq_);
                         BackingPtr[tail].notify_all();
@@ -284,7 +284,7 @@ namespace PredictedAdaptedEncoding
 
         while (publish_attempt <= max_retries)
         {
-            PublishResult publish_result = PublishHeapPtrPair_(target_publishable_ptr, REL_NONE);
+            PublishResult publish_result = PublishHeapPtrPair_(target_publishable_ptr, APCPagedNodeRelMaskClasses::FREE_SLOT);
             if (publish_result.ResultStatus == PublishStatus::OK)
             {
                 return true;

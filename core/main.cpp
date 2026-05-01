@@ -249,8 +249,8 @@ int main()
                     continue;
                 }
 
-                const uint32_t x = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(*maybe);
-                const uint32_t state = x * 2u;
+                const std::optional<uint32_t> x = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(*maybe);
+                const uint32_t state = (*x) * 2u;
 
                 packed64_t state_cell = PackU32(clock, state, APCPagedNodeRelMaskClasses::STATE_SLOT, PriorityPhysics::IMPORTANT);
 
@@ -291,8 +291,8 @@ int main()
                     continue;
                 }
 
-                const uint32_t pred = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(*maybe);
-                const uint32_t err = (pred >= 3u) ? 3u : pred;
+                const std::optional<uint32_t> pred = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(*maybe);
+                const uint32_t err = (*pred >= 3u) ? 3u : *pred;
 
                 packed64_t err_cell = PackU32(clock, err, APCPagedNodeRelMaskClasses::ERROR_SLOT, PriorityPhysics::ERROR_DEPENDENCY);
 
@@ -333,8 +333,8 @@ int main()
                     continue;
                 }
 
-                const uint32_t state = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(*maybe);
-                const uint32_t forward = state + 1u;
+                const std::optional<uint32_t> state = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(*maybe);
+                const uint32_t forward = *state + 1u;
 
                 packed64_t out = PackU32(clock, forward, APCPagedNodeRelMaskClasses::FEEDFORWARD_MESSAGE, PriorityPhysics::IMPORTANT);
 
@@ -377,8 +377,8 @@ int main()
                     continue;
                 }
 
-                const uint32_t err = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(*maybe);
-                const uint32_t correction = 1000u + err;
+                const std::optional<uint32_t> err = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(*maybe);
+                const uint32_t correction = 1000u + *err;
 
                 packed64_t fb = PackU32(
                     clock,
@@ -427,8 +427,8 @@ int main()
                 continue;
             }
 
-            const uint32_t y = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(*maybe);
-            const float out = static_cast<float>(y) * 0.5f;
+            const std::optional<uint32_t> y = PackedCell64_t::ExtractAnyPackedValueX<uint32_t>(*maybe);
+            const float out = static_cast<float>(*y) * 0.5f;
 
             {
                 std::lock_guard<std::mutex> lock(collected_mutex);

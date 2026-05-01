@@ -117,25 +117,6 @@ namespace PredictedAdaptedEncoding
         EOF_APC_HEADER = 95
     };
 
-    enum class APCPagedNodeRelMaskClasses : tag8_t
-    {
-        NONE = 0x0,
-        FEEDFORWARD_MESSAGE  = 0x1,
-        FEEDBACKWARD_MESSAGE = 0x2,
-        LATERAL_MESAGE = 0x3,
-        STATE_SLOT = 0x4,
-        ERROR_SLOT = 0x5,
-        EDGE_DESCRIPTOR = 0x6,
-        WEIGHT_SLOT = 0x7,
-        CONTROL_SLOT = 0x8,
-        AUX_SLOT = 0x9,
-        FREE_SLOT = 0xA,
-        SELF_REFARANCE = 0xB,
-        CLOCK_PURE_TIME = 0xC,
-        RESERVED_14     = 0xD,
-        COMPLEX_STORAGE = 0xE,
-        NANNULL     = 0xF
-    };
 
     struct ContainerConf
     {
@@ -182,7 +163,7 @@ namespace PredictedAdaptedEncoding
         {
             return PackedCell64_t::ExtractModeOfPackedCellFromPacked(packed_cell) == PackedMode::MODE_VALUE32 && 
                 PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
-                static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell)) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
+                PackedCell64_t::ExtractRelOffset32FromPacked(packed_cell) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
         }
         
         template<typename PCDT>
@@ -193,11 +174,6 @@ namespace PredictedAdaptedEncoding
                 return false;
             }
             return PackedCell64_t::ExtractPCellDataTypeFromPacked(packed_cell)  == PackedCellTypeBridge<PCDT>::DType;
-        }
-
-        static packed64_t SetRelMaskForPagedNode(packed64_t packed_cell, APCPagedNodeRelMaskClasses rel_mask) noexcept
-        {
-            return PackedCell64_t::SetRelMaskInPacked(packed_cell, static_cast<tag8_t>(rel_mask));
         }
 
         static constexpr uint32_t MakeOneAPCNodeClassReadyBit(APCPagedNodeRelMaskClasses desired_rel_class) noexcept
@@ -219,7 +195,7 @@ namespace PredictedAdaptedEncoding
         {
             return PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
                 ExtractPagedRelMaskFromPacked(packed_cell) == region_kind &&
-                static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell)) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
+                PackedCell64_t::ExtractRelOffset32FromPacked(packed_cell) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
         }
 
         static constexpr MetaIndexOfAPCNode GetOccupancyMetIndexByRegionClass(
@@ -326,7 +302,7 @@ namespace PredictedAdaptedEncoding
             return DoseThisIndexPhysicallyExistInThisRegion(idx) && 
                 PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
                 APCAndPagedNodeHelpers::ExtractPagedRelMaskFromPacked(packed_cell) == region_kind &&
-                PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell) == PackedCell64_t::REL_OFFSET_GENERIC_VALUE;
+                PackedCell64_t::ExtractRelOffset32FromPacked(packed_cell) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
         }
 
     };

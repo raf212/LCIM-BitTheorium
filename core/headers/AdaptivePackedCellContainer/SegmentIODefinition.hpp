@@ -90,16 +90,17 @@ protected:
         val32_t value32,
         PriorityPhysics priority,
         PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
-        APCPagedNodeRelMaskClasses rel_mask = APCPagedNodeRelMaskClasses::NONE,
+        APCPagedNodeRelMaskClasses page_class = APCPagedNodeRelMaskClasses::NONE,
         RelOffsetMode32 reloffset_mode32 = RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
-        PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType
+        PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType,
+        PackedCellNodeAuthority node_authority = PackedCellNodeAuthority::LOCAL_OR_UNDEFINED
     ) noexcept
     {
         if (OwnedMasterClockConfPtr_)
         {
-            return OwnedMasterClockConfPtr_->ComposeValue32WithCurrentThreadStamp16(value32, rel_mask, priority, locality, reloffset_mode32, dtype);
+            return OwnedMasterClockConfPtr_->ComposeValue32WithCurrentThreadStamp16(value32, page_class, priority, locality, reloffset_mode32, dtype);
         }
-        strl16_t strl_moded32 = MakeSTRLMode32_t(priority, locality, static_cast<tag8_t>(rel_mask), reloffset_mode32, dtype);
+        meta16_t strl_moded32 = PackedCell64_t::MakeInCellMetaForMode_32t(priority, node_authority, locality, page_class, reloffset_mode32, dtype);
         return PackedCell64_t::ComposeValue32u_64(value32, NO_VAL, strl_moded32);
     }
 
@@ -160,9 +161,10 @@ public:
         std::optional<uint64_t> clock48 = std::nullopt,
         PriorityPhysics priority = PriorityPhysics::IDLE,
         PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
-        tag8_t rel_mask = REL_NONE,
+        APCPagedNodeRelMaskClasses page_class = APCPagedNodeRelMaskClasses::CLOCK_PURE_TIME,
         RelOffsetMode48 reloffset = RelOffsetMode48::RELOFFSET_PURE_TIMER,
-        PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType
+        PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType,
+        PackedCellNodeAuthority node_authority = PackedCellNodeAuthority::LOCAL_OR_UNDEFINED
     ) noexcept;
 
     void WriteOrUpdateMetaClock48(PriorityPhysics priority = PriorityPhysics::IDLE, std::optional<uint64_t>meta_clock_48 = std::nullopt) noexcept;

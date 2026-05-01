@@ -28,14 +28,15 @@ namespace PredictedAdaptedEncoding
         std::optional<uint64_t> clock48,
         PriorityPhysics priority,
         PackedCellLocalityTypes locality,
-        tag8_t rel_mask,
+        APCPagedNodeRelMaskClasses page_class,
         RelOffsetMode48 reloffset,
-        PackedCellDataType dtype
+        PackedCellDataType dtype,
+        PackedCellNodeAuthority node_authority
     ) noexcept
     {
         if ((reloffset != RelOffsetMode48::RELOFFSET_PURE_TIMER))
         {
-            return PackedCell64_t::ComposeCLK48u_64(NO_VAL, MakeStrl4ForMode48_t(PriorityPhysics::ERROR_DEPENDENCY, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY, rel_mask, reloffset, dtype));
+            return PackedCell64_t::MakeFaultyCell();
         }
         
         if (OwnedMasterClockConfPtr_)
@@ -43,7 +44,7 @@ namespace PredictedAdaptedEncoding
             return OwnedMasterClockConfPtr_->ComposePureClockCell48();
         }
         
-        strl16_t strl_clock48 = MakeStrl4ForMode48_t(priority, locality, rel_mask, reloffset, dtype);
+        meta16_t strl_clock48 = PackedCell64_t::MakeInCellMetaForMode_48t(priority, node_authority, locality, page_class, reloffset, dtype);
         if (clock48)
         {
             return PackedCell64_t::ComposeCLK48u_64(clock48.value(), strl_clock48);
@@ -81,7 +82,7 @@ namespace PredictedAdaptedEncoding
         {
             return false;
         }
-        strl16_t current_strl = PackedCell64_t::ExtractSTRL(expected_packed);
+        meta16_t current_strl = PackedCell64_t::ExtractMeta16fromPackedCell(expected_packed);
         clk16_t current_clock16 = PackedCell64_t::ExtractClk16(expected_packed);
         if (refresh_clock16 && OwnedMasterClockConfPtr_)
         {

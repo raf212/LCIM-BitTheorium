@@ -23,8 +23,10 @@
 #if defined(_MSC_VER)
     #include <intrin.h>
 #endif
-//(PNLTCOD)META16->[priority->3| Future Paged Node = 2 | locality->2 | PackedCell Type->1 | relmask->4 | reloffset->2 | celldatatype->2 ]-> = 16 bit->Bit distribution = [12 | 9 | 8 | 4 | 2 | 0 ]
-//clk16 =>16 Bits
+// META16 / PNLTCOD:
+// [ priority:3 | node_authority:2 | locality:2 | cell_mode:1 | relmask:4 | reloffset:2 | dtype:2 ]
+// shifts:
+// priority=13, node_authority=11, locality=9, cell_mode=8, relmask=4, reloffset=2, dtype=0
 
 
 namespace PredictedAdaptedEncoding {

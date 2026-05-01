@@ -41,23 +41,19 @@ namespace PredictedAdaptedEncoding
 
         static inline packed64_t MakeFaultyCell() noexcept
         {
-            return ComposeValue32u_64(
-                NO_VAL,
-                NO_VAL,
-                MakeInCellMetaForMode_32t(
-                    PriorityPhysics::ERROR_DEPENDENCY,
-                    PackedCellNodeAuthority::LOCAL_OR_UNDEFINED,
-                    PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY,
-                    APCPagedNodeRelMaskClasses::NONE,
-                    RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
-                    PackedCellDataType::UnsignedPCellDataType   
-                )
+            return MakeACell_(
+                PackedMode::MODE_VALUE32,
+                UINT32_MAX,
+                UINT16_MAX,
+                PriorityPhysics::ERROR_DEPENDENCY,
+                PackedCellNodeAuthority::LOCAL_OR_UNDEFINED,
+                PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY
             );
         }
 
         static inline packed64_t ComposeValue32u_64(val32_t in_cell_value, clk16_t clock16, meta16_t meta16) noexcept
         {
-            if(ExtractModeOfPackedCellFromPacked(meta16) != PackedMode::MODE_VALUE32)
+            if(static_cast<PackedMode>(ExtractCellModeFromMETA16_U_(meta16)) != PackedMode::MODE_VALUE32)
             {
                 return MakeFaultyCell();
             }
@@ -69,7 +65,7 @@ namespace PredictedAdaptedEncoding
 
         static inline packed64_t ComposeCLK48u_64(uint64_t clockor_value48, meta16_t meta16) noexcept
         {
-            if(ExtractModeOfPackedCellFromPacked(meta16) != PackedMode::MODE_CLKVAL48)
+            if(static_cast<PackedMode>(ExtractCellModeFromMETA16_U_(meta16)) != PackedMode::MODE_CLKVAL48)
             {
                 return MakeFaultyCell();
             }
@@ -101,7 +97,7 @@ namespace PredictedAdaptedEncoding
                 cell_priority,
                 PackedCellNodeAuthority::LOCAL_OR_UNDEFINED,
                 cell_locality,
-                APCPagedNodeRelMaskClasses::FREE_SLOT,
+                page_class,
                 NO_VAL,
                 cell_data_type
             );
@@ -112,11 +108,11 @@ namespace PredictedAdaptedEncoding
         {
             static_assert(PackedCellTypeBridge<PCDT>::IS_SUPPORTED_TYPE, "Unsupported Cell type");
             static_assert(PackedCellTypeBridge<PCDT>::FITS_MODE_32, "Value type is too large to fite MODE_VALUE32");
-            if (ExtractCellModeFromMETA16_U_(meta16) != PackedMode::MODE_VALUE32)
+            if (static_cast<PackedMode>(ExtractCellModeFromMETA16_U_(meta16)) != PackedMode::MODE_VALUE32)
             {
-                return MakeFaultyCell()
+                return MakeFaultyCell();
             }
-            if (ExtractValueDataTypeFromMETA16_U_(meta16) != BridgeOfPackedCellDataType_v<PCDT> )
+            if (static_cast<PackedCellDataType>(ExtractValueDataTypeFromMETA16_U_(meta16))!= BridgeOfPackedCellDataType_v<PCDT> )
             {
                 return MakeFaultyCell();
             }
@@ -126,20 +122,20 @@ namespace PredictedAdaptedEncoding
         }
 
         template <typename PCDT>
-        static inline packed64_t ComposeTypedModeValue48Cell(PCDT value_clock48, clk16_t clock16, meta16_t meta16) noexcept
+        static inline packed64_t ComposeTypedModeValue48Cell(PCDT value_clock48, meta16_t meta16) noexcept
         {
             static_assert(PackedCellTypeBridge<PCDT>::IS_SUPPORTED_TYPE, "Unsupported Cell type");
             static_assert(PackedCellTypeBridge<PCDT>::FITS_MODE_48, "Value type is too large to fite MODE_VALUE32");
-            if (ExtractCellModeFromMETA16_U_(meta16) != PackedMode::MODE_CLKVAL48)
+            if (static_cast<PackedMode>(ExtractCellModeFromMETA16_U_(meta16)) != PackedMode::MODE_CLKVAL48)
             {
-                return MakeFaultyCell()
+                return MakeFaultyCell();
             }
-            if (ExtractValueDataTypeFromMETA16_U_(meta16) != BridgeOfPackedCellDataType_v<PCDT> )
+            if (static_cast<PackedCellDataType>(ExtractValueDataTypeFromMETA16_U_(meta16)) != BridgeOfPackedCellDataType_v<PCDT> )
             {
                 return MakeFaultyCell();
             }
             uint64_t value_casted_bit = BitCastMaybe<uint64_t>(value_clock48);
-            return ComposeValue32u_64(value_casted_bit & MaskBits(CLK_B48), clock16, meta16);
+            return ComposeCLK48u_64(value_casted_bit & MaskBits(CLK_B48), meta16);
             
         }
 
@@ -245,6 +241,7 @@ namespace PredictedAdaptedEncoding
             out_packed_cell_view.NodeAuthority =  static_cast<PackedCellNodeAuthority>(ExtractCellLocalNodeAuthotityFromMETA16_U_(meta16));
             out_packed_cell_view.LocalityOfCell = static_cast<PackedCellLocalityTypes>(ExtractLocalityFromMETA16_U_(meta16));
             out_packed_cell_view.CellMode = static_cast<PackedMode>(ExtractCellModeFromMETA16_U_(meta16));
+            out_packed_cell_view.PageClass = static_cast<APCPagedNodeRelMaskClasses>(ExtractRelMaskFromMETA16_U_(meta16));
             if (IsPackedCellVal32(packed_cell))
             {
                 out_packed_cell_view.RelationOffsetForMode32 = static_cast<RelOffsetMode32>(ExtractRelOffsetFromMETA16_U_(meta16));
@@ -256,11 +253,16 @@ namespace PredictedAdaptedEncoding
                 out_packed_cell_view.RelationOffsetForMode48 = static_cast<RelOffsetMode48>(ExtractRelOffsetFromMETA16_U_(meta16));
                 out_packed_cell_view.CellClock48 = ExtractClk48(packed_cell);
             }
-            out_packed_cell_view.CellValueDataType = static_cast<PackedCellDataType>(ExtractPCellDataTypeFromPacked(meta16));
+            out_packed_cell_view.CellValueDataType = static_cast<PackedCellDataType>(ExtractValueDataTypeFromMETA16_U_(meta16));
             if (IsCellFaulty(packed_cell))
             {
                 out_packed_cell_view.IsCellValid = false;
-            }      
+            }
+            else
+            {
+                out_packed_cell_view.IsCellValid = true;
+            } 
+            
             return out_packed_cell_view;      
         }
 
@@ -472,7 +474,7 @@ namespace PredictedAdaptedEncoding
                 {
                     return std::nullopt;
                 }
-                const val32_t value_bits32 = ExtractValue32(packed_cell)
+                const val32_t value_bits32 = ExtractValue32(packed_cell);
                 return BitCastMaybe<PCDT>(value_bits32);
             }
 

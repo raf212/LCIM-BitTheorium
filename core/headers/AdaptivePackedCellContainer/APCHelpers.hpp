@@ -2,7 +2,7 @@
 #pragma once 
 #include <array>
 #include <utility>
-#include "PackedCell/PackedCell.hpp"
+#include "PackedCell/CoreCellDefination.hpp"
 
 namespace PredictedAdaptedEncoding
 {

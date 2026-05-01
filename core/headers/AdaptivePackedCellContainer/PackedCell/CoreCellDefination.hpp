@@ -3,400 +3,396 @@
 #include "CoreCellMetaLogicDefination.h"
 namespace PredictedAdaptedEncoding
 {
-// #define PC_MODE_V32 0u
-// #define PC_MODE_CLK48 1u
 
-    static inline constexpr packed64_t MaskBits(unsigned n) noexcept
-    {
-        if (n == NO_VAL) return packed64_t(0);
-        if (n >= MAX_VAL) return ~packed64_t(0);
-        // produce low-n ones without shifting by >= width
-        return ((packed64_t(1) << n) - 1u);                  
-    }
+    // when user extracting a cell it can return UINT64_MAX as a symbole of invalid extraction method for that cell.
 
     struct PackedCell64_t 
     {
-        private:
-        template <typename pcdt32>
-        static inline packed64_t ComposeValue32M_64_(pcdt32 value32, clk16_t clk, strl16_t strl) noexcept
-        {
-            constexpr PackedCellDataType expected_pcdt = BridgeOfPackedCellDataType_v<pcdt32>;
-            static_assert(sizeof(pcdt32) <= (VALBITS / LN_OF_BYTE_IN_BITS), "Data Type length should be less than 32 bits\n");
-            PackedMode pcmode = static_cast<PackedMode>(ExtractPCellTypeFromSTRL(strl));
-            if (pcmode != PackedMode::MODE_VALUE32)
-            {
-                return ComposeValue32u_64(0u, 0u, MakeSTRLMode32_t(PriorityPhysics::ERROR_DEPENDENCY, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY, 0u, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, PackedCellDataType::UnsignedPCellDataType)); // assert(false)->is an option
-            }
-            PackedCellDataType strl_pcdt = ExtractPCellDataTypeFromSTRL(strl);
-            assert(strl_pcdt == expected_pcdt && "STRL PackedCellDataType mismatch; ComposeValue32M_64_ == MODE_VALUE32\n");
-
-            val32_t valbits32 = 0u;
-            valbits32 = BitCastMaybe<val32_t>(value32);
-            packed64_t p = (packed64_t(valbits32) & MaskBits(VALBITS));
-            p = SetCLK16InPacked(p, clk);
-            p = SetSTRLInPacked(p, strl);
-            return p;
-        }
-        public:
         static constexpr size_t METACELL_COUNT_FIRST = 96;
-        static constexpr uint8_t REL_OFFSET_GENERIC_VALUE = 0;
-        static inline packed64_t MakeInitialPacked(PackedMode mode, PackedCellDataType pcdata_type = PackedCellDataType::UnsignedPCellDataType, tag8_t rel_mask = NO_VAL, PriorityPhysics priority = PriorityPhysics::IDLE) noexcept
-        {
-            packed64_t p = 0;
-            if (mode == PackedMode::MODE_VALUE32)
-            {
-                p = static_cast<packed64_t>(ComposeValue32u_64(0u, 0u, MakeSTRLMode32_t(priority, PackedCellLocalityTypes::ST_IDLE, rel_mask, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, pcdata_type)));
-            }
-            else if (mode == PackedMode::MODE_CLKVAL48)
-            {
-                p = static_cast<packed64_t>(ComposeCLK48u_64(0u, MakeStrl4ForMode48_t(priority, PackedCellLocalityTypes::ST_IDLE, rel_mask, RelOffsetMode48::RELOFFSET_GENERIC_VALUE, pcdata_type)));
-            }
-            return p;
-        }
+        static constexpr uint16_t CLOCK_16_SENTINAL = UINT16_MAX;
+        static constexpr uint64_t PACKED_CELL_SENTINAL = UINT64_MAX;
 
-        static inline packed64_t ComposeValue32u_64(val32_t v, clk16_t clk, strl16_t strl) noexcept
+        static inline bool IsCellFaulty(packed64_t packed_cell) noexcept
         {
-            if(ExtractPCellTypeFromSTRL(strl) != PackedMode::MODE_VALUE32)
-            {
-                std::fputs(
-                    "FATAL-> STRL defined mode MODE_CLKVAL48::Composing->PackedMode::MODE_VALUE32\n",
-                    stderr
-                );  
-            }
-            packed64_t p = (packed64_t(v) & MaskBits(VALBITS));
-            p = SetCLK16InPacked(p, clk);
-            p = SetSTRLInPacked(p, strl);
-            return p;
-        }
-
-        template<typename PCDT>
-        static inline packed64_t ComposeModeValue32Typed(
-            PCDT value,
-            clk16_t in_cell_clock16,
-            PriorityPhysics priority = PriorityPhysics::IDLE,
-            PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
-            tag8_t rel_mask = REL_MASK4_NONE,
-            RelOffsetMode32 reloffset = RelOffsetMode32::RELOFFSET_GENERIC_VALUE
-        )
-        {
-            static_assert(PackedCellTypeBridge<PCDT>::IS_SUPPORTED_TYPE, "Packed Cell allowes only unsigned, int, float, char\n");
-            static_assert(PackedCellTypeBridge<PCDT>::FITS_MODE_32, "Type too large for MODE_VALUE32 <= (4 byte/32 bit)\n");
-            constexpr PackedCellDataType PACKED_CELL_DTYPE = PackedCellTypeBridge<PCDT>::DType;
-            const strl16_t strl16_value32 = MakeSTRLMode32_t(priority, locality, rel_mask, reloffset, PACKED_CELL_DTYPE);
-            return ComposeValue32M_64_<PCDT>(value, in_cell_clock16, strl16_value32);
-        }
-
-        template <typename pcdt32_48>
-        static inline packed64_t ComposeCLKVal48X_64(pcdt32_48 value48, strl16_t strl) noexcept
-        {
-            constexpr PackedCellDataType expected_pcdt = BridgeOfPackedCellDataType_v<pcdt32_48>;
-            static_assert(sizeof(pcdt32_48) <= (CLK_B48 / LN_OF_BYTE_IN_BITS), "Passed Datat Type length should be less than 48 bits\n");
-            PackedMode pcmode = static_cast<PackedMode>(ExtractPCellTypeFromSTRL(strl));
-            if (pcmode != PackedMode::MODE_CLKVAL48)
-            {
-                return ComposeCLK48u_64(0u, MakeStrl4ForMode48_t(PriorityPhysics::IDLE, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY, 0u, RelOffsetMode48::RELOFFSET_GENERIC_VALUE, PackedCellDataType::UnsignedPCellDataType)); // assert(false)->is an option
-            }
-            PackedCellDataType strl_pcdt = ExtractPCellDataTypeFromSTRL(strl);
-            assert(strl_pcdt == expected_pcdt && "STRL PackedCellDataType mismatch; ComposeCLKVal48X_64 == MODE_CLKVAL48");
-            uint64_t clkval48 = 0ull;
-            clkval48 = BitCastMaybe<uint64_t>(value48);
-            packed64_t p = (packed64_t(clkval48) & MaskBits(CLK_B48));
-            p = SetSTRLInPacked(p, strl);
-            return p;
-        }
-
-        template <typename pcdt>
-        static inline pcdt ExtractAnyPackedValueX(packed64_t p) noexcept
-        {
-            constexpr PackedCellDataType expected_pcdt = BridgeOfPackedCellDataType_v<pcdt>;
-            strl16_t sr = ExtractSTRL(p);
-            PackedMode pcmode = static_cast<PackedMode>(ExtractPCellTypeFromSTRL(sr));
-            if (pcmode == PackedMode::MODE_VALUE32)
-            {
-                static_assert(sizeof(pcdt) <= (VALBITS / LN_OF_BYTE_IN_BITS), "Data Type length should be less than 32 bits\n");
-            }
-            else
-            {
-                static_assert(sizeof(pcdt) <= (CLK_B48 / LN_OF_BYTE_IN_BITS), "Data Type length should be less than 32 bits\n");
-            }
-            PackedCellDataType actual_pcdt = ExtractPCellDataTypeFromSTRL(sr);
-            assert(actual_pcdt == expected_pcdt && "Packed Cell data type dosent match Requested datatype");
-
-            if constexpr (std::is_floating_point_v<pcdt>)
-            {
-                if (pcmode == PackedMode::MODE_VALUE32)
-                {
-                    val32_t bits32 = ExtractValue32(p);
-                    pcdt out;
-                    out = BitCastMaybe<pcdt>(bits32);
-                    return out;
-                }
-                else
-                {
-                    uint64_t low48 = (ExtractClk48(p) & MaskBits(CLK_B48)); //only correct if clk48 stored 0 extended
-                    pcdt out;
-                    uint64_t clk48 = low48;
-                    std::memcpy(&out, &clk48, sizeof(pcdt));
-                    return out;
-                }
-                
-            }
-            else if constexpr (std::is_integral_v<pcdt> && std::is_signed_v<pcdt>)
-            {
-                if (pcmode == PackedMode::MODE_VALUE32)
-                {
-                    val32_t valbits32 = ExtractValue32(p);
-                    constexpr unsigned number_of_bits_valbits32 = sizeof(pcdt) * LN_OF_BYTE_IN_BITS;
-                    val32_t masked_valbits32 = valbits32 & static_cast<val32_t>(MaskBits(number_of_bits_valbits32));
-                    int32_t signed_valbits32;
-                    if constexpr (number_of_bits_valbits32 == VALBITS)
-                    {
-                        signed_valbits32 = static_cast<int>(masked_valbits32);
-                    }
-                    else
-                    {
-                        int shift = VALBITS - static_cast<int>(number_of_bits_valbits32);
-                        signed_valbits32 = (static_cast<int32_t>(masked_valbits32) << shift) >> shift;
-                    }
-                    return static_cast<pcdt>(signed_valbits32);
-                }
-                else
-                {
-                    uint64_t low48 = (ExtractClk48(p) & MaskBits(CLK_B48));
-                    uint64_t masked_clk48 = (low48 & MaskBits(sizeof(pcdt) * LN_OF_BYTE_IN_BITS));
-                    if constexpr (sizeof(pcdt) == LN_OF_BYTE_IN_BITS)
-                    {
-                        return static_cast<pcdt>(static_cast<int64_t>(masked_clk48));
-                    }
-                    else
-                    {
-                        uint64_t sign_bit = (uint64_t(1) << ((sizeof(pcdt) * 8) - 1));
-                        int64_t signed64 = (masked_clk48 ^ sign_bit);
-                        signed64 -=  sign_bit;
-                        return static_cast<pcdt>(signed64);
-                    }
-                }
-            }
-            else
-            {
-                if (pcmode == PackedMode::MODE_VALUE32)
-                {
-                    val32_t valbits32 = ExtractValue32(p);
-                    return static_cast<pcdt>(valbits32 & MaskBits(sizeof(pcdt) * LN_OF_BYTE_IN_BITS));
-                }
-                else
-                {
-                    uint64_t clk48_low = (ExtractClk48(p) & MaskBits(CLK_B48));
-                    return static_cast<pcdt>(clk48_low & MaskBits(sizeof(pcdt) * LN_OF_BYTE_IN_BITS));
-                }
-            }
-        }
-        
-        static inline packed64_t ComposeCLK48u_64(uint64_t clk48, strl16_t strl) noexcept
-        {
-            if(ExtractPCellTypeFromSTRL(strl) != PackedMode::MODE_CLKVAL48)
-            {
-                std::fputs(
-                    "FATAL-> STRL defined mode MODE_VALUE32::Composing->PackedMode::MODE_CLKVAL48\n",
-                    stderr
-                );  
-            }
-            packed64_t p = (packed64_t(clk48) & MaskBits(CLK_B48));
-            p = SetSTRLInPacked(p, strl);
-            return p;
-        }
-
-        static inline packed64_t SetCLK16InPacked(packed64_t p, clk16_t clk16)
-        {
-            constexpr packed64_t clk16_mask = (MaskBits(CLK_B16) << VALBITS);
-            p &= ~clk16_mask;
-            p |= (packed64_t(clk16 & MaskBits(CLK_B16)) << VALBITS);
-            return p;
-        }
-
-        static inline packed64_t SetSTRLInPacked(packed64_t p, strl16_t strl) noexcept
-        {
-            constexpr packed64_t top_mask = MaskBits(STRL_B16) << (TOTAL_LOW);
-            p = (p & ~top_mask) | ((packed64_t(strl & MaskBits(STRL_B16))) << (TOTAL_LOW));
-            return p;
-        }
-
-        static inline strl16_t ExtractSTRL(packed64_t p) noexcept
-        {
-            return static_cast<strl16_t>((p >> TOTAL_LOW) & MaskBits(STRL_B16));
-        }
-
-        static inline tag8_t ExtractFullRelFromPacked(packed64_t p) noexcept
-        {
-            strl16_t strl = ExtractSTRL(p);
-            return static_cast<tag8_t>(strl & MASK_8_BIT);
-        }
-
-        static inline val32_t ExtractValue32(packed64_t p) noexcept
-        {
-            return static_cast<val32_t>(p & MaskBits(VALBITS));
-        }
-        static inline clk16_t ExtractClk16(packed64_t p) noexcept
-        {
-            return static_cast<clk16_t>((p >> (VALBITS)) & MaskBits(CLK_B16));
-        }
-
-        static inline uint64_t ExtractClk48(packed64_t p) noexcept
-        {
-            return static_cast<uint64_t>(p & MaskBits(CLK_B48));
-        }
-
-
-        static inline PriorityPhysics ExtractPriorityFromPacked(packed64_t p) noexcept
-        {
-            return static_cast<PriorityPhysics>(ExtractPriorityFromSTRL(ExtractSTRL(p)));
-        }
-
-        static inline PackedCellLocalityTypes ExtractLocalityFromPacked(packed64_t p) noexcept
-        {
-            return ExtractLocalityFromSTRL(ExtractSTRL(p));
-        }
-
-        static inline PackedMode ExtractModeOfPackedCellFromPacked(packed64_t p) noexcept
-        {
-            return ExtractPCellTypeFromSTRL(ExtractSTRL(p));
-        }
-
-        static inline bool IsPackedCellVal32(packed64_t p) noexcept
-        {
-            if (ExtractModeOfPackedCellFromPacked(p) == PackedMode::MODE_VALUE32)
+            if (ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY || packed_cell == PACKED_CELL_SENTINAL)
             {
                 return true;
             }
             return false;
         }
 
-        static inline tag8_t ExtractRelMaskFromPacked(packed64_t p) noexcept
+        struct AuthoritiveCellView
         {
-            return ExtractRelMaskFromSTRL(ExtractSTRL(p));
+            packed64_t RawCell{0};
+            meta16_t  InCellMeta16{0};
+            PriorityPhysics Priority{PriorityPhysics::IDLE};
+            PackedCellNodeAuthority NodeAuthority{PackedCellNodeAuthority::LOCAL_OR_UNDEFINED};
+            PackedCellLocalityTypes LocalityOfCell{PackedCellLocalityTypes::ST_IDLE};
+            PackedMode CellMode{PackedMode::MODE_VALUE32};
+            APCPagedNodeRelMaskClasses PageClass{APCPagedNodeRelMaskClasses::NONE};
+            std::optional<RelOffsetMode32> RelationOffsetForMode32{std::nullopt};
+            std::optional<RelOffsetMode48> RelationOffsetForMode48{std::nullopt};
+            PackedCellDataType CellValueDataType{PackedCellDataType::UnsignedPCellDataType};
+            std::optional<clk16_t> InCellClock16{std::nullopt};
+            std::optional<uint64_t> CellClock48{std::nullopt};
+            std::optional<val32_t> CellValue32{std::nullopt};
+            bool IsCellValid{false};
+        };
+
+        static inline packed64_t MakeFaultyCell() noexcept
+        {
+            return ComposeValue32u_64(
+                NO_VAL,
+                NO_VAL,
+                MakeInCellMetaForMode_32t(
+                    PriorityPhysics::ERROR_DEPENDENCY,
+                    PackedCellNodeAuthority::LOCAL_OR_UNDEFINED,
+                    PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY,
+                    APCPagedNodeRelMaskClasses::NONE,
+                    RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
+                    PackedCellDataType::UnsignedPCellDataType   
+                )
+            );
         }
 
-        static inline tag8_t ExtractRelOffsetFromPacked(packed64_t p) noexcept
+        static inline packed64_t ComposeValue32u_64(val32_t in_cell_value, clk16_t clock16, meta16_t meta16) noexcept
         {
-            return ExtractRelOffsetFromSTRL(ExtractSTRL(p));
+            if(ExtractModeOfPackedCellFromPacked(meta16) != PackedMode::MODE_VALUE32)
+            {
+                return MakeFaultyCell();
+            }
+            packed64_t packed_cell = (packed64_t(in_cell_value) & MaskBits(VALBITS));
+            packed_cell = SetCLK16InPacked(packed_cell, clock16);
+            packed_cell = SetMETA16InPacked(packed_cell, meta16);
+            return packed_cell;
         }
 
-        static inline PackedCellDataType ExtractPCellDataTypeFromPacked(packed64_t p) noexcept
+        static inline packed64_t ComposeCLK48u_64(uint64_t clockor_value48, meta16_t meta16) noexcept
         {
-            return static_cast<PackedCellDataType>(ExtractPCellDataTypeFromSTRL(ExtractSTRL(p)));
+            if(ExtractModeOfPackedCellFromPacked(meta16) != PackedMode::MODE_CLKVAL48)
+            {
+                return MakeFaultyCell();
+            }
+            packed64_t packed_cell = (packed64_t(clockor_value48) & MaskBits(CLK_B48));
+            packed_cell = SetMETA16InPacked(packed_cell, meta16);
+            return packed_cell;
         }
 
-        static inline packed64_t SetPriorityInPacked(packed64_t p, PriorityPhysics priority)
+        static inline packed64_t SetMETA16InPacked(packed64_t packed_cell, meta16_t meta16) noexcept
         {
-            strl16_t sr = ExtractSTRL(p);
-            PackedCellLocalityTypes locality = ExtractLocalityFromSTRL(sr);
-            PackedMode pctype = ExtractPCellTypeFromSTRL(sr);
-            tag8_t rm = ExtractRelMaskFromSTRL(sr);
-            tag8_t ro = ExtractRelOffsetFromSTRL(sr);
-            PackedCellDataType pcdata_type = ExtractPCellDataTypeFromSTRL(sr);
-            strl16_t new_strl = MakeSTRL4_t(priority, locality, rm, ro, pctype, pcdata_type);
-            return SetSTRLInPacked(p, new_strl);
+            constexpr packed64_t top_48_bit_mask = MaskBits(META16_B16) << TOTAL_LOW;
+            packed_cell &= ~top_48_bit_mask;
+            packed_cell |= (packed64_t(meta16) & MaskBits(META16_B16)) << TOTAL_LOW;
+            return packed_cell;
+        }
+
+        static inline packed64_t MakeInitialPacked(
+            PackedMode cell_mode,
+            PriorityPhysics cell_priority = PriorityPhysics::DEFAULT_PRIORITY,
+            PackedCellLocalityTypes cell_locality = PackedCellLocalityTypes::ST_IDLE,
+            APCPagedNodeRelMaskClasses page_class = APCPagedNodeRelMaskClasses::FREE_SLOT,
+            PackedCellDataType cell_data_type = PackedCellDataType::UnsignedPCellDataType
+        ) noexcept
+        {
+            return MakeACell_(
+                cell_mode,
+                NO_VAL,
+                NO_VAL,
+                cell_priority,
+                PackedCellNodeAuthority::LOCAL_OR_UNDEFINED,
+                cell_locality,
+                APCPagedNodeRelMaskClasses::FREE_SLOT,
+                NO_VAL,
+                cell_data_type
+            );
+        }
+
+        template <typename PCDT>
+        static inline packed64_t ComposeTypedModeValue32Cell(PCDT value32, clk16_t clock16, meta16_t meta16) noexcept
+        {
+            static_assert(PackedCellTypeBridge<PCDT>::IS_SUPPORTED_TYPE, "Unsupported Cell type");
+            static_assert(PackedCellTypeBridge<PCDT>::FITS_MODE_32, "Value type is too large to fite MODE_VALUE32");
+            if (ExtractCellModeFromMETA16_U_(meta16) != PackedMode::MODE_VALUE32)
+            {
+                return MakeFaultyCell()
+            }
+            if (ExtractValueDataTypeFromMETA16_U_(meta16) != BridgeOfPackedCellDataType_v<PCDT> )
+            {
+                return MakeFaultyCell();
+            }
+            uint64_t value_casted_bit = BitCastMaybe<val32_t>(value32);
+            return ComposeValue32u_64(value_casted_bit, clock16, meta16);
             
         }
 
-        static inline packed64_t SetLocalityInPacked(packed64_t p, PackedCellLocalityTypes local_state) noexcept
+        template <typename PCDT>
+        static inline packed64_t ComposeTypedModeValue48Cell(PCDT value_clock48, clk16_t clock16, meta16_t meta16) noexcept
         {
-            strl16_t sr = ExtractSTRL(p);
-            tag8_t prio = ExtractPriorityFromSTRL(sr);
-            PackedMode pctype = ExtractPCellTypeFromSTRL(sr);
-            tag8_t rm = ExtractRelMaskFromSTRL(sr);
-            tag8_t ro = ExtractRelOffsetFromSTRL(sr);
-            PackedCellDataType pcdata_type = ExtractPCellDataTypeFromSTRL(sr);
-            strl16_t new_strl = MakeSTRL4_t(static_cast<PriorityPhysics>(prio), local_state, rm, ro, pctype, pcdata_type);
-            return SetSTRLInPacked(p, new_strl);
-        }
-
-        static inline packed64_t BlindModeSwitchOfPacked(PackedMode out_mode, packed64_t p) noexcept
-        {
-            strl16_t sr = ExtractSTRL(p);
-            PriorityPhysics prio = static_cast<PriorityPhysics>(ExtractPriorityFromSTRL(sr));
-            PackedCellLocalityTypes loc = ExtractLocalityFromSTRL(sr);
-            tag8_t rm = ExtractRelMaskFromSTRL(sr);
-            tag8_t ro = ExtractRelOffsetFromSTRL(sr);
-            PackedCellDataType pcdata_type = ExtractPCellDataTypeFromSTRL(sr);
-            if (out_mode == PackedMode::MODE_CLKVAL48)
+            static_assert(PackedCellTypeBridge<PCDT>::IS_SUPPORTED_TYPE, "Unsupported Cell type");
+            static_assert(PackedCellTypeBridge<PCDT>::FITS_MODE_48, "Value type is too large to fite MODE_VALUE32");
+            if (ExtractCellModeFromMETA16_U_(meta16) != PackedMode::MODE_CLKVAL48)
             {
-                return ComposeCLK48u_64(ExtractClk48(p), MakeStrl4ForMode48_t(prio, loc, rm, static_cast<RelOffsetMode48>(ro), pcdata_type));
+                return MakeFaultyCell()
             }
-            else if (out_mode == PackedMode::MODE_VALUE32)
+            if (ExtractValueDataTypeFromMETA16_U_(meta16) != BridgeOfPackedCellDataType_v<PCDT> )
             {
-                return ComposeValue32u_64(ExtractValue32(p), ExtractClk16(p), MakeSTRLMode32_t(prio, loc, rm, static_cast<RelOffsetMode32>(ro), pcdata_type));
+                return MakeFaultyCell();
             }
-            return SetSTRLInPacked(0u, MakeSTRLMode32_t(PriorityPhysics::ERROR_DEPENDENCY, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY, 0u, RelOffsetMode32::RELOFFSET_GENERIC_VALUE, PackedCellDataType::UnsignedPCellDataType));
-        }
-
-        static inline packed64_t SetRelMaskInPacked(packed64_t p, tag8_t rel_mask) noexcept
-        {
-            strl16_t sr = ExtractSTRL(p);
-            tag8_t prio = ExtractPriorityFromSTRL(sr);
-            PackedCellLocalityTypes loc = ExtractLocalityFromSTRL(sr);
-            PackedMode pctype = ExtractPCellTypeFromSTRL(sr);
-            tag8_t ro = ExtractRelOffsetFromSTRL(sr);
-            PackedCellDataType pcdata_type = ExtractPCellDataTypeFromSTRL(sr);
-            strl16_t new_strl = MakeSTRL4_t(static_cast<PriorityPhysics>(prio), loc, rel_mask, ro, pctype, pcdata_type);
-            return SetSTRLInPacked(p, new_strl);
-        }
-
-        static inline packed64_t SetRelOffsetInPacked(packed64_t p, tag8_t rel_offset) noexcept
-        {
-            strl16_t sr = ExtractSTRL(p);
-            tag8_t prio = ExtractPriorityFromSTRL(sr);
-            PackedCellLocalityTypes loc = ExtractLocalityFromSTRL(sr);
-            PackedMode pctype = ExtractPCellTypeFromSTRL(sr);
-            tag8_t rm = ExtractRelMaskFromSTRL(sr);
-            PackedCellDataType pcdata_type = static_cast<PackedCellDataType>(ExtractPCellDataTypeFromSTRL(sr));
-            strl16_t new_strl = MakeSTRL4_t(static_cast<PriorityPhysics>(prio), loc, rm, rel_offset, pctype, pcdata_type);
-            return SetSTRLInPacked(p, new_strl);
-        }
-
-        static inline packed64_t SetRelOffsetForMode32(packed64_t p, RelOffsetMode32 reloffset) noexcept
-        {
-            PackedMode current_packed_mode = ExtractModeOfPackedCellFromPacked(p);
-            if (current_packed_mode != PackedMode::MODE_VALUE32)
-            {
-                return SetLocalityInPacked(p, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY);
-            }
-            return SetRelOffsetInPacked(p, static_cast<tag8_t>(reloffset));
+            uint64_t value_casted_bit = BitCastMaybe<uint64_t>(value_clock48);
+            return ComposeValue32u_64(value_casted_bit & MaskBits(CLK_B48), clock16, meta16);
             
         }
 
-        static inline packed64_t SetRelOffsetForMode48(packed64_t p, RelOffsetMode48 reloffset) noexcept
+        static inline packed64_t SetCLK16InPacked(packed64_t packed_cell, clk16_t clk16)
         {
-            PackedMode current_packed_mode = ExtractModeOfPackedCellFromPacked(p);
-            if (current_packed_mode != PackedMode::MODE_CLKVAL48)
+            constexpr packed64_t clk16_mask = (MaskBits(CLK_B16) << VALBITS);
+            packed_cell &= ~clk16_mask;
+            packed_cell |= (packed64_t(clk16 & MaskBits(CLK_B16)) << VALBITS);
+            return packed_cell;
+        }
+
+        static inline meta16_t ExtractMeta16fromPackedCell(packed64_t packed_cell) noexcept
+        {
+            return static_cast<meta16_t>((packed_cell >> TOTAL_LOW) & MaskBits(META16_B16));
+        }
+
+
+        static inline PackedMode ExtractModeOfPackedCellFromPacked(packed64_t packed_cell) noexcept
+        {
+            return static_cast<PackedMode>(ExtractCellModeFromMETA16_U_(ExtractMeta16fromPackedCell(packed_cell)));
+        }
+
+        static inline bool IsPackedCellVal32(packed64_t packed_cell) noexcept
+        {
+            if (ExtractModeOfPackedCellFromPacked(packed_cell) == PackedMode::MODE_VALUE32)
             {
-                return SetLocalityInPacked(p, PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY);
+                return true;
             }
-            return SetRelOffsetInPacked(p, static_cast<tag8_t>(reloffset));
+            return false;
         }
 
-        static inline packed64_t SetPCellDataTypeInPacked(packed64_t p, PackedCellDataType pc_dtype)
+        static inline val32_t ExtractValue32(packed64_t packed_cell) noexcept
         {
-            strl16_t sr = ExtractSTRL(p);
-            tag8_t prio = ExtractPriorityFromSTRL(sr);
-            PackedCellLocalityTypes loc = ExtractLocalityFromSTRL(sr);
-            PackedMode pctype = ExtractPCellTypeFromSTRL(sr);
-            tag8_t rm = ExtractRelMaskFromSTRL(sr);
-            tag8_t ro = ExtractRelOffsetFromSTRL(sr);
-            strl16_t new_strl = MakeSTRL4_t(static_cast<PriorityPhysics>(prio), loc, rm, ro, pctype, pc_dtype);
-            return SetSTRLInPacked(p, new_strl);
+            if (!IsPackedCellVal32(packed_cell))
+            {
+                return PACKED_CELL_SENTINAL;
+            }
+            return static_cast<val32_t>(packed_cell & MaskBits(VALBITS));
         }
 
-        //old functions
-
-        template<typename T>
-        static inline T AsValue(packed64_t p) noexcept
+        static inline clk16_t ExtractClk16(packed64_t packed_cell) noexcept
         {
-            static_assert(std::is_trivially_copyable_v<T>,"T must be trivially copyable");
-            static_assert(sizeof(T) <= sizeof(packed64_t), "T must fit into 64 bit");
-            T out;
-            std::memcpy(&out, &p, sizeof(T));
-            return out;
+            if (!IsPackedCellVal32(packed_cell))
+            {
+                return CLOCK_16_SENTINAL;
+            }
+            return static_cast<clk16_t>((packed_cell >> (VALBITS)) & MaskBits(CLK_B16));
+        }
+
+        static inline uint64_t ExtractClk48(packed64_t packed_cell) noexcept
+        {
+            if (IsPackedCellVal32(packed_cell))
+            {
+                return PACKED_CELL_SENTINAL;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
+            }
+            return static_cast<uint64_t>(packed_cell & MaskBits(CLK_B48));
+        }
+
+        static inline PriorityPhysics ExtractPriorityFromPacked(packed64_t packed_cell) noexcept
+        {
+            return static_cast<PriorityPhysics>(ExtractPriorityFromMETA16_U_(ExtractMeta16fromPackedCell(packed_cell)));
+        }
+
+        static inline PackedCellLocalityTypes ExtractLocalityFromPacked(packed64_t packed_cell) noexcept
+        {
+            return static_cast<PackedCellLocalityTypes>(ExtractLocalityFromMETA16_U_(ExtractMeta16fromPackedCell(packed_cell)));
+        }
+
+        static inline APCPagedNodeRelMaskClasses ExtractRelMaskFromPacked(packed64_t packed_cell) noexcept
+        {
+            return static_cast<APCPagedNodeRelMaskClasses>(ExtractRelMaskFromMETA16_U_(ExtractMeta16fromPackedCell(packed_cell)));
+        }
+
+        static inline RelOffsetMode32 ExtractRelOffset32FromPacked(packed64_t packed_cell) noexcept
+        {
+            return static_cast<RelOffsetMode32>(ExtractRelOffsetFromMETA16_U_(ExtractMeta16fromPackedCell(packed_cell)));
+        }
+
+        static inline RelOffsetMode48 ExtractRelOffset48FromPacked(packed64_t packed_cell) noexcept
+        {
+            return static_cast<RelOffsetMode48>(ExtractRelOffsetFromMETA16_U_(ExtractMeta16fromPackedCell(packed_cell)));
+        }
+
+        static inline PackedCellDataType ExtractPCellDataTypeFromPacked(packed64_t packed_cell) noexcept
+        {
+            return static_cast<PackedCellDataType>(ExtractValueDataTypeFromMETA16_U_(ExtractMeta16fromPackedCell(packed_cell)));
+        }
+
+        static inline bool HasHigherPriorityBetweenCellA_B(packed64_t cell_A, packed64_t cell_B) noexcept
+        {
+            return ExtractPriorityFromPacked(cell_A) > ExtractPriorityFromPacked(cell_B);
+        }
+
+
+        static inline AuthoritiveCellView InspectPackedCell(packed64_t packed_cell) noexcept
+        {
+            const meta16_t meta16 = ExtractMeta16fromPackedCell(packed_cell);
+            AuthoritiveCellView out_packed_cell_view{};
+            
+            out_packed_cell_view.RawCell = packed_cell;
+            out_packed_cell_view.InCellMeta16 = meta16;
+            out_packed_cell_view.Priority = static_cast<PriorityPhysics>(ExtractPriorityFromMETA16_U_(meta16));
+            out_packed_cell_view.NodeAuthority =  static_cast<PackedCellNodeAuthority>(ExtractCellLocalNodeAuthotityFromMETA16_U_(meta16));
+            out_packed_cell_view.LocalityOfCell = static_cast<PackedCellLocalityTypes>(ExtractLocalityFromMETA16_U_(meta16));
+            out_packed_cell_view.CellMode = static_cast<PackedMode>(ExtractCellModeFromMETA16_U_(meta16));
+            if (IsPackedCellVal32(packed_cell))
+            {
+                out_packed_cell_view.RelationOffsetForMode32 = static_cast<RelOffsetMode32>(ExtractRelOffsetFromMETA16_U_(meta16));
+                out_packed_cell_view.InCellClock16 = ExtractClk16(packed_cell);
+                out_packed_cell_view.CellValue32 = ExtractValue32(packed_cell);
+            }
+            else
+            {
+                out_packed_cell_view.RelationOffsetForMode48 = static_cast<RelOffsetMode48>(ExtractRelOffsetFromMETA16_U_(meta16));
+                out_packed_cell_view.CellClock48 = ExtractClk48(packed_cell);
+            }
+            out_packed_cell_view.CellValueDataType = static_cast<PackedCellDataType>(ExtractPCellDataTypeFromPacked(meta16));
+            if (IsCellFaulty(packed_cell))
+            {
+                out_packed_cell_view.IsCellValid = false;
+            }      
+            return out_packed_cell_view;      
+        }
+
+        static inline packed64_t SetPriorityInPacked(packed64_t packed_cell, PriorityPhysics priority) noexcept
+        {
+            const meta16_t new_desired_meta = SetPriorityInMETA16(ExtractMeta16fromPackedCell(packed_cell), priority);
+            return SetMETA16InPacked(packed_cell, new_desired_meta);
+        }
+
+        static inline packed64_t SetLocalityInPacked(packed64_t packed_cell, PackedCellLocalityTypes local_state) noexcept
+        {
+            const meta16_t new_desired_meta = SetLocalityInMETA16(ExtractMeta16fromPackedCell(packed_cell), local_state);
+            return SetMETA16InPacked(packed_cell, new_desired_meta);
+        }
+
+
+        static inline packed64_t SetPageClassInPacked(packed64_t packed_cell, APCPagedNodeRelMaskClasses page_class) noexcept
+        {
+            const meta16_t new_desired_meta = SetPageClassInMETA16(ExtractMeta16fromPackedCell(packed_cell), page_class);
+            return SetMETA16InPacked(packed_cell, new_desired_meta);
+        }
+
+        static inline packed64_t SetRelOffsetForMode32(packed64_t packed_cell, RelOffsetMode32 reloffset) noexcept
+        {
+            const meta16_t new_desired_meta = SetRelOffset32InMETA16(ExtractMeta16fromPackedCell(packed_cell), reloffset);
+            return SetMETA16InPacked(packed_cell, new_desired_meta);
+        }
+
+        static inline packed64_t SetRelOffsetForMode48(packed64_t packed_cell, RelOffsetMode48 reloffset) noexcept
+        {
+            const meta16_t new_desired_meta = SetRelOffset48InMETA16(ExtractMeta16fromPackedCell(packed_cell), reloffset);
+            return SetMETA16InPacked(packed_cell, new_desired_meta);
+        }
+
+        static inline packed64_t SetPCellDataTypeInPacked(packed64_t packed_cell, PackedCellDataType cell_data_type)
+        {
+            const meta16_t new_desired_meta = SetCellDataTypeInMETA16(ExtractMeta16fromPackedCell(packed_cell), cell_data_type);
+            return SetMETA16InPacked(packed_cell, new_desired_meta);
+        }
+
+        template <typename PCDT>
+        static inline std::optional<PCDT> ExtractAnyPackedValueX(packed64_t packed_cell)
+        {
+            constexpr PackedCellDataType expected_dtype = BridgeOfPackedCellDataType_v<PCDT>;
+            const meta16_t meta16 = ExtractMeta16fromPackedCell(packed_cell);
+            if(ExtractPCellDataTypeFromPacked(packed_cell) != expected_dtype)
+            {
+                return std::nullopt;
+            }
+            if (IsPackedCellVal32(packed_cell))
+            {
+                if (sizeof(PCDT) > sizeof(val32_t))
+                {
+                    return std::nullopt;
+                }
+                const val32_t value_bits32 = ExtractValue32(packed_cell)
+                return BitCastMaybe<PCDT>(value_bits32);
+            }
+
+            if (sizeof(PCDT) > SIZE_OF_MODE_48)
+            {
+                return std::nullopt;
+            }
+            uint64_t value_bits_48 = ExtractClk48(packed_cell);
+            return BitCastMaybe<PCDT>(value_bits_48);
+        }
+        
+
+        private:
+        static inline packed64_t MakeACell_(
+            PackedMode cell_mode,
+            uint64_t cell_value = NO_VAL,
+            clk16_t clock16 = NO_VAL,
+            PriorityPhysics cell_priority = PriorityPhysics::DEFAULT_PRIORITY,
+            PackedCellNodeAuthority node_authority = PackedCellNodeAuthority::LOCAL_OR_UNDEFINED,
+            PackedCellLocalityTypes cell_locality = PackedCellLocalityTypes::ST_IDLE, 
+            APCPagedNodeRelMaskClasses page_class = APCPagedNodeRelMaskClasses::FREE_SLOT,
+            tag8_t rel_offset = 0,
+            PackedCellDataType cell_data_type = PackedCellDataType::UnsignedPCellDataType
+        ) noexcept
+        {
+            if (cell_mode == PackedMode::MODE_VALUE32)
+            {
+                const meta16_t meta16_for_mode32 = MakeInCellMetaForMode_32t(
+                    cell_priority,
+                    node_authority,
+                    cell_locality,
+                    page_class,
+                    static_cast<RelOffsetMode32>(rel_offset),
+                    cell_data_type
+                );
+
+                return ComposeValue32u_64(
+                    static_cast<val32_t>(cell_value),
+                    clock16,
+                    meta16_for_mode32
+                );
+            }
+            else
+            {
+                const meta16_t meta16_for_mode48 = MakeInCellMetaForMode_48t(
+                    cell_priority,
+                    node_authority,
+                    cell_locality,
+                    page_class,
+                    static_cast<RelOffsetMode48>(rel_offset),
+                    cell_data_type
+                );
+
+                return ComposeCLK48u_64(cell_value, meta16_for_mode48);
+            }
+        }
+
+        static inline constexpr meta16_t MakeInCellMetaForAny_(
+            PackedMode mode_of_cell ,
+            PriorityPhysics priority = PriorityPhysics::DEFAULT_PRIORITY, 
+            PackedCellNodeAuthority authority = PackedCellNodeAuthority::LOCAL_OR_UNDEFINED,
+            PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_IDLE,
+            APCPagedNodeRelMaskClasses page_class = APCPagedNodeRelMaskClasses::FREE_SLOT,
+            tag8_t rel_offset_any = static_cast<tag8_t>(RelOffsetMode32::RELOFFSET_GENERIC_VALUE),
+            PackedCellDataType cell_data_type = PackedCellDataType::UnsignedPCellDataType
+        ) noexcept
+        {
+            return MakeInCellMetaFromUnsigned_16t_(
+                static_cast<tag8_t>(priority),
+                static_cast<tag8_t>(authority),
+                static_cast<tag8_t>(locality),
+                static_cast<tag8_t>(page_class),
+                static_cast<tag8_t>(rel_offset_any),
+                static_cast<tag8_t>(mode_of_cell),
+                static_cast<tag8_t>(cell_data_type)
+            );
         }
 
     };

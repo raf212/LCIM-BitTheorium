@@ -43,14 +43,11 @@ namespace PredictedAdaptedEncoding
 
     void PackedCellContainerManager::StopAPCManager()
     {
-        bool expect = true;
-        if (!RunningManager_.compare_exchange_strong(expect, false, std::memory_order_acq_rel))
-        {
-            return;
-        }
+        RunningManager_.exchange(false, std::memory_order_acq_rel);
+
         ManagerWakeCounter_.fetch_add(1, std::memory_order_release);
-        ManagerWakeCounter_.notify_one();
-        if (ManagerThread_.joinable())
+        ManagerWakeCounter_.notify_all();
+        if (ManagerThread_.joinable() && ManagerThread_.get_id() != std::this_thread::get_id())
         {
             ManagerThread_.join();
         }
@@ -395,7 +392,10 @@ namespace PredictedAdaptedEncoding
             const uint64_t wake_snapshot = ManagerWakeCounter_.load(MoLoad_);
             if (AdaptiveBackOffOfAPCManager_.IsDeepSleep())
             {
-                ManagerWakeCounter_.wait(wake_snapshot);
+                while (RunningManager_.load(MoLoad_) && ManagerWakeCounter_.load(MoLoad_) == wake_snapshot)
+                {
+                    ManagerWakeCounter_.wait(wake_snapshot);
+                }
             }
         }
         const uint64_t min_epoch = ComputeMinThreadEpoch();

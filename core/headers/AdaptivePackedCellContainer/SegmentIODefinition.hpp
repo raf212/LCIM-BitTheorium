@@ -93,7 +93,7 @@ protected:
         APCPagedNodeRelMaskClasses page_class = APCPagedNodeRelMaskClasses::NONE,
         RelOffsetMode32 reloffset_mode32 = RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
         PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType,
-        PackedCellNodeAuthority node_authority = PackedCellNodeAuthority::LOCAL_OR_UNDEFINED
+        PackedCellNodeAuthority node_authority = PackedCellNodeAuthority::IDLE_OR_FREE
     ) noexcept
     {
         if (OwnedMasterClockConfPtr_)
@@ -128,7 +128,7 @@ protected:
 
     bool UpdateAPCModeFlagsInHeader_(uint32_t flags_to_turn_on = NO_VAL, uint32_t flags_to_turn_off = NO_VAL, MetaIndexOfAPCNode desired_flag_idx = MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS) noexcept;
 
-    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>> GetMetaBoundsPairForRegionMask_(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
+    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>> GetMetaBoundsLegalPairForPageClasses(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
 
     bool WriteBoundsPairToHeader_(const LayoutBoundsOfSingleRelNodeClass layout_bound) noexcept;
 
@@ -152,7 +152,7 @@ protected:
     {
         WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS, NO_VAL, PriorityPhysics::STRUCTURAL_DEPENDENCY, APCPagedNodeRelMaskClasses::CONTROL_SLOT);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS, NO_VAL, PriorityPhysics::STRUCTURAL_DEPENDENCY, APCPagedNodeRelMaskClasses::CONTROL_SLOT);     
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_UNDEFINED_CELLS, NO_VAL, PriorityPhysics::STRUCTURAL_DEPENDENCY, APCPagedNodeRelMaskClasses::CONTROL_SLOT);        
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_IDLE_CELLS, NO_VAL, PriorityPhysics::STRUCTURAL_DEPENDENCY, APCPagedNodeRelMaskClasses::CONTROL_SLOT);        
     }
 
     
@@ -164,7 +164,7 @@ public:
         APCPagedNodeRelMaskClasses page_class = APCPagedNodeRelMaskClasses::CLOCK_PURE_TIME,
         RelOffsetMode48 reloffset = RelOffsetMode48::RELOFFSET_PURE_TIMER,
         PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType,
-        PackedCellNodeAuthority node_authority = PackedCellNodeAuthority::LOCAL_OR_UNDEFINED
+        PackedCellNodeAuthority node_authority = PackedCellNodeAuthority::IDLE_OR_FREE
     ) noexcept;
 
     void WriteOrUpdateMetaClock48(PriorityPhysics priority = PriorityPhysics::IDLE, std::optional<uint64_t>meta_clock_48 = std::nullopt) noexcept;

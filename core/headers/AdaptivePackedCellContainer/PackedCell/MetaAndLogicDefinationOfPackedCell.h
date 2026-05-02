@@ -93,7 +93,7 @@ namespace PredictedAdaptedEncoding {
 
     enum class PackedCellNodeAuthority : tag8_t
     {
-        LOCAL_OR_UNDEFINED = 0,
+        IDLE_OR_FREE = 0,
         CAUSAL_LINIAR_SAGMENT = 1,
         NEUROMORPHIC_PAGED_GRAPH = 2,
         BIDIRECTIONAL_NEUROMORPHIC_SYSTEM = 3
@@ -118,7 +118,7 @@ namespace PredictedAdaptedEncoding {
         RELOFFSET_GENERIC_VALUE = 0,
         RELOFFSET_TAIL_PTR = 1,
         REL_OFFSET_HEAD_PTR = 2,
-        RESERVED = 3
+        CONTROL_SLOT = 3
     };
 
     enum class RelOffsetMode48 : tag8_t
@@ -126,7 +126,7 @@ namespace PredictedAdaptedEncoding {
         RELOFFSET_GENERIC_VALUE = 0,
         RELOFFSET_PURE_TIMER = 1,
         RELOFFSET_STANDALONE_PTR = 2,
-        RESERVED = 3
+        CONTROL_SLOT = 3
     };
 
     enum class PriorityPhysics : tag8_t

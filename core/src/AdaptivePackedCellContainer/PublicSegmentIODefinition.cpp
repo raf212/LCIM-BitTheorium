@@ -177,7 +177,7 @@ namespace PredictedAdaptedEncoding
         WriteBrenchMeta32_(MetaIndexOfAPCNode::CURRENT_ACTIVE_THREADS, NO_VAL, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS, NO_VAL, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS, NO_VAL, write_cell_priority);
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_UNDEFINED_CELLS, NO_VAL, write_cell_priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_IDLE_CELLS, NO_VAL, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::SPLIT_THRESHOLD_PERCENTAGE, container_configuration.BranchSplitThresholdPercentage, write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::SEGMENT_KIND, static_cast<uint32_t>(APCPagedNodeRelMaskClasses::FREE_SLOT), write_cell_priority);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::MAX_DEPTH, container_configuration.BranchMaxDepth, write_cell_priority);
@@ -342,7 +342,7 @@ namespace PredictedAdaptedEncoding
 
     std::optional<LayoutBoundsOfSingleRelNodeClass> SegmentIODefinition::ReadLayoutBounds(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
     {
-        auto maybe_begin_end = GetMetaBoundsPairForRegionMask_(desired_rel_mask);
+        auto maybe_begin_end = GetMetaBoundsLegalPairForPageClasses(desired_rel_mask);
         if (!maybe_begin_end)
         {
             return std::nullopt;
@@ -363,7 +363,7 @@ namespace PredictedAdaptedEncoding
             return false;
         }
 
-        auto maybe_begain_end = GetMetaBoundsPairForRegionMask_(desired_rel_mask);
+        auto maybe_begain_end = GetMetaBoundsLegalPairForPageClasses(desired_rel_mask);
         if (!maybe_begain_end)
         {
             return false;
@@ -553,7 +553,7 @@ namespace PredictedAdaptedEncoding
             const uint32_t seed = ReadMetaCellValue32(MetaIndexOfAPCNode::TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH) ^
                                 ReadMetaCellValue32(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS) ^
                                 ReadMetaCellValue32(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS) ^
-                                ReadMetaCellValue32(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_UNDEFINED_CELLS) ^
+                                ReadMetaCellValue32(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_IDLE_CELLS) ^
                                 ReadMetaCellValue32(MetaIndexOfAPCNode::BRANCH_ID);
             for (size_t i = 0; i < count; i++)
             {

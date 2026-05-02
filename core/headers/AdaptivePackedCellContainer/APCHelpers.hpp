@@ -25,7 +25,8 @@ namespace PredictedAdaptedEncoding
         CURRENT_ACTIVE_THREADS = 11,
         OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS = 2,
         OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS = 12,
-        OCCUPANCY_SNAPSHOT_OF_UNDEFINED_CELLS = 85,
+        OCCUPANCY_SNAPSHOT_OF_IDLE_CELLS = 85,
+        OCCUPANCY_SNAPSHOT_OF_FAULTY_CELLS = 86,
         SPLIT_THRESHOLD_PERCENTAGE = 13,
         SEGMENT_KIND = 14,
         MAX_DEPTH = 15,
@@ -80,8 +81,8 @@ namespace PredictedAdaptedEncoding
         EDGE_DESCRIPTIOR_END = 54,
         WEIGHT_BEGIN = 55,
         WEIGHT_END = 56,
-        CONTROL_BEGIN = 57,
-        CONTROL_END = 58,
+        RESERVED_MESSAGE_1_BEGIN = 57,
+        RESERVED_MESSAGE_1_END = 58,
         AUX_BEGAIN = 59,
         AUX_END = 60,
         FREE_BEGAIN = 61,
@@ -113,7 +114,7 @@ namespace PredictedAdaptedEncoding
         RETIRE_EPOCH_LOW32     = 83,
         RETIRE_EPOCH_HIGH32    = 84,
 
-        RESERVED_86 = 86,
+        RESERVED_87 = 87,
         EOF_APC_HEADER = 95
     };
 

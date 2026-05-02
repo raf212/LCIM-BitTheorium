@@ -26,7 +26,7 @@ namespace PredictedAdaptedEncoding
             packed64_t RawCell{0};
             meta16_t  InCellMeta16{0};
             PriorityPhysics Priority{PriorityPhysics::IDLE};
-            PackedCellNodeAuthority NodeAuthority{PackedCellNodeAuthority::LOCAL_OR_UNDEFINED};
+            PackedCellNodeAuthority NodeAuthority{PackedCellNodeAuthority::IDLE_OR_FREE};
             PackedCellLocalityTypes LocalityOfCell{PackedCellLocalityTypes::ST_IDLE};
             PackedMode CellMode{PackedMode::MODE_VALUE32};
             APCPagedNodeRelMaskClasses PageClass{APCPagedNodeRelMaskClasses::NONE};
@@ -46,7 +46,7 @@ namespace PredictedAdaptedEncoding
                 UINT32_MAX,
                 UINT16_MAX,
                 PriorityPhysics::ERROR_DEPENDENCY,
-                PackedCellNodeAuthority::LOCAL_OR_UNDEFINED,
+                PackedCellNodeAuthority::IDLE_OR_FREE,
                 PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY
             );
         }
@@ -95,7 +95,7 @@ namespace PredictedAdaptedEncoding
                 NO_VAL,
                 NO_VAL,
                 cell_priority,
-                PackedCellNodeAuthority::LOCAL_OR_UNDEFINED,
+                PackedCellNodeAuthority::IDLE_OR_FREE,
                 cell_locality,
                 page_class,
                 NO_VAL,
@@ -401,6 +401,12 @@ namespace PredictedAdaptedEncoding
             return SetMETA16InPacked(packed_cell, new_desired_meta);
         }
 
+        static inline packed64_t SetSegmentLayoutInPacked(packed64_t packed_cell, PackedCellNodeAuthority segment_layout) noexcept
+        {
+            const meta16_t new_desired_meta = SetNodeAuthorityInMETA16(ExtractMeta16fromPackedCell(packed_cell), segment_layout);
+            return SetMETA16InPacked(packed_cell, new_desired_meta);
+        }
+
         static inline packed64_t SetLocalityInPacked(packed64_t packed_cell, PackedCellLocalityTypes local_state) noexcept
         {
             const meta16_t new_desired_meta = SetLocalityInMETA16(ExtractMeta16fromPackedCell(packed_cell), local_state);
@@ -434,7 +440,7 @@ namespace PredictedAdaptedEncoding
 
         static inline constexpr meta16_t MakeInCellMetaForMode_32t(
             PriorityPhysics priority = PriorityPhysics::DEFAULT_PRIORITY, 
-            PackedCellNodeAuthority authority = PackedCellNodeAuthority::LOCAL_OR_UNDEFINED,
+            PackedCellNodeAuthority authority = PackedCellNodeAuthority::IDLE_OR_FREE,
             PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_IDLE,
             APCPagedNodeRelMaskClasses page_class = APCPagedNodeRelMaskClasses::FREE_SLOT,
             RelOffsetMode32 rel_offset_32 = RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
@@ -454,7 +460,7 @@ namespace PredictedAdaptedEncoding
 
         static inline constexpr meta16_t MakeInCellMetaForMode_48t(
             PriorityPhysics priority = PriorityPhysics::DEFAULT_PRIORITY, 
-            PackedCellNodeAuthority authority = PackedCellNodeAuthority::LOCAL_OR_UNDEFINED,
+            PackedCellNodeAuthority authority = PackedCellNodeAuthority::IDLE_OR_FREE,
             PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_IDLE,
             APCPagedNodeRelMaskClasses page_class = APCPagedNodeRelMaskClasses::FREE_SLOT,
             RelOffsetMode48 rel_offset_48 = RelOffsetMode48::RELOFFSET_GENERIC_VALUE,
@@ -535,7 +541,7 @@ namespace PredictedAdaptedEncoding
             uint64_t cell_value = NO_VAL,
             clk16_t clock16 = NO_VAL,
             PriorityPhysics cell_priority = PriorityPhysics::DEFAULT_PRIORITY,
-            PackedCellNodeAuthority node_authority = PackedCellNodeAuthority::LOCAL_OR_UNDEFINED,
+            PackedCellNodeAuthority node_authority = PackedCellNodeAuthority::IDLE_OR_FREE,
             PackedCellLocalityTypes cell_locality = PackedCellLocalityTypes::ST_IDLE, 
             APCPagedNodeRelMaskClasses page_class = APCPagedNodeRelMaskClasses::FREE_SLOT,
             tag8_t rel_offset = 0,
@@ -577,7 +583,7 @@ namespace PredictedAdaptedEncoding
         static inline constexpr meta16_t MakeInCellMetaForAny_(
             PackedMode mode_of_cell ,
             PriorityPhysics priority = PriorityPhysics::DEFAULT_PRIORITY, 
-            PackedCellNodeAuthority authority = PackedCellNodeAuthority::LOCAL_OR_UNDEFINED,
+            PackedCellNodeAuthority authority = PackedCellNodeAuthority::IDLE_OR_FREE,
             PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_IDLE,
             APCPagedNodeRelMaskClasses page_class = APCPagedNodeRelMaskClasses::FREE_SLOT,
             tag8_t rel_offset_any = static_cast<tag8_t>(RelOffsetMode32::RELOFFSET_GENERIC_VALUE),

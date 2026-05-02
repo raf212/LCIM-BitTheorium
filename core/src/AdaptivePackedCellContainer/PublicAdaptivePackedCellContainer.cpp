@@ -308,7 +308,7 @@ namespace PredictedAdaptedEncoding
 
     uint32_t AdaptivePackedCellContainer::AllUndefinedCellsOccupancySnapshotAddOrSubAndGetAfterChange(int delta) noexcept
     {
-        return OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_UNDEFINED_CELLS, delta);
+        return OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_IDLE_CELLS, delta);
     }
 
     uint32_t AdaptivePackedCellContainer::RegionOccupancyAddOrSubAndGet(APCPagedNodeRelMaskClasses desired_region_class, int delta) noexcept

@@ -86,7 +86,7 @@ class AdaptivePackedCellContainer;
             PackedCellLocalityTypes desired_locality = PackedCellLocalityTypes::ST_PUBLISHED,
             RelOffsetMode32 desired_reloffset = RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
             PackedCellDataType desired_dtype = PackedCellDataType::UnsignedPCellDataType,
-            PackedCellNodeAuthority desired_node_authority = PackedCellNodeAuthority::LOCAL_OR_UNDEFINED
+            PackedCellNodeAuthority desired_node_authority = PackedCellNodeAuthority::IDLE_OR_FREE
         )
         {
             const clk16_t now_clock16 = NowClock16();
@@ -101,7 +101,7 @@ class AdaptivePackedCellContainer;
         {
             const uint64_t full_clock48 = NowTicks48();
             const meta16_t strl_for_pure48_clock = PackedCell64_t::MakeInCellMetaForMode_48t(desired_priority, 
-                                PackedCellNodeAuthority::LOCAL_OR_UNDEFINED,
+                                PackedCellNodeAuthority::IDLE_OR_FREE,
                                 desired_locality, 
                                 APCPagedNodeRelMaskClasses::CLOCK_PURE_TIME,
                                 RelOffsetMode48::RELOFFSET_PURE_TIMER,

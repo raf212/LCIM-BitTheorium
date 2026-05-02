@@ -23,10 +23,12 @@ namespace PredictedAdaptedEncoding
         BRANCH_PRIORITY = 9,
         SEGMENT_CONF_FLAGS = 10,
         CURRENT_ACTIVE_THREADS = 11,
+            //occupancy
         OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS = 2,
         OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS = 12,
         OCCUPANCY_SNAPSHOT_OF_IDLE_CELLS = 85,
         OCCUPANCY_SNAPSHOT_OF_FAULTY_CELLS = 86,
+            //
         SPLIT_THRESHOLD_PERCENTAGE = 13,
         SEGMENT_KIND = 14,
         MAX_DEPTH = 15,
@@ -166,16 +168,6 @@ namespace PredictedAdaptedEncoding
                 PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
                 PackedCell64_t::ExtractRelOffset32FromPacked(packed_cell) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
         }
-        
-        template<typename PCDT>
-        static inline bool IsMode32TypedPublishedCell(packed64_t packed_cell) noexcept
-        {
-            if (!IsCellPublishedMode32Generic(packed_cell))
-            {
-                return false;
-            }
-            return PackedCell64_t::ExtractPCellDataTypeFromPacked(packed_cell)  == PackedCellTypeBridge<PCDT>::DType;
-        }
 
         static constexpr uint32_t MakeOneAPCNodeClassReadyBit(APCPagedNodeRelMaskClasses desired_rel_class) noexcept
         {
@@ -187,11 +179,7 @@ namespace PredictedAdaptedEncoding
             return (1u << rel_class);
         }
 
-        static constexpr uint32_t ReadyRelationBitMapForPackedCell(packed64_t packed_cell) noexcept
-        {
-            return MakeOneAPCNodeClassReadyBit(ExtractPagedRelMaskFromPacked(packed_cell));
-        }
-        //will be removed
+
         static bool CanCellBeConsumedForThisRegion(packed64_t packed_cell, APCPagedNodeRelMaskClasses region_kind) noexcept
         {
             return PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
@@ -209,8 +197,92 @@ namespace PredictedAdaptedEncoding
                 );
         }
 
+        static inline bool IsEmbededControlCell(const PackedCell64_t::AuthoritiveCellView& a_cell_view) noexcept
+        {
+            if (a_cell_view.CellMode == PackedMode::MODE_VALUE32 && a_cell_view.RelationOffsetForMode32.has_value())
+            {
+                return *a_cell_view.RelationOffsetForMode32 == RelOffsetMode32::CONTROL_SLOT;
+            }
+            if (a_cell_view.CellMode == PackedMode::MODE_CLKVAL48 && a_cell_view.RelationOffsetForMode48.has_value())
+            {
+                return *a_cell_view.RelationOffsetForMode48 == RelOffsetMode48::CONTROL_SLOT;
+            }
+            return false;
+        }
 
-    };
+        static inline bool IsEmbededTimerCell(const PackedCell64_t::AuthoritiveCellView& a_cell_view) noexcept
+        {
+            return a_cell_view.CellMode == PackedMode::MODE_CLKVAL48 && 
+                a_cell_view.RelationOffsetForMode48.has_value() &&
+                *a_cell_view.RelationOffsetForMode48 == RelOffsetMode48::RELOFFSET_PURE_TIMER;
+        }
+
+        static inline bool IsValidAccountingPageClass(
+            APCPagedNodeRelMaskClasses page_class
+        ) noexcept
+        {
+            return page_class != APCPagedNodeRelMaskClasses::NONE &&
+                page_class != APCPagedNodeRelMaskClasses::NANNULL &&
+                page_class != APCPagedNodeRelMaskClasses::FREE_SLOT &&
+                page_class != APCPagedNodeRelMaskClasses::CLOCK_PURE_TIME &&
+                page_class != APCPagedNodeRelMaskClasses::CONTROL_SLOT;
+        }
+
+        static inline bool DoesPublishedCellContributeToRegionOccupancy(const PackedCell64_t::AuthoritiveCellView& a_cell_view) noexcept
+        {
+            if (!a_cell_view.IsCellValid)
+            {
+                return false;
+            }
+            if (a_cell_view.LocalityOfCell != PackedCellLocalityTypes::ST_PUBLISHED)
+            {
+                return false;
+            }
+            if (!IsValidAccountingPageClass(a_cell_view.PageClass))
+            {
+                return false;
+            }
+            if (IsEmbededControlCell(a_cell_view) || IsEmbededTimerCell(a_cell_view))
+            {
+                return false;
+            }
+            return true;
+        }
+
+        static inline bool IsPublishedDataCellForRegion(
+            const PackedCell64_t::AuthoritiveCellView& view,
+            APCPagedNodeRelMaskClasses region_kind
+        ) noexcept
+        {
+            return DoesPublishedCellContributeToRegionOccupancy(view) &&
+                view.PageClass == region_kind;
+        }    
+
+        static inline MetaIndexOfAPCNode GetDesiredMetaIndexBucketForOccupancy(const PackedCell64_t::AuthoritiveCellView& a_cell_view) noexcept
+        {
+            if (!a_cell_view.IsCellValid || a_cell_view.LocalityOfCell == PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY)
+            {
+                return MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_FAULTY_CELLS;
+            }
+            switch (a_cell_view.LocalityOfCell)
+            {
+                case PackedCellLocalityTypes::ST_IDLE :
+                    return MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_IDLE_CELLS;
+
+                case PackedCellLocalityTypes::ST_PUBLISHED :
+                    return MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS;
+
+                case PackedCellLocalityTypes::ST_CLAIMED :
+                    return MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS;
+
+                default :
+                    return MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_FAULTY_CELLS;
+            }
+            
+        } 
+
+
+};
     
     struct LayoutBoundsOfSingleRelNodeClass
     {

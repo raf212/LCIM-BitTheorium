@@ -1,5 +1,5 @@
 #pragma once 
-#include "PackedCell/PackedCell.hpp"
+#include "PackedCell/CoreCellDefination.hpp"
 #include "APCHelpers.hpp"
 
 
@@ -81,15 +81,16 @@ class AdaptivePackedCellContainer;
 
         inline packed64_t ComposeValue32WithCurrentThreadStamp16(
             val32_t provided_cell_value32,
-            APCPagedNodeRelMaskClasses desired_rel_mask = APCPagedNodeRelMaskClasses::NONE,
+            APCPagedNodeRelMaskClasses desired_page_class = APCPagedNodeRelMaskClasses::NONE,
             PriorityPhysics desired_priority = PriorityPhysics::IDLE,
             PackedCellLocalityTypes desired_locality = PackedCellLocalityTypes::ST_PUBLISHED,
             RelOffsetMode32 desired_reloffset = RelOffsetMode32::RELOFFSET_GENERIC_VALUE,
-            PackedCellDataType desired_dtype = PackedCellDataType::UnsignedPCellDataType
+            PackedCellDataType desired_dtype = PackedCellDataType::UnsignedPCellDataType,
+            PackedCellNodeAuthority desired_node_authority = PackedCellNodeAuthority::IDLE_OR_FREE
         )
         {
             const clk16_t now_clock16 = NowClock16();
-            const strl16_t strlfor32 = MakeSTRLMode32_t(desired_priority, desired_locality, static_cast<tag8_t>(desired_rel_mask), desired_reloffset, desired_dtype);
+            const meta16_t strlfor32 = PackedCell64_t::MakeInCellMetaForMode_32t(desired_priority, desired_node_authority, desired_locality, desired_page_class, desired_reloffset, desired_dtype);
             return PackedCell64_t::ComposeValue32u_64(provided_cell_value32, now_clock16, strlfor32);
         }
 
@@ -99,8 +100,10 @@ class AdaptivePackedCellContainer;
         ) noexcept
         {
             const uint64_t full_clock48 = NowTicks48();
-            const strl16_t strl_for_pure48_clock = MakeStrl4ForMode48_t(desired_priority, desired_locality, 
-                                static_cast<tag8_t>(APCPagedNodeRelMaskClasses::CLOCK_PURE_TIME),
+            const meta16_t strl_for_pure48_clock = PackedCell64_t::MakeInCellMetaForMode_48t(desired_priority, 
+                                PackedCellNodeAuthority::IDLE_OR_FREE,
+                                desired_locality, 
+                                APCPagedNodeRelMaskClasses::CLOCK_PURE_TIME,
                                 RelOffsetMode48::RELOFFSET_PURE_TIMER,
                                 PackedCellDataType::UnsignedPCellDataType
                             );

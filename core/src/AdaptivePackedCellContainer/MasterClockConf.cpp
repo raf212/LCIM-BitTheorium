@@ -13,34 +13,35 @@ namespace PredictedAdaptedEncoding
         const clk16_t now_clk16 = GetImmidiateDownShiftedClock16(now_ticks48);
 
         const PriorityPhysics priority_of_provided_cell = PackedCell64_t::ExtractPriorityFromPacked(provided_packed_cell);
+        const PackedCellNodeAuthority node_authority = PackedCell64_t::ExtractNodeAuthorityFromPacked(provided_packed_cell);
         PackedCellLocalityTypes locality_of_provided_cell = PackedCell64_t::ExtractLocalityFromPacked(provided_packed_cell);
         if (override_locality.has_value())
         {
             locality_of_provided_cell = *override_locality;
         }
-        const tag8_t rel_mask = (force_rel_mask == APCPagedNodeRelMaskClasses::NANNULL) ? 
-                        PackedCell64_t::ExtractRelMaskFromPacked(provided_packed_cell) : static_cast<tag8_t>(force_rel_mask);
+        const APCPagedNodeRelMaskClasses rel_mask = (force_rel_mask == APCPagedNodeRelMaskClasses::NANNULL) ? 
+                        PackedCell64_t::ExtractRelMaskFromPacked(provided_packed_cell) : force_rel_mask;
         const PackedCellDataType dtype_of_provided_cell = PackedCell64_t::ExtractPCellDataTypeFromPacked(provided_packed_cell);
         const PackedMode mode_of_provided_cell = PackedCell64_t::ExtractModeOfPackedCellFromPacked(provided_packed_cell);
         if (mode_of_provided_cell == PackedMode::MODE_VALUE32)
         {
             const val32_t value32_of_provided_cell = PackedCell64_t::ExtractValue32(provided_packed_cell);
-            const RelOffsetMode32 reloffset32_of_provided_cell = static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(provided_packed_cell));
+            const RelOffsetMode32 reloffset32_of_provided_cell = PackedCell64_t::ExtractRelOffset32FromPacked(provided_packed_cell);
             return PackedCell64_t::ComposeValue32u_64(
                 value32_of_provided_cell,
                 now_clk16,
-                MakeSTRLMode32_t(priority_of_provided_cell, locality_of_provided_cell, rel_mask, reloffset32_of_provided_cell, dtype_of_provided_cell)
+                PackedCell64_t::MakeInCellMetaForMode_32t(priority_of_provided_cell, node_authority, locality_of_provided_cell, rel_mask, reloffset32_of_provided_cell, dtype_of_provided_cell)
             );
         }
 
-        const RelOffsetMode48 reloffset48_of_provided_cell = static_cast<RelOffsetMode48>(PackedCell64_t::ExtractRelOffsetFromPacked(provided_packed_cell));
+        const RelOffsetMode48 reloffset48_of_provided_cell = PackedCell64_t::ExtractRelOffset48FromPacked(provided_packed_cell);
         
         if (reloffset48_of_provided_cell == RelOffsetMode48::RELOFFSET_PURE_TIMER)
         {
             return PackedCell64_t::ComposeCLK48u_64(
                 now_ticks48,
                 //rename Strl to STRL(future)
-                MakeStrl4ForMode48_t(priority_of_provided_cell, locality_of_provided_cell, rel_mask, reloffset48_of_provided_cell, dtype_of_provided_cell)
+                PackedCell64_t::MakeInCellMetaForMode_48t(priority_of_provided_cell, node_authority, locality_of_provided_cell, rel_mask, reloffset48_of_provided_cell, dtype_of_provided_cell)
             );
         }
         return provided_packed_cell;

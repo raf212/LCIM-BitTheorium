@@ -67,7 +67,7 @@ public:
         std::atomic<uint64_t>* growth_counter = nullptr
     ) noexcept
     {
-        cell = PackedCell64_t::SetRelMaskInPacked(cell, static_cast<tag8_t>(region));
+        cell = PackedCell64_t::SetPageClassInPacked(cell, region);
 
         if (TryPublishRegionalSharedGrowthOnce(region, cell, growth_counter))
         {

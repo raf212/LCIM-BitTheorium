@@ -15,7 +15,7 @@ public:
     PointerSymenticsAdaptivePackedCellContainer() noexcept = default;
     ~PointerSymenticsAdaptivePackedCellContainer() = default;
 
-    PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;
+    PublishResult PublishHeapPtrPair_(void* object_ptr, APCPagedNodeRelMaskClasses rel_mask = APCPagedNodeRelMaskClasses::FREE_SLOT, int max_probs = -1) noexcept;
     bool PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries = 100);
     std::optional<AcquirePairedPointerStruct> AcquirePairedAtomicPtr(size_t probable_idx, bool claim_ownership = true, int max_claim_attempts = 256) noexcept;
     bool ReleaseAcquiredPairedPtr(const AcquirePairedPointerStruct& acquired_pair_struct, PackedCellLocalityTypes desired_locality = PackedCellLocalityTypes::ST_IDLE) noexcept;

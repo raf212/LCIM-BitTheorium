@@ -85,7 +85,7 @@ namespace PredictedAdaptedEncoding
 
     bool SegmentIODefinition::WriteBoundsPairToHeader_(const LayoutBoundsOfSingleRelNodeClass layout_bound) noexcept
     {
-        auto maybe_region_bounds_pair = GetMetaBoundsPairForRegionMask_(layout_bound.LAYOUT_CLASS);
+        auto maybe_region_bounds_pair = GetMetaBoundsLegalPairForPageClasses(layout_bound.LAYOUT_CLASS);
         if (!maybe_region_bounds_pair || layout_bound.IsEmpty() == true)
         {
             return false;
@@ -97,7 +97,7 @@ namespace PredictedAdaptedEncoding
                 JustUpdateValueOfMeta32(end_meta, current_end, layout_bound.EndIndex);
     }
 
-    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>>SegmentIODefinition::GetMetaBoundsPairForRegionMask_(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
+    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>>SegmentIODefinition::GetMetaBoundsLegalPairForPageClasses(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
     {
         MetaIndexOfAPCNode begin_idx;
         MetaIndexOfAPCNode end_idx;

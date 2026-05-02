@@ -202,19 +202,26 @@ namespace PredictedAdaptedEncoding
                 TotalCASFailForThisBranchIncreaseAndGet(1);
                 continue;
             }
+
+            ApplyOccupancyTransition_(
+                PackedCellLocalityTypes::ST_PUBLISHED,
+                PackedCellLocalityTypes::ST_CLAIMED,
+                region_kind
+            );
+
+
             const PackedMode old_mode = PackedCell64_t::ExtractModeOfPackedCellFromPacked(current_cell);
             const PackedCellDataType old_dtype = PackedCell64_t::ExtractPCellDataTypeFromPacked(current_cell);
-
-            BackingPtr[idx].store(PackedCell64_t::MakeInitialPacked(old_mode, old_dtype, static_cast<tag8_t>(region_kind)), MoStoreSeq_);
+            const APCPagedNodeRelMaskClasses old_page_class = PackedCell64_t::ExtractRelMaskFromPacked(current_cell);
+            const packed64_t idle_cell = PackedCell64_t::MakeInitialPacked(old_mode, PriorityPhysics::IDLE, PackedCellLocalityTypes::ST_IDLE, old_page_class, old_dtype);
+            BackingPtr[idx].store(idle_cell, MoStoreSeq_);
             BackingPtr[idx].notify_all();
             // RebuildExectReadyMask();
-            ReconcileOccupancySnapshotFromPayload();
-            RefreshAPCMeta_();
-            scan_cursor = idx + 1;
-            if (scan_cursor >= current_region_bounds.EndIndex)
-            {
-                scan_cursor = current_region_bounds.BeginIndex;
-            }
+            ApplyOccupancyTransition_(
+                PackedCellLocalityTypes::ST_CLAIMED,
+                PackedCellLocalityTypes::ST_IDLE,
+                region_kind
+            );
             return current_cell;
         }
         return std::nullopt;
@@ -256,7 +263,7 @@ namespace PredictedAdaptedEncoding
         }
         if (force_rel_mask)
         {
-            packed_cell = APCAndPagedNodeHelpers::SetRelMaskForPagedNode(packed_cell, region_kind);
+            packed_cell = PackedCell64_t::SetPageClassInPacked(packed_cell, region_kind);
         }
         
         const auto maybe_current_region_bounds = ReadLayoutBounds(region_kind);
@@ -303,10 +310,23 @@ namespace PredictedAdaptedEncoding
                     TotalCASFailForThisBranchIncreaseAndGet(1);
                     continue;
                 }
+
+                ApplyOccupancyTransition_(
+                    PackedCellLocalityTypes::ST_IDLE,
+                    PackedCellLocalityTypes::ST_CLAIMED,
+                    region_kind
+                );
+
+                packed_cell = PackedCell64_t::SetPageClassInPacked(packed_cell, region_kind);
+                packed_cell = PackedCell64_t::SetLocalityInPacked(packed_cell, PackedCellLocalityTypes::ST_PUBLISHED);
                 BackingPtr[current_index].store(packed_cell, MoStoreSeq_);
                 BackingPtr[current_index].notify_all();
-                UpdateRegionRelMaskForIdx_(region_kind);
-                ReconcileOccupancySnapshotFromPayload();
+                ApplyOccupancyTransition_(
+                    PackedCellLocalityTypes::ST_CLAIMED,
+                    PackedCellLocalityTypes::ST_PUBLISHED,
+                    region_kind
+                );
+
                 TouchLocalMetaClock48();
                 RefreshAPCMeta_();
                 return {PublishStatus::OK, current_index};
@@ -475,26 +495,26 @@ namespace PredictedAdaptedEncoding
             AllClaimedCellsOccupancySnapshotAddOrSubAndGetAfterChange(-1);
             const uint32_t region_occ_after_update = RegionOccupancyAddOrSubAndGet(desired_region_class, +1);
             TurnOnReadyBitForDesiredPagedNode_(desired_region_class);
-            return region_occ_after_update > NO_VAL;
+            return region_occ_after_update != BRANCH_SENTINAL;
         }
         if (from == PackedCellLocalityTypes::ST_PUBLISHED && to == PackedCellLocalityTypes::ST_CLAIMED)
         {
-            AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(-1);
             AllClaimedCellsOccupancySnapshotAddOrSubAndGetAfterChange(+1);
-            RegionOccupancyAddOrSubAndGet(desired_region_class, -1);
-            return ClearTheDesiredPagedNodeReadyBit_(desired_region_class);
+            return true;
         }
         if (from == PackedCellLocalityTypes::ST_CLAIMED && to == PackedCellLocalityTypes::ST_IDLE)
         {
             AllClaimedCellsOccupancySnapshotAddOrSubAndGetAfterChange(-1);
-            return true;
+            AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(-1);
+            const uint32_t region_occ_after_update = RegionOccupancyAddOrSubAndGet(desired_region_class, -1);
+            if (region_occ_after_update == 0)
+            {
+                ClearTheDesiredPagedNodeReadyBit_(desired_region_class);
+            }
+            return region_occ_after_update != BRANCH_SENTINAL;
         }
-
-        //continue from here after fixing rel.h
         
-        
-        
-        return false;
+        return from == to;
     }
 
 

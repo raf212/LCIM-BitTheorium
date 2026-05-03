@@ -61,9 +61,17 @@ protected:
 
     size_t SuggestedChildCapacity_() noexcept;
 
-    std::optional<packed64_t> TryConsumeAndIdleFromRegionLocal_(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept;
+    std::optional<packed64_t> TryConsumeAndIdleFromRegionLocal_(
+        APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor,
+        PackedCellNodeAuthority desired_authority_of_updated_cell = PackedCellNodeAuthority::BIDIRECTIONAL_NEUROMORPHIC_SYSTEM
+    ) noexcept;
 
-    PublishResult TryPublishToRegionLocal_(APCPagedNodeRelMaskClasses region_kind, packed64_t packed_cell, bool force_rel_mask = true, uint16_t max_tries = MAX_TRIES) noexcept;
+    PublishResult TryPublishToRegionLocal_(
+        packed64_t packed_cell_for_publish, 
+        APCPagedNodeRelMaskClasses region_kind = APCPagedNodeRelMaskClasses::FREE_SLOT,
+        PackedCellNodeAuthority node_authority = PackedCellNodeAuthority::BIDIRECTIONAL_NEUROMORPHIC_SYSTEM,
+        uint16_t max_tries = 128
+    ) noexcept;
 
     void UpdateRegionRelMaskForIdx_(APCPagedNodeRelMaskClasses rel_mask) noexcept;
 

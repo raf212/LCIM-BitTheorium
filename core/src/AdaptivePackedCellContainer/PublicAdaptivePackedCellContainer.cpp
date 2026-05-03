@@ -459,13 +459,15 @@ namespace PredictedAdaptedEncoding
 
     PublishResult AdaptivePackedCellContainer::PublishCellByRegionMAskTraverseStartsFromThisAPC(APCPagedNodeRelMaskClasses region_kind, packed64_t cell_to_publish, uint16_t max_tries) noexcept
     {
+        (void)max_tries;
+        
         if (!IfAPCBranchValid())
         {
             const PublishResult invalid{};
             return invalid;
         }
         
-        const PublishResult local_result = TryPublishToRegionLocal_(region_kind, cell_to_publish, true, max_tries);
+        const PublishResult local_result = TryPublishToRegionLocal_(cell_to_publish, region_kind);
         if (local_result.ResultStatus == PublishStatus::OK)
         {
             return local_result;
@@ -474,7 +476,7 @@ namespace PredictedAdaptedEncoding
         AdaptivePackedCellContainer* curren_or_next_container_ptr = GetNextSharedSegment();
         while (curren_or_next_container_ptr)
         {
-            const PublishResult sibling_result_publish = curren_or_next_container_ptr->TryPublishToRegionLocal_(region_kind, cell_to_publish, true, max_tries);
+            const PublishResult sibling_result_publish = curren_or_next_container_ptr->TryPublishToRegionLocal_(cell_to_publish, region_kind);
             if (sibling_result_publish.ResultStatus == PublishStatus::OK)
             {
                 return sibling_result_publish;
@@ -486,7 +488,7 @@ namespace PredictedAdaptedEncoding
             AdaptivePackedCellContainer* grown_apc = GrowSharedNodeByRegionKind(region_kind, true);
             if (grown_apc)
             {
-                return grown_apc->TryPublishToRegionLocal_(region_kind, cell_to_publish, true, max_tries);
+                return grown_apc->TryPublishToRegionLocal_(cell_to_publish, region_kind);
             }
         }
         return local_result;

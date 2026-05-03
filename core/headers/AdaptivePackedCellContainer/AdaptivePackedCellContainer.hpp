@@ -118,6 +118,12 @@ protected:
 
     bool ApplyPackedCellTransitionAfterSuccessfulWrite_(packed64_t old_cell, packed64_t new_cell) noexcept;
 
+    packed64_t NormalizeDesiredPublishedCellForRegion_(
+        packed64_t out_going_cell,
+        APCPagedNodeRelMaskClasses region_kind,
+        PackedCellNodeAuthority node_authority
+    ) noexcept;
+
 public:
     AdaptivePackedCellContainer(/* args */) noexcept  = default;
 

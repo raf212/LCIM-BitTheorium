@@ -500,6 +500,28 @@ namespace PredictedAdaptedEncoding
         return true;
     }
 
+    packed64_t AdaptivePackedCellContainer::NormalizeDesiredPublishedCellForRegion_(
+        packed64_t out_going_cell,
+        APCPagedNodeRelMaskClasses region_kind,
+        PackedCellNodeAuthority node_authority
+    ) noexcept
+    {
+        out_going_cell = PackedCell64_t::SetPageClassInPacked(out_going_cell, region_kind);
+        out_going_cell = PackedCell64_t::SetSegmentLayoutInPacked(out_going_cell, node_authority);
+        out_going_cell = PackedCell64_t::SetLocalityInPacked(out_going_cell, PackedCellLocalityTypes::ST_PUBLISHED);
+
+        const PackedMode mode = PackedCell64_t::ExtractModeOfPackedCellFromPacked(out_going_cell);
+        if (mode == PackedMode::MODE_VALUE32)
+        {
+            out_going_cell = PackedCell64_t::SetRelOffsetForMode32InPacked(out_going_cell, RelOffsetMode32::RELOFFSET_GENERIC_VALUE);
+        }
+        else
+        {
+            out_going_cell = PackedCell64_t::SetRelOffsetForMode48InPacked(out_going_cell, RelOffsetMode48::RELOFFSET_GENERIC_VALUE);
+        }
+        return out_going_cell;
+    }
+
 
     bool AdaptivePackedCellContainer::ApplyOccupancyTransition_(
         PackedCellLocalityTypes from,

@@ -420,13 +420,13 @@ namespace PredictedAdaptedEncoding
             return SetMETA16InPacked(packed_cell, new_desired_meta);
         }
 
-        static inline packed64_t SetRelOffsetForMode32(packed64_t packed_cell, RelOffsetMode32 reloffset) noexcept
+        static inline packed64_t SetRelOffsetForMode32InPacked(packed64_t packed_cell, RelOffsetMode32 reloffset) noexcept
         {
             const meta16_t new_desired_meta = SetRelOffset32InMETA16(ExtractMeta16fromPackedCell(packed_cell), reloffset);
             return SetMETA16InPacked(packed_cell, new_desired_meta);
         }
 
-        static inline packed64_t SetRelOffsetForMode48(packed64_t packed_cell, RelOffsetMode48 reloffset) noexcept
+        static inline packed64_t SetRelOffsetForMode48InPacked(packed64_t packed_cell, RelOffsetMode48 reloffset) noexcept
         {
             const meta16_t new_desired_meta = SetRelOffset48InMETA16(ExtractMeta16fromPackedCell(packed_cell), reloffset);
             return SetMETA16InPacked(packed_cell, new_desired_meta);

@@ -472,6 +472,33 @@ namespace PredictedAdaptedEncoding
     }
 
 
+    bool AdaptivePackedCellContainer::ApplyPackedCellTransitionAfterSuccessfulWrite_(packed64_t old_cell, packed64_t new_cell) noexcept
+    {
+        const PackedCell64_t::AuthoritiveCellView old_cell_view = PackedCell64_t::InspectPackedCell(old_cell);
+        const PackedCell64_t::AuthoritiveCellView new_cell_view = PackedCell64_t::InspectPackedCell(new_cell);
+        const MetaIndexOfAPCNode requires_update_old_meta_idx = APCAndPagedNodeHelpers::GetDesiredMetaIndexBucketForOccupancy(old_cell_view);
+        const MetaIndexOfAPCNode requires_update_new_meta_idx = APCAndPagedNodeHelpers::GetDesiredMetaIndexBucketForOccupancy(new_cell_view);
+        if (requires_update_old_meta_idx != requires_update_new_meta_idx)
+        {
+            OccupancyAddOrSubAndGetAfterChange_(requires_update_old_meta_idx, -1);
+            OccupancyAddOrSubAndGetAfterChange_(requires_update_new_meta_idx, +1);
+        }
+        if (APCAndPagedNodeHelpers::DoesPublishedCellContributeToRegionOccupancy(old_cell_view))
+        {
+            const uint32_t desired_region_occupancy_after_decrease = RegionOccupancyAddOrSubAndGet(old_cell_view.PageClass, -1);
+            if (desired_region_occupancy_after_decrease == 0)
+            {
+                ClearTheDesiredPagedNodeReadyBit_(old_cell_view.PageClass);
+            }
+        }
+
+        if (APCAndPagedNodeHelpers::DoesPublishedCellContributeToRegionOccupancy(new_cell_view))
+        {
+            RegionOccupancyAddOrSubAndGet(new_cell_view.PageClass, +1);
+            TurnOnReadyBitForDesiredPagedNode_(new_cell_view.PageClass);
+        }
+        return true;
+    }
 
 
     bool AdaptivePackedCellContainer::ApplyOccupancyTransition_(

@@ -148,13 +148,7 @@ protected:
         return UpdateAPCModeFlagsInHeader_(NO_VAL, use_or_between_flags);
     }
 
-    void ForceZeroOccupancy_() noexcept
-    {
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS, NO_VAL, PriorityPhysics::STRUCTURAL_DEPENDENCY, APCPagedNodeRelMaskClasses::CONTROL_SLOT);
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS, NO_VAL, PriorityPhysics::STRUCTURAL_DEPENDENCY, APCPagedNodeRelMaskClasses::CONTROL_SLOT);     
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_IDLE_CELLS, NO_VAL, PriorityPhysics::STRUCTURAL_DEPENDENCY, APCPagedNodeRelMaskClasses::CONTROL_SLOT);        
-    }
-
+    bool ForceZeroOccupancy_() noexcept;
     
 public:
     packed64_t PackPureClock48AsPackedCell(

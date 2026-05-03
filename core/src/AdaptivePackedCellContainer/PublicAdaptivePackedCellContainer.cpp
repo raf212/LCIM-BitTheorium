@@ -296,21 +296,6 @@ namespace PredictedAdaptedEncoding
         }
     }
 
-    uint32_t AdaptivePackedCellContainer::AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(int delta) noexcept
-    {
-        return OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS, delta);
-    }
-
-    uint32_t AdaptivePackedCellContainer::AllClaimedCellsOccupancySnapshotAddOrSubAndGetAfterChange(int delta) noexcept
-    {
-        return OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS, delta);
-    }
-
-    uint32_t AdaptivePackedCellContainer::AllUndefinedCellsOccupancySnapshotAddOrSubAndGetAfterChange(int delta) noexcept
-    {
-        return OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_IDLE_CELLS, delta);
-    }
-
     uint32_t AdaptivePackedCellContainer::RegionOccupancyAddOrSubAndGet(APCPagedNodeRelMaskClasses desired_region_class, int delta) noexcept
     {
         const MetaIndexOfAPCNode region_occ_meta_idx = APCAndPagedNodeHelpers::GetOccupancyMetIndexByRegionClass(desired_region_class);

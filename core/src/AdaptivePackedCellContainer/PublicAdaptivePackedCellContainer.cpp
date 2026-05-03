@@ -805,35 +805,6 @@ namespace PredictedAdaptedEncoding
         return total;
     }
 
-    uint32_t AdaptivePackedCellContainer::ReconcileOccupancySnapshotFromPayload() noexcept
-    {
-        if (!IfAPCBranchValid())
-        {
-            return UNSIGNED_ZERO;
-        }
-
-        const uint32_t exact_combined_local_occ = GetLocalTotalOccupancy();
-        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS, exact_combined_local_occ);
-
-        uint32_t ready_rel_mask = 0;
-        for (size_t rel_bit_mask = 0; rel_bit_mask < APCAndPagedNodeHelpers::SIZE_OF_APCPagedNodeRelMaskClasses; rel_bit_mask++)
-        {
-            const auto region = static_cast<APCPagedNodeRelMaskClasses>(rel_bit_mask);
-            if (region == APCPagedNodeRelMaskClasses::NANNULL)
-            {
-                continue;
-            }
-            const uint32_t exact_region_occupancy = CountExactLocalRegionalOccupancy(region);
-            WriteExactMetaCellJustNewValue(APCAndPagedNodeHelpers::GetOccupancyMetIndexByRegionClass(region), exact_region_occupancy);
-            if (exact_region_occupancy > 0)
-            {
-                ready_rel_mask |= APCAndPagedNodeHelpers::MakeOneAPCNodeClassReadyBit(region);
-            }
-        }
-        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::PAGED_NODE_READY_BIT, ready_rel_mask);
-        return exact_combined_local_occ;
-    }
-
 
     bool AdaptivePackedCellContainer::RebuildExectReadyMask() noexcept
     {

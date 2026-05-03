@@ -505,48 +505,4 @@ namespace PredictedAdaptedEncoding
     }
 
 
-    bool AdaptivePackedCellContainer::ApplyOccupancyTransition_(
-        PackedCellLocalityTypes from,
-        PackedCellLocalityTypes to,
-        APCPagedNodeRelMaskClasses desired_region_class
-    ) noexcept
-    {
-        if (desired_region_class == APCPagedNodeRelMaskClasses::NONE || desired_region_class == APCPagedNodeRelMaskClasses::NANNULL)
-        {
-            return false;
-        }
-        if (from == PackedCellLocalityTypes::ST_IDLE && to == PackedCellLocalityTypes::ST_CLAIMED)
-        {
-            AllClaimedCellsOccupancySnapshotAddOrSubAndGetAfterChange(+1);
-            return true;
-        }
-        if (from == PackedCellLocalityTypes::ST_CLAIMED && to == PackedCellLocalityTypes::ST_PUBLISHED)
-        {
-            AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(+1);
-            AllClaimedCellsOccupancySnapshotAddOrSubAndGetAfterChange(-1);
-            const uint32_t region_occ_after_update = RegionOccupancyAddOrSubAndGet(desired_region_class, +1);
-            TurnOnReadyBitForDesiredPagedNode_(desired_region_class);
-            return region_occ_after_update != BRANCH_SENTINAL;
-        }
-        if (from == PackedCellLocalityTypes::ST_PUBLISHED && to == PackedCellLocalityTypes::ST_CLAIMED)
-        {
-            AllClaimedCellsOccupancySnapshotAddOrSubAndGetAfterChange(+1);
-            return true;
-        }
-        if (from == PackedCellLocalityTypes::ST_CLAIMED && to == PackedCellLocalityTypes::ST_IDLE)
-        {
-            AllClaimedCellsOccupancySnapshotAddOrSubAndGetAfterChange(-1);
-            AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(-1);
-            const uint32_t region_occ_after_update = RegionOccupancyAddOrSubAndGet(desired_region_class, -1);
-            if (region_occ_after_update == 0)
-            {
-                ClearTheDesiredPagedNodeReadyBit_(desired_region_class);
-            }
-            return region_occ_after_update != BRANCH_SENTINAL;
-        }
-        
-        return from == to;
-    }
-
-
 }

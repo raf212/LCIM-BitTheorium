@@ -101,7 +101,7 @@ protected:
             return OwnedMasterClockConfPtr_->ComposeValue32WithCurrentThreadStamp16(value32, page_class, priority, locality, reloffset_mode32, dtype);
         }
         meta16_t strl_moded32 = PackedCell64_t::MakeInCellMetaForMode_32t(priority, node_authority, locality, page_class, reloffset_mode32, dtype);
-        return PackedCell64_t::ComposeValue32u_64(value32, NO_VAL, strl_moded32);
+        return PackedCell64_t::ComposeValue32u_64(value32, UNSIGNED_ZERO, strl_moded32);
     }
 
     void WriteBrenchMeta32_(
@@ -121,12 +121,12 @@ protected:
     }
 
 
-    bool TurnOnMultipleSegmentFlagsAtOnce_(uint32_t use_or_between_flags = NO_VAL) noexcept
+    bool TurnOnMultipleSegmentFlagsAtOnce_(uint32_t use_or_between_flags = UNSIGNED_ZERO) noexcept
     {
-        return UpdateAPCModeFlagsInHeader_(use_or_between_flags, NO_VAL, MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS);
+        return UpdateAPCModeFlagsInHeader_(use_or_between_flags, UNSIGNED_ZERO, MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS);
     }
 
-    bool UpdateAPCModeFlagsInHeader_(uint32_t flags_to_turn_on = NO_VAL, uint32_t flags_to_turn_off = NO_VAL, MetaIndexOfAPCNode desired_flag_idx = MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS) noexcept;
+    bool UpdateAPCModeFlagsInHeader_(uint32_t flags_to_turn_on = UNSIGNED_ZERO, uint32_t flags_to_turn_off = UNSIGNED_ZERO, MetaIndexOfAPCNode desired_flag_idx = MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS) noexcept;
 
     std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>> GetMetaBoundsLegalPairForPageClasses(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept;
 
@@ -143,9 +143,9 @@ protected:
 
     bool ClearTheDesiredPagedNodeReadyBit_(APCPagedNodeRelMaskClasses desired_region_class) noexcept;
 
-    bool ClearMultipleControlFlags_(uint32_t use_or_between_flags = NO_VAL) noexcept
+    bool ClearMultipleControlFlags_(uint32_t use_or_between_flags = UNSIGNED_ZERO) noexcept
     {
-        return UpdateAPCModeFlagsInHeader_(NO_VAL, use_or_between_flags);
+        return UpdateAPCModeFlagsInHeader_(UNSIGNED_ZERO, use_or_between_flags);
     }
 
     bool ForceZeroOccupancy_() noexcept;
@@ -192,7 +192,7 @@ public:
 
     void InitNodeSemantics(
         APCNodeComputeKind compute_kind_of_node,
-        uint32_t aux_param_uint32 = NO_VAL
+        uint32_t aux_param_uint32 = UNSIGNED_ZERO
     ) noexcept;
 
 
@@ -204,8 +204,8 @@ public:
         const ContainerConf& container_configuration,
         bool is_root_shared = true,
         APCNodeComputeKind node_compute_kind = APCNodeComputeKind::NONE,
-        uint32_t aux_param_uint32 = NO_VAL,
-        uint32_t branch_depth = NO_VAL,
+        uint32_t aux_param_uint32 = UNSIGNED_ZERO,
+        uint32_t branch_depth = UNSIGNED_ZERO,
         uint8_t branch_priority = ZERO_PRIORITY,
         PriorityPhysics write_cell_priority = PriorityPhysics::IDLE
 
@@ -257,7 +257,7 @@ public:
 
     bool TurnOnASegmentFlag(ControlEnumOfAPCSegment desired_segment_flag) noexcept
     {
-        return UpdateAPCModeFlagsInHeader_(static_cast<uint32_t>(desired_segment_flag), NO_VAL, MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS);
+        return UpdateAPCModeFlagsInHeader_(static_cast<uint32_t>(desired_segment_flag), UNSIGNED_ZERO, MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS);
     }
 
     bool HasThisControlEnumFlag(ControlEnumOfAPCSegment flag) noexcept
@@ -267,22 +267,22 @@ public:
 
     bool ClearOneControlEnumFlagOfAPC(ControlEnumOfAPCSegment desired_control_flag) noexcept
     {
-        return UpdateAPCModeFlagsInHeader_(NO_VAL, static_cast<uint32_t>(desired_control_flag), MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS);
+        return UpdateAPCModeFlagsInHeader_(UNSIGNED_ZERO, static_cast<uint32_t>(desired_control_flag), MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS);
     }
 
     bool TurnOnAManagerControlFlag(ManagerControlFlagBits desired_manager_control_flag) noexcept
     {
-        return UpdateAPCModeFlagsInHeader_(static_cast<uint32_t>(desired_manager_control_flag), NO_VAL, MetaIndexOfAPCNode::MANAGER_CONTROL_FLAGS);
+        return UpdateAPCModeFlagsInHeader_(static_cast<uint32_t>(desired_manager_control_flag), UNSIGNED_ZERO, MetaIndexOfAPCNode::MANAGER_CONTROL_FLAGS);
     }
 
     bool ClearOneManagerControlFlag(ManagerControlFlagBits desired_manager_control_flag) noexcept
     {
-        return UpdateAPCModeFlagsInHeader_(NO_VAL, static_cast<uint32_t>(desired_manager_control_flag), MetaIndexOfAPCNode::MANAGER_CONTROL_FLAGS);
+        return UpdateAPCModeFlagsInHeader_(UNSIGNED_ZERO, static_cast<uint32_t>(desired_manager_control_flag), MetaIndexOfAPCNode::MANAGER_CONTROL_FLAGS);
     }
 
     bool HasThisManageControlFlag(ManagerControlFlagBits desired_manager_contgrol_flag) noexcept
     {
-        return (ReadMetaCellValue32(MetaIndexOfAPCNode::MANAGER_CONTROL_FLAGS) & static_cast<uint32_t>(desired_manager_contgrol_flag)) != NO_VAL;
+        return (ReadMetaCellValue32(MetaIndexOfAPCNode::MANAGER_CONTROL_FLAGS) & static_cast<uint32_t>(desired_manager_contgrol_flag)) != UNSIGNED_ZERO;
     }
     
     void SetGraphNodeFlag() noexcept
@@ -328,7 +328,7 @@ public:
         {
             return static_cast<size_t>(payload_end - payload_begain);
         }
-        return NO_VAL;
+        return UNSIGNED_ZERO;
     }
 
     void MakeAPCBranchOwned() noexcept
@@ -338,13 +338,13 @@ public:
 
     void ReleseOwneshipFlag() noexcept
     {
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::CURRENTLY_OWNED, NO_VAL, PriorityPhysics::ERROR_DEPENDENCY);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::CURRENTLY_OWNED, UNSIGNED_ZERO, PriorityPhysics::ERROR_DEPENDENCY);
     }
 
     bool IsBranchOwnedByFlag() noexcept
     {
         uint32_t owned_cell_value = ReadMetaCellValue32(MetaIndexOfAPCNode::CURRENTLY_OWNED);
-        if (owned_cell_value > NO_VAL)
+        if (owned_cell_value > UNSIGNED_ZERO)
         {
             return true;
         }
@@ -353,7 +353,7 @@ public:
 
     void ResetTotalCASFailureForThisBranch(PriorityPhysics priority = PriorityPhysics::IDLE) noexcept
     {
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH, NO_VAL, priority);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::TOTAL_CAS_FAILURE_FOR_THIS_APC_BRANCH, UNSIGNED_ZERO, priority);
     }
 
     bool SetSegmentRegionKind(APCPagedNodeRelMaskClasses region_kind) noexcept

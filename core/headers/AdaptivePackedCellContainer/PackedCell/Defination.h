@@ -43,6 +43,6 @@ namespace PredictedAdaptedEncoding
     //manager
     #define BIT_PATTERN_THREAD_TOKEN_GENERATOR 0xA5A5A5A5u
 
-    static constexpr unsigned NO_VAL = 0u;
+    static constexpr unsigned UNSIGNED_ZERO = 0u;
 
 }

@@ -14,7 +14,7 @@ namespace PredictedAdaptedEncoding
         for (size_t i = 0; i < ThreadTableCapacity_; i++)
         {
             ThreadEpochArrayPtr_[i].store(THREAD_SENTINEL_, MoStoreUnSeq_);
-            ThreadWaitSlotArrayPtr_[i].store(NO_VAL, MoStoreUnSeq_);
+            ThreadWaitSlotArrayPtr_[i].store(UNSIGNED_ZERO, MoStoreUnSeq_);
             ThreadNextIdxPtr_[i].store(i+1, MoStoreUnSeq_);
         }
         ThreadNextIdxPtr_[ThreadTableCapacity_ - 1].store(SIZE_MAX, MoStoreUnSeq_);
@@ -85,7 +85,7 @@ namespace PredictedAdaptedEncoding
         {
             return SIZE_MAX;
         }
-        ThreadWaitSlotArrayPtr_[idx].store(NO_VAL, MoStoreSeq_);
+        ThreadWaitSlotArrayPtr_[idx].store(UNSIGNED_ZERO, MoStoreSeq_);
         ThreadEpochArrayPtr_[idx].store(THREAD_SENTINEL_, MoStoreSeq_);
         return idx;
     }
@@ -96,7 +96,7 @@ namespace PredictedAdaptedEncoding
         {
             return;
         }
-        ThreadWaitSlotArrayPtr_[idx].store(NO_VAL, MoStoreSeq_);
+        ThreadWaitSlotArrayPtr_[idx].store(UNSIGNED_ZERO, MoStoreSeq_);
         ThreadEpochArrayPtr_[idx].store(THREAD_SENTINEL_, MoStoreSeq_);
         PushFreeThreadIndex_(idx);
     }
@@ -263,7 +263,7 @@ namespace PredictedAdaptedEncoding
 
     AdaptivePackedCellContainer* PackedCellContainerManager::GetAPCPtrFromBranchId(uint32_t branch_id) noexcept
     {
-        if (branch_id == NO_VAL || branch_id == SegmentIODefinition::BRANCH_SENTINAL)
+        if (branch_id == UNSIGNED_ZERO || branch_id == SegmentIODefinition::BRANCH_SENTINAL)
         {
             return nullptr;
         }

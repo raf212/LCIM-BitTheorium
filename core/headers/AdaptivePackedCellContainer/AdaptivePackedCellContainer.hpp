@@ -148,7 +148,7 @@ public:
         size_t capacity,
         const ContainerConf& container_configuration,
         SegmentIODefinition::APCNodeComputeKind compute_kind = SegmentIODefinition::APCNodeComputeKind::NONE,
-        uint32_t aux_param_u32 = NO_VAL
+        uint32_t aux_param_u32 = UNSIGNED_ZERO
 
     );
 

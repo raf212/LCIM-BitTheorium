@@ -92,13 +92,13 @@ namespace PredictedAdaptedEncoding
         {
             return MakeACell_(
                 cell_mode,
-                NO_VAL,
-                NO_VAL,
+                UNSIGNED_ZERO,
+                UNSIGNED_ZERO,
                 cell_priority,
                 PackedCellNodeAuthority::IDLE_OR_FREE,
                 cell_locality,
                 page_class,
-                NO_VAL,
+                UNSIGNED_ZERO,
                 cell_data_type
             );
         }
@@ -538,8 +538,8 @@ namespace PredictedAdaptedEncoding
 
         static inline packed64_t MakeACell_(
             PackedMode cell_mode,
-            uint64_t cell_value = NO_VAL,
-            clk16_t clock16 = NO_VAL,
+            uint64_t cell_value = UNSIGNED_ZERO,
+            clk16_t clock16 = UNSIGNED_ZERO,
             PriorityPhysics cell_priority = PriorityPhysics::DEFAULT_PRIORITY,
             PackedCellNodeAuthority node_authority = PackedCellNodeAuthority::IDLE_OR_FREE,
             PackedCellLocalityTypes cell_locality = PackedCellLocalityTypes::ST_IDLE, 

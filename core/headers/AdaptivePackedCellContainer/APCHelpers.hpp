@@ -174,7 +174,7 @@ namespace PredictedAdaptedEncoding
             const uint32_t rel_class = static_cast<uint8_t>(desired_rel_class) & HIGH_FOUR_NIBBLE;
             if (rel_class == static_cast<uint8_t>(APCPagedNodeRelMaskClasses::NONE) || rel_class == static_cast<uint8_t>(APCPagedNodeRelMaskClasses::NANNULL))
             {
-                return NO_VAL;
+                return UNSIGNED_ZERO;
             }
             return (1u << rel_class);
         }

@@ -25,8 +25,8 @@ namespace PredictedAdaptedEncoding
         WriteBoundsPairToHeader_(full_paged_node_layout.FreeLayout);
 
         WriteBrenchMeta32_(MetaIndexOfAPCNode::REGION_DIR_COUNT, TOTAL_LAYOUT_SECTION_IN_APC_CONTAINER_NODE);
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::EDGE_TABLE_COUNT, NO_VAL);
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::WEIGHT_TABLE_COUNT, NO_VAL);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::EDGE_TABLE_COUNT, UNSIGNED_ZERO);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::WEIGHT_TABLE_COUNT, UNSIGNED_ZERO);
 
         TurnOnMultipleSegmentFlagsAtOnce_(static_cast<uint32_t>(ControlEnumOfAPCSegment::HAS_LAYOUT_DIR));
 
@@ -66,7 +66,7 @@ namespace PredictedAdaptedEncoding
                 initial_cursor = payload_end;
                 return;
             }
-            const uint32_t remaining_span = (payload_end > initial_cursor) ? (payload_end - initial_cursor) : NO_VAL;
+            const uint32_t remaining_span = (payload_end > initial_cursor) ? (payload_end - initial_cursor) : UNSIGNED_ZERO;
             wanted_span = std::min<uint32_t>(wanted_span, remaining_span);
             one.EndIndex = initial_cursor + wanted_span;
             initial_cursor = one.EndIndex;
@@ -297,20 +297,20 @@ namespace PredictedAdaptedEncoding
         }
 
         const uint32_t payload_capacity = static_cast<uint32_t>(PayloadCapacityFromHeader());
-        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS, NO_VAL);
-        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS, NO_VAL);
+        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS, UNSIGNED_ZERO);
+        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS, UNSIGNED_ZERO);
         WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_IDLE_CELLS, payload_capacity);
-        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_FAULTY_CELLS, NO_VAL);
+        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_FAULTY_CELLS, UNSIGNED_ZERO);
 
         for (uint8_t i = 0; i < APCAndPagedNodeHelpers::SIZE_OF_APCPagedNodeRelMaskClasses; i++)
         {
             WriteExactMetaCellJustNewValue(
                 APCAndPagedNodeHelpers::GetOccupancyMetIndexByRegionClass(static_cast<APCPagedNodeRelMaskClasses>(i)),
-                NO_VAL
+                UNSIGNED_ZERO
             );
         }
         
-        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS, NO_VAL);
+        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS, UNSIGNED_ZERO);
         return true;      
     }
 

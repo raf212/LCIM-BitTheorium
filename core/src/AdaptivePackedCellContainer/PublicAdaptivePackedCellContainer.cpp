@@ -131,8 +131,8 @@ namespace PredictedAdaptedEncoding
             container_cfg,
             true,
             APCNodeComputeKind::NONE,
-            NO_VAL,
-            NO_VAL
+            UNSIGNED_ZERO,
+            UNSIGNED_ZERO
         );
         InitZeroState_();
         if (container_cfg.RegionSize > 0)
@@ -318,7 +318,7 @@ namespace PredictedAdaptedEncoding
                 break;
             }
             const uint32_t previous_id = current_apc_ptr->ReadMetaCellValue32(MetaIndexOfAPCNode::SHARED_PREVIOUS_ID);
-            if (previous_id == NO_VAL || previous_id == BRANCH_SENTINAL)
+            if (previous_id == UNSIGNED_ZERO || previous_id == BRANCH_SENTINAL)
             {
                 break;
             }
@@ -342,7 +342,7 @@ namespace PredictedAdaptedEncoding
 
         const uint32_t next_apc_id = ReadMetaCellValue32(MetaIndexOfAPCNode::SHARED_NEXT_ID);
 
-        if (next_apc_id == NO_VAL || next_apc_id == BRANCH_SENTINAL)
+        if (next_apc_id == UNSIGNED_ZERO || next_apc_id == BRANCH_SENTINAL)
         {
             return nullptr;
         }
@@ -363,7 +363,7 @@ namespace PredictedAdaptedEncoding
         AdaptivePackedCellContainer* current_apc_ptr = FindSharedRootOrThis();
         while (current_apc_ptr)
         {
-            if (current_apc_ptr->AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange() > NO_VAL)
+            if (current_apc_ptr->AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange() > UNSIGNED_ZERO)
             {
                 return false;
             }
@@ -372,7 +372,7 @@ namespace PredictedAdaptedEncoding
                 break;
             }
             uint32_t next_apc_id = current_apc_ptr->ReadMetaCellValue32(MetaIndexOfAPCNode::SHARED_NEXT_ID);
-            if (next_apc_id == NO_VAL || next_apc_id == BRANCH_SENTINAL)
+            if (next_apc_id == UNSIGNED_ZERO || next_apc_id == BRANCH_SENTINAL)
             {
                 break;
             }
@@ -460,7 +460,7 @@ namespace PredictedAdaptedEncoding
     PublishResult AdaptivePackedCellContainer::PublishCellByRegionMAskTraverseStartsFromThisAPC(APCPagedNodeRelMaskClasses region_kind, packed64_t cell_to_publish, uint16_t max_tries) noexcept
     {
         (void)max_tries;
-        
+
         if (!IfAPCBranchValid())
         {
             const PublishResult invalid{};
@@ -526,7 +526,7 @@ namespace PredictedAdaptedEncoding
         }
         const uint32_t root_branch_id = root_apc_ptr->GetBranchId();
         const uint32_t root_logical_id = root_apc_ptr->GetLogicalId();
-        const uint32_t shared_group_id = (root_apc_ptr->GetSharedId() == NO_VAL || root_apc_ptr->GetSharedId() == BRANCH_SENTINAL) ?
+        const uint32_t shared_group_id = (root_apc_ptr->GetSharedId() == UNSIGNED_ZERO || root_apc_ptr->GetSharedId() == BRANCH_SENTINAL) ?
                                             root_branch_id : root_apc_ptr->GetSharedId();
         const uint32_t parents_depth = CurrentBranchDepthRead();
         const uint32_t child_depth = parents_depth + 1u;
@@ -573,7 +573,7 @@ namespace PredictedAdaptedEncoding
         }
         
         const uint32_t new_child_branch_id = new_child_segment_ptr->GetBranchId();
-        if (new_child_branch_id == NO_VAL || new_child_branch_id == BRANCH_SENTINAL || new_child_branch_id == root_branch_id)
+        if (new_child_branch_id == UNSIGNED_ZERO || new_child_branch_id == BRANCH_SENTINAL || new_child_branch_id == root_branch_id)
         {
             new_child_segment_ptr->FreeAll();
             delete new_child_segment_ptr;
@@ -650,7 +650,7 @@ namespace PredictedAdaptedEncoding
         AdaptivePackedCellContainer* root_apc_ptr = FindSharedRootOrThis();
         
         const uint32_t shared_group_id = (
-            root_apc_ptr->GetSharedId() == NO_VAL || root_apc_ptr->GetSharedId() == BRANCH_SENTINAL
+            root_apc_ptr->GetSharedId() == UNSIGNED_ZERO || root_apc_ptr->GetSharedId() == BRANCH_SENTINAL
         ) ? root_apc_ptr->GetBranchId() : root_apc_ptr->GetSharedId();
         std::vector<AdaptivePackedCellContainer*> apc_chain;
         AdaptivePackedCellContainer* current_apc = root_apc_ptr;
@@ -716,7 +716,7 @@ namespace PredictedAdaptedEncoding
             return;
         }
         
-        const packed64_t idle = OwnedMasterClockConfPtr_->ComposeValue32WithCurrentThreadStamp16(NO_VAL);
+        const packed64_t idle = OwnedMasterClockConfPtr_->ComposeValue32WithCurrentThreadStamp16(UNSIGNED_ZERO);
         BackingPtr[static_cast<size_t>(MetaIndexOfAPCNode::MANAGER_CONTROL_FLAGS)].store(idle, MoStoreSeq_);
     }
 
@@ -749,7 +749,7 @@ namespace PredictedAdaptedEncoding
     {
         if (!IfAPCBranchValid())
         {
-            return NO_VAL;
+            return UNSIGNED_ZERO;
         }
 
         uint32_t count = 0;
@@ -767,13 +767,13 @@ namespace PredictedAdaptedEncoding
     {
         if (!IfAPCBranchValid())
         {
-            return NO_VAL;
+            return UNSIGNED_ZERO;
         }
 
         auto maybe_desired_class_bounds = ReadLayoutBounds(desired_region_class);
         if (!maybe_desired_class_bounds || maybe_desired_class_bounds->IsEmpty())
         {
-            return NO_VAL;
+            return UNSIGNED_ZERO;
         }
 
         uint32_t count = 0;
@@ -809,7 +809,7 @@ namespace PredictedAdaptedEncoding
     {
         if (!IfAPCBranchValid())
         {
-            return NO_VAL;
+            return UNSIGNED_ZERO;
         }
 
         const uint32_t exact_combined_local_occ = GetLocalTotalOccupancy();
@@ -846,7 +846,7 @@ namespace PredictedAdaptedEncoding
         for (uint8_t rel_class = 0; rel_class < APCAndPagedNodeHelpers::SIZE_OF_APCPagedNodeRelMaskClasses; rel_class++)
         {
             const auto current_region = static_cast<APCPagedNodeRelMaskClasses>(rel_class);
-            if (CountExactTotalChainOccupancy(current_region) > NO_VAL)
+            if (CountExactTotalChainOccupancy(current_region) > UNSIGNED_ZERO)
             {
                 mask |= APCAndPagedNodeHelpers::MakeOneAPCNodeClassReadyBit(current_region);
             }

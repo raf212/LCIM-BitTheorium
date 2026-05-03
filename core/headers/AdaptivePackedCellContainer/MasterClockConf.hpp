@@ -110,7 +110,7 @@ class AdaptivePackedCellContainer;
             return PackedCell64_t::ComposeCLK48u_64(full_clock48, strl_for_pure48_clock);
         }
 
-        inline uint8_t SetAndGetTimerDownShift(unsigned down_shift_value = NO_VAL) noexcept
+        inline uint8_t SetAndGetTimerDownShift(unsigned down_shift_value = UNSIGNED_ZERO) noexcept
         {
             if (down_shift_value >= MIN_TIMER_DOWNSHIFT && down_shift_value <= MAX_TIMER_DOWNSHIFT)
             {

@@ -32,7 +32,7 @@ private:
             const uint32_t current32 = ReadMetaCellValue32(idx);
             const clk16_t current = static_cast<clk16_t>(current32);
 
-            if (current32 != NO_VAL &&
+            if (current32 != UNSIGNED_ZERO &&
                 !APCAndPagedNodeHelpers::INewerClock16(candidate, current))
             {
                 return false;

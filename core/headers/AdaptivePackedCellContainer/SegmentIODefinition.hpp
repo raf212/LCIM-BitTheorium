@@ -6,7 +6,7 @@ namespace PredictedAdaptedEncoding
 {
 
 
-class SegmentIODefinition : public APCStaticsFirst
+class SegmentIODefinition : public APCDataStructure
 {
 public:
     std::atomic<packed64_t>* BackingPtr{nullptr};

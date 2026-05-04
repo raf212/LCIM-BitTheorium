@@ -143,7 +143,7 @@ namespace PredictedAdaptedEncoding
     };
 
 
-    class APCStaticsFirst
+    class APCDataStructure
     {
     public:
         static constexpr size_t METACELL_COUNT = 96;
@@ -151,8 +151,6 @@ namespace PredictedAdaptedEncoding
         static constexpr uint32_t EOF_HEADER = 0x72616600;//big-endian
         static constexpr uint32_t BRANCH_VERSION = 1u;
         static constexpr packed64_t PACKED_CELL_SENTENAL = UINT64_MAX;
-        static constexpr uint32_t PAYLOAD_BOUND_START = static_cast<uint32_t>(MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN);
-        static constexpr uint32_t PAYLOAD_BOUND_END = static_cast<uint32_t>(MetaIndexOfAPCNode::FREE_END);
         static constexpr uint32_t APC_MAX_LENGTH = UINT16_MAX - 1;
         static constexpr uint32_t APC_INDEX_COUNTER_MAX = UINT16_MAX;
         static constexpr unsigned MASK_LOW_16 = static_cast<unsigned>(MaskLowNBits(16)); 

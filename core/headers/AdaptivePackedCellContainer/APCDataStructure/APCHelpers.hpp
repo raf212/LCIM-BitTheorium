@@ -2,7 +2,7 @@
 #pragma once 
 #include <array>
 #include <utility>
-#include "APCStaticsFirst.hpp"
+#include "APCDataStructure.hpp"
 
 namespace PredictedAdaptedEncoding
 {

@@ -125,7 +125,7 @@ namespace PredictedAdaptedEncoding {
     {
         RELOFFSET_GENERIC_VALUE = 0,
         RELOFFSET_PURE_TIMER = 1,
-        RELOFFSET_STANDALONE_PTR = 2,
+        THREE_16_BIT_SUB_DIVISION  = 2,
         CONTROL_SLOT = 3
     };
 

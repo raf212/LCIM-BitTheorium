@@ -24,7 +24,7 @@ namespace PredictedAdaptedEncoding
         WriteBoundsPairToHeader_(full_paged_node_layout.AUXLayout);
         WriteBoundsPairToHeader_(full_paged_node_layout.FreeLayout);
 
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::REGION_DIR_COUNT, TOTAL_LAYOUT_SECTION_IN_APC_CONTAINER_NODE);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::REGION_DIR_COUNT, static_cast<val32_t>(APCAndPagedNodeHelpers::SIZE_OF_APCPagedNodeRelMaskClasses));
         WriteBrenchMeta32_(MetaIndexOfAPCNode::EDGE_TABLE_COUNT, UNSIGNED_ZERO);
         WriteBrenchMeta32_(MetaIndexOfAPCNode::WEIGHT_TABLE_COUNT, UNSIGNED_ZERO);
 

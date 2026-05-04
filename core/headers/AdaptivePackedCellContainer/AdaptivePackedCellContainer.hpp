@@ -9,7 +9,6 @@
 #include "MasterClockConf.hpp"
 #include "SegmentIODefinition.hpp"
 #include "../PackedCellContainerManager.hpp"
-#include "APCHElpers.hpp"
 
 namespace PredictedAdaptedEncoding
 {

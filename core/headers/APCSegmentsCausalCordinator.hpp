@@ -1,7 +1,6 @@
 #pragma once
 #include <array>
 #include <utility>
-#include "AdaptivePackedCellContainer/APCHElpers.hpp"
 #include "AdaptivePackedCellContainer/AdaptivePackedCellContainer.hpp"
 #include "PackedCellContainerManager.hpp"
 

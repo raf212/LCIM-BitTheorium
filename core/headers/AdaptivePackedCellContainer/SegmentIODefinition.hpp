@@ -1,7 +1,6 @@
 #pragma once
 #include "PackedCell/CoreCellDefination.hpp"
 #include "MasterClockConf.hpp"
-#include "APCHelpers.hpp"
 
 namespace PredictedAdaptedEncoding
 {
@@ -17,8 +16,6 @@ public:
     static constexpr uint32_t BRANCH_VERSION = 1u;
     static constexpr uint32_t BRANCH_SENTINAL = LayoutBoundsOfSingleRelNodeClass::BRANCH_SENTINAL;
     static constexpr packed64_t APC_SENTENAL = UINT64_MAX;
-    static constexpr uint8_t TOTAL_LAYOUT_SECTION_IN_APC_CONTAINER_NODE = 8;
-    static constexpr uint8_t OPTIMAL_FREE_LAYOUT_PERCENTAGE = 20;
     
     enum class APCNodeComputeKind : uint32_t
     {

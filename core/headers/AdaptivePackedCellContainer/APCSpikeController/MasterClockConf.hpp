@@ -19,7 +19,7 @@ class AdaptivePackedCellContainer;
             using  cns = std::chrono::nanoseconds;
             auto d = std::chrono::steady_clock::now().time_since_epoch();
             uint64_t ns_count = static_cast<uint64_t>(std::chrono::duration_cast<cns>(d).count());
-            return ns_count & MaskBits(CLK_B48);
+            return ns_count & MaskLowNBits(CLK_B48);
         }
     };
 
@@ -68,7 +68,7 @@ class AdaptivePackedCellContainer;
 
         inline clk16_t GetImmidiateDownShiftedClock16(uint64_t now_ticks48) const noexcept
         {
-            return static_cast<clk16_t>((now_ticks48 >> TimerDownShift_) & MaskBits(CLK_B16));
+            return static_cast<clk16_t>((now_ticks48 >> TimerDownShift_) & MaskLowNBits(CLK_B16));
         }
 
         inline clk16_t NowClock16() const noexcept

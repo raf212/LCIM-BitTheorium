@@ -100,9 +100,9 @@ std::optional<uint64_t> MasterClockConf::ReconstructCellClock16toFull48BySegment
 
     const packed64_t local_clock_cell = APCPtr_->ReadFullMetaCell(MetaIndexOfAPCNode::LOCAL_CLOCK48);
 
-    const uint64_t local_clock48 = PackedCell64_t::ExtractClk48(local_clock_cell) & MaskBits(CLK_B48);
+    const uint64_t local_clock48 = PackedCell64_t::ExtractClk48(local_clock_cell) & MaskLowNBits(CLK_B48);
 
-    const uint64_t local_down = (local_clock48 >> TimerDownShift_) & MaskBits(CLK_B48);
+    const uint64_t local_down = (local_clock48 >> TimerDownShift_) & MaskLowNBits(CLK_B48);
     uint64_t candidate_down = (local_down & ~uint64_t(0xFFFFu)) | static_cast<uint64_t>(stored_clk16);
 
     if (candidate_down > local_down)
@@ -110,7 +110,7 @@ std::optional<uint64_t> MasterClockConf::ReconstructCellClock16toFull48BySegment
         candidate_down -= (1ull << CLK_B16);
     }
 
-    const uint64_t reconstructed = (candidate_down << TimerDownShift_) & MaskBits(CLK_B48);
+    const uint64_t reconstructed = (candidate_down << TimerDownShift_) & MaskLowNBits(CLK_B48);
     return reconstructed;
 }
 

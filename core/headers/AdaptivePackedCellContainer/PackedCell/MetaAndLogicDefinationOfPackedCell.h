@@ -161,7 +161,7 @@ namespace PredictedAdaptedEncoding {
         NANNULL     = 0xF
     };
 
-    static inline constexpr packed64_t MaskBits(unsigned n) noexcept
+    static inline constexpr packed64_t MaskLowNBits(unsigned n) noexcept
     {
         if (n == UNSIGNED_ZERO) return packed64_t(0);
         if (n >= MAX_VAL) return ~packed64_t(0);

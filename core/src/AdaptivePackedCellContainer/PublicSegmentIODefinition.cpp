@@ -50,7 +50,7 @@ namespace PredictedAdaptedEncoding
             return PackedCell64_t::ComposeCLK48u_64(clock48.value(), strl_clock48);
         }
         Timer48 now_timer;
-        return PackedCell64_t::ComposeCLK48u_64((now_timer.NowTicks() & MaskBits(CLK_B48)), strl_clock48);
+        return PackedCell64_t::ComposeCLK48u_64((now_timer.NowTicks() & MaskLowNBits(CLK_B48)), strl_clock48);
     }
 
     void SegmentIODefinition::WriteOrUpdateMetaClock48(PriorityPhysics priority, std::optional<uint64_t>meta_clock_48 ) noexcept

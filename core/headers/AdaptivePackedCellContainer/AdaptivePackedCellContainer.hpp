@@ -28,7 +28,6 @@ class AdaptivePackedCellContainer : public SegmentIODefinition
         std::unique_ptr<std::atomic<uint8_t>[]> RegionRelArray_{nullptr};
         std::vector<std::vector<uint64_t>> RelBitmaps_;
         std::unique_ptr<std::atomic<uint64_t>[]> RegionEpochArray_{nullptr};
-        static inline thread_local std::vector<std::pair<size_t, packed64_t>> TLSCandidates_;
         //--??
 
         std::atomic<AdaptivePackedCellContainer*> RegistryNextAPCPtr_{nullptr};

@@ -66,7 +66,7 @@ public:
         {
             return BackingPtr[static_cast<size_t>(idx)].load(MoLoad_);
         }
-        return APC_SENTENAL;
+        return PACKED_CELL_SENTENAL;
     }
     
 protected:

@@ -302,7 +302,7 @@ private:
     {
         if (PCMode_ == PackedMode::MODE_CLKVAL48)
         {
-            return (PackedCell64_t::ExtractClk48(packed) & MaskBits(CLK_B48));
+            return (PackedCell64_t::ExtractClk48(packed) & MaskLowNBits(CLK_B48));
         }
         else
         {
@@ -316,13 +316,13 @@ private:
                 }
             }
             unsigned ds = Cfg_.DownShift;
-            uint64_t now_down = (now_ticks >> ds) & MaskBits(TOTAL_LOW);
+            uint64_t now_down = (now_ticks >> ds) & MaskLowNBits(TOTAL_LOW);
             uint64_t candidate = (((now_down & ~uint64_t(0xFFFFu)) | (static_cast<uint64_t>(stored_clock16))));
             if (candidate > now_down)
             {
                 candidate -= (1ull << CLK_B16); //why?
             }
-            uint64_t pub_ticks = (candidate << ds) & MaskBits(TOTAL_LOW);
+            uint64_t pub_ticks = (candidate << ds) & MaskLowNBits(TOTAL_LOW);
             return pub_ticks;
         }
         
@@ -378,7 +378,7 @@ public:
             now = observe_time_ticks.value_or(PublicTimer48.NowTicks());
         }
         uint64_t pub_ticks = ReconstructPublishTicks_(now, pub_p);
-        uint64_t age_ticks = (now - pub_ticks) & MaskBits(TOTAL_LOW);
+        uint64_t age_ticks = (now - pub_ticks) & MaskLowNBits(TOTAL_LOW);
         uint64_t age_us = age_ticks / 1000u; //micro sec conver
         Ema_.ObserveTicks(age_ticks);
         Hist_.ObserveUS(age_us);
@@ -397,7 +397,7 @@ public:
         }
         int8_t priority = static_cast<int8_t>(PackedCell64_t::ExtractPriorityFromPacked(slot_payload));
         uint64_t pub_ticks = ReconstructPublishTicks_(now, slot_payload, master_clock_slot_id_opt);
-        uint64_t age_ticks = (now - pub_ticks) & MaskBits(TOTAL_LOW);
+        uint64_t age_ticks = (now - pub_ticks) & MaskLowNBits(TOTAL_LOW);
         uint64_t age_us = age_ticks / 1000u;
         std::optional<double> hazard_hist = Hist_.ProbHazardAtUS(age_us);
         double hazard = 0.0;

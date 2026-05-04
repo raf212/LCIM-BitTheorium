@@ -8,7 +8,6 @@ namespace PredictedAdaptedEncoding
 
     struct PackedCell64_t 
     {
-        static constexpr size_t METACELL_COUNT_FIRST = 96;
         static constexpr uint16_t CLOCK_16_SENTINAL = UINT16_MAX;
         static constexpr uint64_t PACKED_CELL_SENTINAL = UINT64_MAX;
 
@@ -57,7 +56,7 @@ namespace PredictedAdaptedEncoding
             {
                 return MakeFaultyCell();
             }
-            packed64_t packed_cell = (packed64_t(in_cell_value) & MaskBits(VALBITS));
+            packed64_t packed_cell = (packed64_t(in_cell_value) & MaskLowNBits(VALBITS));
             packed_cell = SetCLK16InPacked(packed_cell, clock16);
             packed_cell = SetMETA16InPacked(packed_cell, meta16);
             return packed_cell;
@@ -69,16 +68,16 @@ namespace PredictedAdaptedEncoding
             {
                 return MakeFaultyCell();
             }
-            packed64_t packed_cell = (packed64_t(clockor_value48) & MaskBits(CLK_B48));
+            packed64_t packed_cell = (packed64_t(clockor_value48) & MaskLowNBits(CLK_B48));
             packed_cell = SetMETA16InPacked(packed_cell, meta16);
             return packed_cell;
         }
 
         static inline packed64_t SetMETA16InPacked(packed64_t packed_cell, meta16_t meta16) noexcept
         {
-            constexpr packed64_t top_48_bit_mask = MaskBits(META16_B16) << TOTAL_LOW;
+            constexpr packed64_t top_48_bit_mask = MaskLowNBits(META16_B16) << TOTAL_LOW;
             packed_cell &= ~top_48_bit_mask;
-            packed_cell |= (packed64_t(meta16) & MaskBits(META16_B16)) << TOTAL_LOW;
+            packed_cell |= (packed64_t(meta16) & MaskLowNBits(META16_B16)) << TOTAL_LOW;
             return packed_cell;
         }
 
@@ -135,21 +134,21 @@ namespace PredictedAdaptedEncoding
                 return MakeFaultyCell();
             }
             uint64_t value_casted_bit = BitCastMaybe<uint64_t>(value_clock48);
-            return ComposeCLK48u_64(value_casted_bit & MaskBits(CLK_B48), meta16);
+            return ComposeCLK48u_64(value_casted_bit & MaskLowNBits(CLK_B48), meta16);
             
         }
 
         static inline packed64_t SetCLK16InPacked(packed64_t packed_cell, clk16_t clk16)
         {
-            constexpr packed64_t clk16_mask = (MaskBits(CLK_B16) << VALBITS);
+            constexpr packed64_t clk16_mask = (MaskLowNBits(CLK_B16) << VALBITS);
             packed_cell &= ~clk16_mask;
-            packed_cell |= (packed64_t(clk16 & MaskBits(CLK_B16)) << VALBITS);
+            packed_cell |= (packed64_t(clk16 & MaskLowNBits(CLK_B16)) << VALBITS);
             return packed_cell;
         }
 
         static inline meta16_t ExtractMeta16fromPackedCell(packed64_t packed_cell) noexcept
         {
-            return static_cast<meta16_t>((packed_cell >> TOTAL_LOW) & MaskBits(META16_B16));
+            return static_cast<meta16_t>((packed_cell >> TOTAL_LOW) & MaskLowNBits(META16_B16));
         }
 
 
@@ -173,7 +172,7 @@ namespace PredictedAdaptedEncoding
             {
                 return UINT32_MAX;
             }
-            return static_cast<val32_t>(packed_cell & MaskBits(VALBITS));
+            return static_cast<val32_t>(packed_cell & MaskLowNBits(VALBITS));
         }
 
         static inline clk16_t ExtractClk16(packed64_t packed_cell) noexcept
@@ -182,7 +181,7 @@ namespace PredictedAdaptedEncoding
             {
                 return CLOCK_16_SENTINAL;
             }
-            return static_cast<clk16_t>((packed_cell >> (VALBITS)) & MaskBits(CLK_B16));
+            return static_cast<clk16_t>((packed_cell >> (VALBITS)) & MaskLowNBits(CLK_B16));
         }
 
         static inline uint64_t ExtractClk48(packed64_t packed_cell) noexcept
@@ -191,7 +190,7 @@ namespace PredictedAdaptedEncoding
             {
                 return PACKED_CELL_SENTINAL;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
             }
-            return static_cast<uint64_t>(packed_cell & MaskBits(CLK_B48));
+            return static_cast<uint64_t>(packed_cell & MaskLowNBits(CLK_B48));
         }
 
         static inline PriorityPhysics ExtractPriorityFromPacked(packed64_t packed_cell) noexcept

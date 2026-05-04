@@ -145,18 +145,64 @@ namespace PredictedAdaptedEncoding
 
     class APCStaticsFirst
     {
-    protected:
-
-
-
     public:
-        static constexpr size_t METACELL_COUNT = PackedCell64_t::METACELL_COUNT_FIRST;
+        static constexpr size_t METACELL_COUNT = 96;
         static constexpr uint32_t BRANCH_MAGIC = 0x41504342u;//big-endian
         static constexpr uint32_t EOF_HEADER = 0x72616600;//big-endian
         static constexpr uint32_t BRANCH_VERSION = 1u;
-        static constexpr packed64_t APC_SENTENAL = UINT64_MAX;
+        static constexpr packed64_t PACKED_CELL_SENTENAL = UINT64_MAX;
         static constexpr uint32_t PAYLOAD_BOUND_START = static_cast<uint32_t>(MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN);
         static constexpr uint32_t PAYLOAD_BOUND_END = static_cast<uint32_t>(MetaIndexOfAPCNode::FREE_END);
+        static constexpr uint32_t APC_MAX_LENGTH = UINT16_MAX - 1;
+        static constexpr uint32_t APC_INDEX_COUNTER_MAX = UINT16_MAX;
+        static constexpr unsigned MASK_LOW_16 = static_cast<unsigned>(MaskLowNBits(16)); 
+
+        static inline bool IsCapacityOfAPCLegal(size_t total_capacity) noexcept
+        {
+            return total_capacity > METACELL_COUNT && total_capacity <= APC_MAX_LENGTH;
+        }
+
+        static inline uint16_t SumOfTotalUsedOrActiveOccupancyfromPackedCell48(packed64_t packed_cell48) noexcept
+        {
+            return GetPublishedOccupancyFromPackedCell48_(packed_cell48) +
+                GetClaimedOccupancyFromPackedCell48_(packed_cell48) +
+                GetFaultyOccupancyFromPackedCell48_(packed_cell48);
+        }
+
+
+    protected:
+        static constexpr unsigned PUBLISHED_OCCUPANCY_SHIFT_ = 0u;
+        static constexpr unsigned CLAIMED_OCCUPANCY_SHIFT_ = 16u;
+        static constexpr unsigned FAULTY_OCCUPANCY_SHIFT_ = 32u;
+
+
+        static inline uint64_t PublishedClaimedFaultyCombinedOccupancy3x16_48t_(
+            uint16_t published_occupancy,
+            uint16_t claimed_occupancy,
+            uint16_t faulty_occupancy
+        ) noexcept
+        {
+            return (uint64_t(published_occupancy << PUBLISHED_OCCUPANCY_SHIFT_))    | 
+            (uint64_t(claimed_occupancy) << CLAIMED_OCCUPANCY_SHIFT_)               |
+            (uint64_t(faulty_occupancy) << FAULTY_OCCUPANCY_SHIFT_);
+        }
+
+        static inline uint16_t GetPublishedOccupancyFromPackedCell48_(packed64_t packed_cell) noexcept
+        {
+            return static_cast<uint16_t>((packed_cell >> PUBLISHED_OCCUPANCY_SHIFT_) & MASK_LOW_16);
+        }
+
+        static inline uint16_t GetClaimedOccupancyFromPackedCell48_(packed64_t packed_cell) noexcept
+        {
+            return static_cast<uint16_t>((packed_cell >> CLAIMED_OCCUPANCY_SHIFT_) & MASK_LOW_16);
+        }
+        
+        static inline uint16_t GetFaultyOccupancyFromPackedCell48_(packed64_t packed_cell) noexcept
+        {
+            return static_cast<uint16_t>((packed_cell >> FAULTY_OCCUPANCY_SHIFT_) & MASK_LOW_16);
+        }
+
+        
         
     };
     

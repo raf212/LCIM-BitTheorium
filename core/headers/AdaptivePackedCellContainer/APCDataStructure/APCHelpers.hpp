@@ -6,7 +6,26 @@
 
 namespace PredictedAdaptedEncoding
 {
+    struct ContainerConf
+    {
+        PackedMode InitialMode = PackedMode::MODE_VALUE32;
+        size_t ProducerBlockSize = MIN_PRODUCER_BLOCK_SIZE;
+        size_t RegionSize = MIN_REGION_SIZE;
+        uint32_t RetireBatchThreshold = MIN_RETIRE_BATCH_THRESHOLD;
+        uint32_t BackgroundEpochAdvanceMS = MIN_BACKGROUND_EPOCH_MS;
+        bool EnableBranching = true;
+        uint32_t BranchSplitThresholdPercentage = INITIAL_BRANCH_SPLIT_THRESHOLD_PERCENTAGE;
+        uint32_t BranchMaxDepth = MAX_BRANCH_DEPTH;
+        size_t BranchMinChildCapacity = MINIMUM_BRANCH_CAPACITY;
+        uint32_t NodeGroupSize = 1u;
 
+        enum class APCSegmentExtendOrder : uint8_t
+        {
+            FIFO = 0,
+            PRIORITY = 1,
+            RANDOM = 2
+        };
+    };
 
     struct APCAndPagedNodeHelpers
     {

@@ -503,6 +503,40 @@ namespace PredictedAdaptedEncoding
             return BitCastMaybe<PCDT>(value_bits_48);
         }
         
+        static inline constexpr tag8_t ExtractPriorityFromMETA16_U_(meta16_t meta16) noexcept
+        {
+            return static_cast<tag8_t>((meta16 >> PRIORITY_SHIFT) & PRIORITY_MASK);
+        }
+
+        static inline constexpr tag8_t ExtractCellLocalNodeAuthotityFromMETA16_U_(meta16_t meta16) noexcept
+        {
+            return static_cast<tag8_t>((meta16 >> NODE_AUTH_SHIFT ) & NODE_AUTH_MASK);
+        }
+        
+        static inline constexpr tag8_t ExtractLocalityFromMETA16_U_(meta16_t meta16) noexcept
+        {
+            return static_cast<tag8_t>((meta16 >> LOCALITY_SHIFT) & LOCALITY_MASK);
+        }
+
+        static inline constexpr tag8_t ExtractCellModeFromMETA16_U_(meta16_t meta16) noexcept
+        {
+            return static_cast<tag8_t>((meta16 >> CELL_MODE_SHIFT) & CELL_MODE_MASK);
+        }
+
+        static inline constexpr tag8_t ExtractRelMaskFromMETA16_U_(meta16_t meta16) noexcept
+        {
+            return static_cast<tag8_t>((meta16 >> RELMASK_SHIFT) & RELMASK_MASK);
+        }
+
+        static inline constexpr tag8_t ExtractRelOffsetFromMETA16_U_(meta16_t meta16) noexcept
+        {
+            return static_cast<tag8_t>((meta16 >> RELOFFSET_SHIFT) & RELOFFSET_MASK);
+        }
+
+        static inline constexpr tag8_t ExtractValueDataTypeFromMETA16_U_(meta16_t meta16) noexcept
+        {
+            return static_cast<tag8_t>((meta16 >> PCELL_DETATYPE_SHIFT) & PCELL_DATATYPE_MASK);
+        }
 
     private:
 
@@ -629,40 +663,7 @@ namespace PredictedAdaptedEncoding
             return cell_meta;
         }
 
-        static inline constexpr tag8_t ExtractPriorityFromMETA16_U_(meta16_t meta16) noexcept
-        {
-            return static_cast<tag8_t>((meta16 >> PRIORITY_SHIFT) & PRIORITY_MASK);
-        }
 
-        static inline constexpr tag8_t ExtractCellLocalNodeAuthotityFromMETA16_U_(meta16_t meta16) noexcept
-        {
-            return static_cast<tag8_t>((meta16 >> NODE_AUTH_SHIFT ) & NODE_AUTH_MASK);
-        }
-        
-        static inline constexpr tag8_t ExtractLocalityFromMETA16_U_(meta16_t meta16) noexcept
-        {
-            return static_cast<tag8_t>((meta16 >> LOCALITY_SHIFT) & LOCALITY_MASK);
-        }
-
-        static inline constexpr tag8_t ExtractCellModeFromMETA16_U_(meta16_t meta16) noexcept
-        {
-            return static_cast<tag8_t>((meta16 >> CELL_MODE_SHIFT) & CELL_MODE_MASK);
-        }
-
-        static inline constexpr tag8_t ExtractRelMaskFromMETA16_U_(meta16_t meta16) noexcept
-        {
-            return static_cast<tag8_t>((meta16 >> RELMASK_SHIFT) & RELMASK_MASK);
-        }
-
-        static inline constexpr tag8_t ExtractRelOffsetFromMETA16_U_(meta16_t meta16) noexcept
-        {
-            return static_cast<tag8_t>((meta16 >> RELOFFSET_SHIFT) & RELOFFSET_MASK);
-        }
-
-        static inline constexpr tag8_t ExtractValueDataTypeFromMETA16_U_(meta16_t meta16) noexcept
-        {
-            return static_cast<tag8_t>((meta16 >> PCELL_DETATYPE_SHIFT) & PCELL_DATATYPE_MASK);
-        }
 
 
     };

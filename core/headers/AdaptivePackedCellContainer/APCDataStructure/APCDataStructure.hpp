@@ -121,28 +121,6 @@ namespace PredictedAdaptedEncoding
     };
 
 
-    struct ContainerConf
-    {
-        PackedMode InitialMode = PackedMode::MODE_VALUE32;
-        size_t ProducerBlockSize = MIN_PRODUCER_BLOCK_SIZE;
-        size_t RegionSize = MIN_REGION_SIZE;
-        uint32_t RetireBatchThreshold = MIN_RETIRE_BATCH_THRESHOLD;
-        uint32_t BackgroundEpochAdvanceMS = MIN_BACKGROUND_EPOCH_MS;
-        bool EnableBranching = true;
-        uint32_t BranchSplitThresholdPercentage = INITIAL_BRANCH_SPLIT_THRESHOLD_PERCENTAGE;
-        uint32_t BranchMaxDepth = MAX_BRANCH_DEPTH;
-        size_t BranchMinChildCapacity = MINIMUM_BRANCH_CAPACITY;
-        uint32_t NodeGroupSize = 1u;
-
-        enum class APCSegmentExtendOrder : uint8_t
-        {
-            FIFO = 0,
-            PRIORITY = 1,
-            RANDOM = 2
-        };
-    };
-
-
     class APCDataStructure
     {
     public:
@@ -151,57 +129,82 @@ namespace PredictedAdaptedEncoding
         static constexpr uint32_t EOF_HEADER = 0x72616600;//big-endian
         static constexpr uint32_t BRANCH_VERSION = 1u;
         static constexpr packed64_t PACKED_CELL_SENTENAL = UINT64_MAX;
-        static constexpr uint32_t APC_MAX_LENGTH = UINT16_MAX - 1;
-        static constexpr uint32_t APC_INDEX_COUNTER_MAX = UINT16_MAX;
-        static constexpr unsigned MASK_LOW_16 = static_cast<unsigned>(MaskLowNBits(16)); 
-
-        static inline bool IsCapacityOfAPCLegal(size_t total_capacity) noexcept
-        {
-            return total_capacity > METACELL_COUNT && total_capacity <= APC_MAX_LENGTH;
-        }
-
-        static inline uint16_t SumOfTotalUsedOrActiveOccupancyfromPackedCell48(packed64_t packed_cell48) noexcept
-        {
-            return GetPublishedOccupancyFromPackedCell48_(packed_cell48) +
-                GetClaimedOccupancyFromPackedCell48_(packed_cell48) +
-                GetFaultyOccupancyFromPackedCell48_(packed_cell48);
-        }
+        static constexpr uint32_t APC_MAX_LENGTH_OR_COUNTER = UINT16_MAX - 1;
+        static constexpr uint32_t APC_INDEX_SENTINAL = UINT16_MAX;
+        static constexpr uint64_t MASK_LOW_16 = MaskLowNBits(16);
 
 
-    protected:
-        static constexpr unsigned PUBLISHED_OCCUPANCY_SHIFT_ = 0u;
-        static constexpr unsigned CLAIMED_OCCUPANCY_SHIFT_ = 16u;
-        static constexpr unsigned FAULTY_OCCUPANCY_SHIFT_ = 32u;
-
-
-        static inline uint64_t PublishedClaimedFaultyCombinedOccupancy3x16_48t_(
-            uint16_t published_occupancy,
-            uint16_t claimed_occupancy,
-            uint16_t faulty_occupancy
+        static inline packed64_t Compose3Unsigned16bitIndependentInMode48(
+            uint16_t low16_bits,
+            uint16_t mid_16_bits,
+            uint16_t high_16_bits,
+            meta16_t meta16
         ) noexcept
         {
-            return (uint64_t(published_occupancy << PUBLISHED_OCCUPANCY_SHIFT_))    | 
-            (uint64_t(claimed_occupancy) << CLAIMED_OCCUPANCY_SHIFT_)               |
-            (uint64_t(faulty_occupancy) << FAULTY_OCCUPANCY_SHIFT_);
+            if(static_cast<PackedMode>(PackedCell64_t::ExtractCellModeFromMETA16_U_(meta16)) != PackedMode::MODE_CLKVAL48)
+            {
+                return PackedCell64_t::MakeFaultyCell();
+            }
+            if (static_cast<RelOffsetMode48>(PackedCell64_t::ExtractRelOffsetFromMETA16_U_(meta16)) != RelOffsetMode48::THREE_16_BIT_SUB_DIVISION)
+            {
+                return PackedCell64_t::MakeFaultyCell();
+            }
+
+            packed64_t packed_cell = (PackUnsigned16x3ToMode48_(low16_bits, mid_16_bits, high_16_bits) & MaskLowNBits(CLK_B48));
+            packed_cell = PackedCell64_t::SetMETA16InPacked(packed_cell, meta16);
+            return packed_cell;
         }
 
-        static inline uint16_t GetPublishedOccupancyFromPackedCell48_(packed64_t packed_cell) noexcept
+        static inline std::optional<uint16_t> ExtractLow16FromPackedCellMode48(packed64_t packed_cell) noexcept
         {
-            return static_cast<uint16_t>((packed_cell >> PUBLISHED_OCCUPANCY_SHIFT_) & MASK_LOW_16);
+            if (PackedCell64_t::ExtractRelOffset48FromPacked(packed_cell) != RelOffsetMode48::THREE_16_BIT_SUB_DIVISION)
+            {
+                return std::nullopt;
+            }
+            const uint64_t raw_value48 = PackedCell64_t::ExtractClk48(packed_cell);
+            if (raw_value48 == PackedCell64_t::PACKED_CELL_SENTINAL)
+            {
+                return std::nullopt;
+            }
+            return ExtractLow16FromUnsigned48_(raw_value48);
         }
 
-        static inline uint16_t GetClaimedOccupancyFromPackedCell48_(packed64_t packed_cell) noexcept
-        {
-            return static_cast<uint16_t>((packed_cell >> CLAIMED_OCCUPANCY_SHIFT_) & MASK_LOW_16);
-        }
+    protected:
+        static constexpr unsigned PACK3XU16TOMODE48_SHIFT_LOW = 0u;
+        static constexpr unsigned PACK3XU16TOMODE48_SHIFT_MID = 16u;
+        static constexpr unsigned PACK3XU16TOMODE48_SHIFT_HIGH = 32u;
         
-        static inline uint16_t GetFaultyOccupancyFromPackedCell48_(packed64_t packed_cell) noexcept
+        static inline bool DoseU32FitsInU16_(uint32_t value) noexcept
         {
-            return static_cast<uint16_t>((packed_cell >> FAULTY_OCCUPANCY_SHIFT_) & MASK_LOW_16);
+            return value <= APC_MAX_LENGTH_OR_COUNTER;
         }
 
-        
-        
+        static inline uint64_t PackUnsigned16x3ToMode48_(
+            uint16_t low16_bits,
+            uint16_t mid_16_bits,
+            uint16_t high_16_bits
+        ) noexcept
+        {
+            return (uint64_t{low16_bits} << PACK3XU16TOMODE48_SHIFT_LOW)    |
+                (uint64_t{mid_16_bits} << PACK3XU16TOMODE48_SHIFT_MID)      |
+                (uint64_t(high_16_bits) << PACK3XU16TOMODE48_SHIFT_HIGH);
+        }
+
+        static inline uint16_t ExtractLow16FromUnsigned48_(uint64_t raw48) noexcept
+        {
+            return static_cast<uint16_t>((raw48 >> PACK3XU16TOMODE48_SHIFT_LOW) & MASK_LOW_16);
+        }
+
+        static inline uint16_t ExtractMid16FromUnsigned48_(uint64_t raw48) noexcept
+        {
+            return static_cast<uint16_t>((raw48 >> PACK3XU16TOMODE48_SHIFT_MID) & MASK_LOW_16);
+        }
+
+        static inline uint16_t ExtractHigh16FromUnsigned48_(uint64_t raw48) noexcept
+        {
+            return static_cast<uint16_t>((raw48 >> PACK3XU16TOMODE48_SHIFT_HIGH) & MASK_LOW_16);
+        }
+
     };
     
 

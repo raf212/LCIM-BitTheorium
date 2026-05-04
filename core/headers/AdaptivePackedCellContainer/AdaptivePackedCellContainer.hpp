@@ -18,226 +18,307 @@ static_assert(__cpp_lib_atomic_wait, "C++ must suppoet atomic wait/notify");
 
 class PackedCellContainerManager;
 
-class AdaptivePackedCellContainer
+class AdaptivePackedCellContainer : public SegmentIODefinition
 {
-public:
-    std::atomic<packed64_t>* BackingPtr{nullptr};
 
-    struct QSBRGuard;
+    protected:
 
-    enum class APCPortSlot : uint32_t
-    {
-        NONE = 0,
-        FEED_FORWARD_IN = 1,
-        FEED_FORWARD_OUT = 2,
-        FEED_BACKWARD_IN = 3,
-        FEED_BACKWARD_OUT = 4,
-        LATERAL_0 = 5,
-        LATERAL_1 = 6
-    };
-    
-private:
-    AtomicAdaptiveBackoff* AdaptiveBackoffOfAPCPtr_{nullptr};
-    MasterClockConf* MasterClockConfPtr_{nullptr};
-    PackedCellContainerManager* APCManagerPtr_{nullptr};
-    std::unique_ptr<SegmentIODefinition> SegmentIODefinitionPtr_;
-    static inline std::atomic<uint32_t> GlobalBranchIdAlloc_{1};
-    static inline thread_local PackedCellContainerManager::ThreadHandlePCCM  ThreadHandleAPCTL_ = {};
-    
-    //logging hook
-    std::function<void(const char*, const char*)> APCLogger_;
-    //region/index
-    std::unique_ptr<std::atomic<uint8_t>[]> RegionRelArray_{nullptr};
-    std::vector<std::vector<uint64_t>> RelBitmaps_;
-    std::unique_ptr<std::atomic<uint64_t>[]> RegionEpochArray_{nullptr};
-    static inline thread_local std::vector<std::pair<size_t, packed64_t>> TLSCandidates_;
-    //--??
-    
-    size_t GetHashedRendomizedStep_(size_t sequense_number) noexcept;
+        PackedCellContainerManager* APCManagerPtr_{nullptr};
+        static inline std::atomic<uint32_t> GlobalBranchIdAlloc_{1};
+        static inline thread_local PackedCellContainerManager::ThreadHandlePCCM  ThreadHandleAPCTL_ = {};
+        
+        //logging hook
+        std::function<void(const char*, const char*)> APCLogger_;
+        //region/index
+        std::unique_ptr<std::atomic<uint8_t>[]> RegionRelArray_{nullptr};
+        std::vector<std::vector<uint64_t>> RelBitmaps_;
+        std::unique_ptr<std::atomic<uint64_t>[]> RegionEpochArray_{nullptr};
+        static inline thread_local std::vector<std::pair<size_t, packed64_t>> TLSCandidates_;
+        //--??
 
-    void InitZeroState_() noexcept;
+        std::atomic<AdaptivePackedCellContainer*> RegistryNextAPCPtr_{nullptr};
+        std::atomic<AdaptivePackedCellContainer*> WorkNextAPCPtr_{nullptr};
+        std::atomic<AdaptivePackedCellContainer*> CleanupNextAPCPtr_{nullptr};
+        
+        size_t GetHashedRendomizedStep_(size_t sequense_number) noexcept;
 
-    void RefreshAPCMeta_() noexcept;
+        void InitZeroState_() noexcept;
 
-    size_t SuggestedChildCapacity_() const noexcept;
+        void RefreshAPCMeta_() noexcept;
 
-    std::optional<packed64_t> TryConsumeAndIdleFromRegionLocal_(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept;
+        size_t SuggestedChildCapacity_() noexcept;
 
-    PublishResult TryPublishToRegionLocal_(APCPagedNodeRelMaskClasses region_kind, packed64_t packed_cell, bool force_rel_mask = true, uint16_t max_tries = MAX_TRIES) noexcept;
+        std::optional<packed64_t> TryConsumeAndIdleFromRegionLocal_(
+            APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor,
+            PackedCellNodeAuthority desired_authority_of_updated_cell = PackedCellNodeAuthority::BIDIRECTIONAL_NEUROMORPHIC_SYSTEM
+        ) noexcept;
 
-    void UpdateRegionRelMaskForIdx_(tag8_t rel_mask) noexcept;
+        PublishResult TryPublishToRegionLocal_(
+            packed64_t packed_cell_for_publish, 
+            APCPagedNodeRelMaskClasses region_kind = APCPagedNodeRelMaskClasses::FREE_SLOT,
+            PackedCellNodeAuthority node_authority = PackedCellNodeAuthority::BIDIRECTIONAL_NEUROMORPHIC_SYSTEM,
+            uint16_t max_tries = 128
+        ) noexcept;
 
-    inline bool IfValidPayloadIndex_(size_t idx) const noexcept
-    {
-        return (BackingPtr && idx >= PayloadBegin() && idx < GetPayloadEnd());
-    }
+        //not used
+        void UpdateRegionRelMaskForIdx_(APCPagedNodeRelMaskClasses rel_mask) noexcept;
 
-    inline void QSBRCurThreadRegisterIfNeed_() noexcept
-    {
-        if (ThreadHandleAPCTL_.QSBRIdx != SIZE_MAX && ThreadHandleAPCTL_.WaitSlotPtr != nullptr)
+        static size_t FindGreatestCommonDivisor_(size_t a, size_t b) noexcept;
+
+        size_t MakeProbeStepCoPrime_(size_t seed, size_t region_capacity) const noexcept;
+
+        bool RebuildSharedChainSegmentMetatdataFromRoot_() noexcept;
+
+        bool RebuildRegionIndexFromPayload_() noexcept;
+
+        uint32_t SuggestedInternalAPCExpension_(CompleteAPCNodeRegionsLayout* complete_layout, uint8_t prefared_percentage_of_free = 50) noexcept;
+
+        uint32_t OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode desired_region_meta_idx, int delta = 0) noexcept;
+
+        bool ApplyPackedCellTransitionAfterSuccessfulWrite_(packed64_t old_cell, packed64_t new_cell) noexcept;
+
+        packed64_t NormalizeDesiredPublishedCellForRegion_(
+            packed64_t out_going_cell,
+            APCPagedNodeRelMaskClasses region_kind,
+            PackedCellNodeAuthority node_authority
+        ) noexcept;
+
+        inline bool IfValidPayloadIndex_(size_t idx) noexcept
         {
-            return;
+            return (BackingPtr && idx >= PayloadBegin() && idx < GetTotalCapacityForThisAPC());
         }
-        ThreadHandleAPCTL_ = PackedCellContainerManager::Instance().RegisterAPCThread();
-    }
 
-    inline void QSBREnterCritical_() noexcept
-    {
-        QSBRCurThreadRegisterIfNeed_();
-        if (ThreadHandleAPCTL_.QSBRIdx == SIZE_MAX)
+        inline void QSBRCurThreadRegisterIfNeed_() noexcept
         {
-            return;
+            if (ThreadHandleAPCTL_.QSBRIdx != SIZE_MAX && ThreadHandleAPCTL_.WaitSlotPtr != nullptr)
+            {
+                return;
+            }
+            ThreadHandleAPCTL_ = PackedCellContainerManager::Instance().RegisterAPCThread();
         }
-        PackedCellContainerManager::Instance().EnterCriticalContainer(ThreadHandleAPCTL_);
-    }
 
-    inline void QSBRExitCritical_() noexcept
-    {
-        if (ThreadHandleAPCTL_.QSBRIdx == SIZE_MAX)
+        inline void QSBREnterCritical_() noexcept
         {
-            return;
+            QSBRCurThreadRegisterIfNeed_();
+            if (ThreadHandleAPCTL_.QSBRIdx == SIZE_MAX)
+            {
+                return;
+            }
+            PackedCellContainerManager::Instance().EnterCriticalContainer(ThreadHandleAPCTL_);
         }
-        PackedCellContainerManager::Instance().ExtitCriticalContainer(ThreadHandleAPCTL_);
-    }
 
-
-public:
-    AdaptivePackedCellContainer(/* args */) noexcept  = default;
-
-    ~AdaptivePackedCellContainer()
-    {
-        FreeAll();
-    }
-
-    AdaptivePackedCellContainer(const AdaptivePackedCellContainer&) = delete;
-    AdaptivePackedCellContainer& operator = (const AdaptivePackedCellContainer&) = delete;
-
-    void InitOwned(size_t cpacity, ContainerConf container_cfg = {});
-    void InitAPCAsNode(
-        size_t capacity,
-        const ContainerConf& container_configuration,
-        SegmentIODefinition::APCNodeComputeKind compute_kind = SegmentIODefinition::APCNodeComputeKind::NONE,
-        uint32_t aux_param_u32 = NO_VAL
-
-    );
-
-    void FreeAll() noexcept;
-    void InitRegionIdx(size_t region_size) noexcept;
-    void TryCreateBranchIfNeeded(APCPagedNodeRelMaskClasses rel_mask_hint = APCPagedNodeRelMaskClasses::FREE_SLOT) noexcept;
-    void SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager) noexcept;
-    bool TryPublishRegionalSharedGrowthOnce(APCPagedNodeRelMaskClasses region_kind, packed64_t packed_cell, std::atomic<uint64_t>* growth_counter = nullptr) noexcept;
-    PublishResult PublishCellByRegionMAskTraverseStartsFromThisAPC(APCPagedNodeRelMaskClasses region_kind, packed64_t cell_to_publish, uint16_t max_tries = MAX_TRIES) noexcept;
-    AdaptivePackedCellContainer* GrowSharedNodeByRegionKind(APCPagedNodeRelMaskClasses desired_region_kind, bool enable_branching = true) noexcept;
-    std::optional<packed64_t> ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept;
-    AdaptivePackedCellContainer* FindSharedRootOrThis() noexcept;
-    AdaptivePackedCellContainer* GetNextSharedSegment() noexcept;
-    bool IsAPCSharedChainEmpty() noexcept;
-    uint32_t GetBranchId() const noexcept;
-    uint32_t GetLogicalId() const noexcept;
-    uint32_t GetSharedId() const noexcept;
-    size_t ReserveProducerSlots(size_t number_of_slots) noexcept;
-    size_t NextProducerSequence() noexcept;
-
-    size_t OccupancyAddOrSubAndGetAfterChange(int delta = 0) noexcept;
-
-    SegmentIODefinition* GetBranchPlugin() noexcept
-    {
-        return SegmentIODefinitionPtr_.get();
-    }
-    const SegmentIODefinition* GetBranchPlugin() const noexcept
-    {
-        return SegmentIODefinitionPtr_.get();
-    }
-
-    inline size_t GetPayloadCapacity() const noexcept
-    {
-        return SegmentIODefinitionPtr_ ? SegmentIODefinitionPtr_->PayloadCapacityFromHeader() : NO_VAL;
-    }
-
-    inline size_t GetPayloadEnd() const noexcept
-    {
-        return SegmentIODefinitionPtr_ ? SegmentIODefinitionPtr_->PayloadEndRead() : SIZE_MAX;
-    }
-
-    static constexpr uint32_t PayloadBegin() noexcept
-    {
-        return SegmentIODefinition::METACELL_COUNT;
-    }
-    
-    inline bool IfAPCBranchValid() const noexcept
-    {
-        return (BackingPtr && GetPayloadCapacity() >= MINIMUM_BRANCH_CAPACITY - PayloadBegin());
-    }
-
-    uint32_t ProducerORConsumerCursorSetAndGet_(std::optional<uint32_t> cursor_placement = std::nullopt, int32_t increment_or_decrement_of_cursor = 0, 
-        bool* did_changed_easy_return = nullptr, const MetaIndexOfAPCNode cursors_meta_idx = MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT
-    ) noexcept;
-
-    uint32_t GetProducerCursorPlacement() noexcept
-    {
-        return SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
-    }
-
-    bool UpdateProducerCursorPlacement(uint32_t new_cursor_placement_idx) noexcept
-    {
-        bool will_return = false;
-        ProducerORConsumerCursorSetAndGet_(new_cursor_placement_idx, 0, &will_return, MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
-        return will_return;
-    }
-
-    bool ProducerCursorIncrementOrdecrement(int32_t increment_decrement_value)  noexcept
-    {
-        bool will_retuen = false;
-        ProducerORConsumerCursorSetAndGet_(std::nullopt, increment_decrement_value, &will_retuen, MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
-        return will_retuen;
-    }
-
-    uint32_t GetConsumerCursorPlacement() noexcept
-    {
-        return SegmentIODefinitionPtr_->ReadMetaCellValue32(MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
-    }
-
-    bool UpdateConsumerCursorPlacement(uint32_t new_cursor_value) noexcept
-    {
-        bool will_return = false;
-        ProducerORConsumerCursorSetAndGet_(new_cursor_value, 0, &will_return, MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
-        return will_return;
-    }
-
-    bool ConsumerCursorIncrementOrDecrement(int32_t increment_decrement_value) noexcept
-    {
-        bool will_return = false;
-        ProducerORConsumerCursorSetAndGet_(std::nullopt, increment_decrement_value, &will_return, MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
-        return will_return;
-    }
-
-    PackedCellContainerManager* GetAPCManager() noexcept
-    {
-        if (!APCManagerPtr_)
+        inline void QSBRExitCritical_() noexcept
         {
-            return nullptr;
+            if (ThreadHandleAPCTL_.QSBRIdx == SIZE_MAX)
+            {
+                return;
+            }
+            PackedCellContainerManager::Instance().ExtitCriticalContainer(ThreadHandleAPCTL_);
         }
-        return APCManagerPtr_;
-    }
 
-    MasterClockConf* GetMasterClockPtrForThisAPC() noexcept
-    {
-        if (!APCManagerPtr_)
+    public:
+
+        struct QSBRGuard;
+
+        AdaptivePackedCellContainer(/* args */) noexcept  = default;
+        ~AdaptivePackedCellContainer()
         {
-            return nullptr;
+            FreeAll();
         }
-        return (APCManagerPtr_->GetMasterClockAdaptivePackedCellContainerManager().GetMasterClockPtr());
-    }
+        AdaptivePackedCellContainer(const AdaptivePackedCellContainer&) = delete;
+        AdaptivePackedCellContainer& operator = (const AdaptivePackedCellContainer&) = delete;
 
-    //Paired Pointer functions-- have to separate into a class or struct for better use and update 
-    PublishResult PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask = 0, int max_probs = -1) noexcept;
-    bool PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries = 100);
-    std::optional<AcquirePairedPointerStruct> AcquirePairedAtomicPtr(size_t probable_idx, bool claim_ownership = true, int max_claim_attempts = 256) noexcept;
-    bool ReleaseAcquiredPairedPtr(const AcquirePairedPointerStruct& acquired_pair_struct, PackedCellLocalityTypes desired_locality = PackedCellLocalityTypes::ST_IDLE) noexcept;
-    void RetireAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_pair_struct) noexcept;
-    template<typename TypePtr>
-    std::optional<TypePtr> ViewPointerMemoryIfAssembeled(size_t probable_idx) noexcept;
-    //
+        void InitOwned(size_t cpacity, ContainerConf container_cfg = {});
+
+        void InitAPCAsNode(
+            size_t capacity,
+            const ContainerConf& container_configuration,
+            SegmentIODefinition::APCNodeComputeKind compute_kind = SegmentIODefinition::APCNodeComputeKind::NONE,
+            uint32_t aux_param_u32 = UNSIGNED_ZERO
+
+        );
+
+        void FreeAll() noexcept;
+
+        void InitRegionIdx(size_t region_size) noexcept;
+
+        void TryCreateBranchIfNeeded(APCPagedNodeRelMaskClasses rel_mask_hint = APCPagedNodeRelMaskClasses::FREE_SLOT) noexcept;
+
+        void SetManagerForGlobalAPC(PackedCellContainerManager* pointer_of_global_apc_manager) noexcept;
+
+        bool TryPublishRegionalSharedGrowthOnce(APCPagedNodeRelMaskClasses region_kind, packed64_t packed_cell, std::atomic<uint64_t>* growth_counter = nullptr) noexcept;
+
+        PublishResult PublishCellByRegionMAskTraverseStartsFromThisAPC(APCPagedNodeRelMaskClasses region_kind, packed64_t cell_to_publish, uint16_t max_tries = MAX_TRIES) noexcept;
+
+        AdaptivePackedCellContainer* GrowSharedNodeByRegionKind(APCPagedNodeRelMaskClasses desired_region_kind, bool enable_branching = true) noexcept;
+
+        std::optional<packed64_t> ConsumeCellByRegionMaskTraverseStartFromThisAPC(APCPagedNodeRelMaskClasses region_kind, size_t& scan_cursor) noexcept;
+
+        AdaptivePackedCellContainer* FindSharedRootOrThis() noexcept;
+
+        AdaptivePackedCellContainer* GetNextSharedSegment() noexcept;
+
+        bool IsAPCSharedChainEmpty() noexcept;
+
+        uint32_t GetBranchId() noexcept;
+
+        uint32_t GetLogicalId() noexcept;
+
+        uint32_t GetSharedId() noexcept;
+
+        size_t ReserveProducerSlots(size_t number_of_slots) noexcept;
+
+        size_t NextProducerSequence() noexcept;
+
+        uint32_t RegionOccupancyAddOrSubAndGet(APCPagedNodeRelMaskClasses desired_region_class, int delta = 0) noexcept;
+
+        void ClearAllManagerLinksAndFlags() noexcept;
+
+        uint32_t GetLocalTotalOccupancy() noexcept;
+
+        uint32_t CountExactLocalRegionalOccupancy(APCPagedNodeRelMaskClasses desired_region_class) noexcept;
+
+        uint32_t CountExactTotalChainOccupancy(APCPagedNodeRelMaskClasses desired_region_class) noexcept;
+        
+        bool RebuildExectReadyMask() noexcept;
+
+        uint32_t AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(int delta = 0) noexcept
+        {
+            return OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS, delta);
+        }
+
+        uint32_t AllClaimedCellsOccupancySnapshotAddOrSubAndGetAfterChange(int delta = 0) noexcept
+        {
+            return OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS, delta);
+        }
+
+        uint32_t AllIdleCellsOccupancySnapshotAddOrSubAndGetAfterChange(int delta = 0) noexcept
+        {
+            return OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_IDLE_CELLS, delta);
+        }
+
+        uint32_t AllFaultyCellsOccupancySnapshotAddOrSubAndGetAfterChange(int delta = 0) noexcept
+        {
+            return OccupancyAddOrSubAndGetAfterChange_(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_FAULTY_CELLS, delta);
+        }
+
+        uint32_t StrictOccupancySumOfFourLocalities() noexcept
+        {
+            return AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange() + AllClaimedCellsOccupancySnapshotAddOrSubAndGetAfterChange() +
+                AllIdleCellsOccupancySnapshotAddOrSubAndGetAfterChange() + AllFaultyCellsOccupancySnapshotAddOrSubAndGetAfterChange();
+        }
+
+        bool DoseStrictSumOf4OccupancyHoldsInvarients() noexcept
+        {
+            return StrictOccupancySumOfFourLocalities() == static_cast<uint32_t>(PayloadCapacityFromHeader());
+        }
+
+        static constexpr uint32_t PayloadBegin() noexcept
+        {
+            return SegmentIODefinition::METACELL_COUNT;
+        }
+        
+        inline bool IfAPCBranchValid() noexcept
+        {
+            return (BackingPtr && PayloadCapacityFromHeader() >= MINIMUM_BRANCH_CAPACITY - PayloadBegin());
+        }
+
+        uint32_t ProducerORConsumerCursorSetAndGet_(std::optional<uint32_t> cursor_placement = std::nullopt, int32_t increment_or_decrement_of_cursor = 0, 
+            bool* did_changed_easy_return = nullptr, const MetaIndexOfAPCNode cursors_meta_idx = MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT
+        ) noexcept;
+
+        uint32_t GetProducerCursorPlacement() noexcept
+        {
+            return ReadMetaCellValue32(MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
+        }
+
+        bool UpdateProducerCursorPlacement(uint32_t new_cursor_placement_idx) noexcept
+        {
+            bool will_return = false;
+            ProducerORConsumerCursorSetAndGet_(new_cursor_placement_idx, 0, &will_return, MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
+            return will_return;
+        }
+
+        bool ProducerCursorIncrementOrdecrement(int32_t increment_decrement_value)  noexcept
+        {
+            bool will_retuen = false;
+            ProducerORConsumerCursorSetAndGet_(std::nullopt, increment_decrement_value, &will_retuen, MetaIndexOfAPCNode::PRODUCER_CURSOR_PLACEMENT);
+            return will_retuen;
+        }
+
+        uint32_t GetConsumerCursorPlacement() noexcept
+        {
+            return ReadMetaCellValue32(MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
+        }
+
+        bool UpdateConsumerCursorPlacement(uint32_t new_cursor_value) noexcept
+        {
+            bool will_return = false;
+            ProducerORConsumerCursorSetAndGet_(new_cursor_value, 0, &will_return, MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
+            return will_return;
+        }
+
+        bool ConsumerCursorIncrementOrDecrement(int32_t increment_decrement_value) noexcept
+        {
+            bool will_return = false;
+            ProducerORConsumerCursorSetAndGet_(std::nullopt, increment_decrement_value, &will_return, MetaIndexOfAPCNode::CONSUMER_CURSORE_PLACEMENT);
+            return will_return;
+        }
+
+        inline bool IfIndexValid(size_t idx) noexcept
+        {
+            if (IfAPCBranchValid() && idx < GetTotalCapacityForThisAPC())
+            {
+                return true;
+            }
+            return false;        
+        }
+
+        inline AtomicAdaptiveBackoff* GetAtomicAdaptiveBackoffPtr() noexcept
+        {
+            return AdaptiveBackoffOfAPCPtr_;
+        }
+
+
+        PackedCellContainerManager* GetAPCManager() noexcept
+        {
+            if (!APCManagerPtr_)
+            {
+                return nullptr;
+            }
+            return APCManagerPtr_;
+        }
+
+        inline AdaptivePackedCellContainer* LoadRegistryNextAPC() const noexcept
+        {
+            return RegistryNextAPCPtr_.load(MoLoad_);
+        }
+
+        inline void StoreRegistryNextAPC(AdaptivePackedCellContainer* apc_ptr) noexcept
+        {
+            RegistryNextAPCPtr_.store(apc_ptr, MoStoreSeq_);
+        }
+
+        inline AdaptivePackedCellContainer* LoadWorkNextAPC() const noexcept
+        {
+            return WorkNextAPCPtr_.load(MoLoad_);
+        }
+
+        inline void StoreWorkNextAPC(AdaptivePackedCellContainer* apc_ptr) noexcept
+        {
+            WorkNextAPCPtr_.store(apc_ptr, MoStoreSeq_);
+        }
+
+        inline AdaptivePackedCellContainer* LoadCleanupNextAPC() const noexcept
+        {
+            return CleanupNextAPCPtr_.load(MoLoad_);
+        }
+
+        inline void StoreCleanupNextAPC(AdaptivePackedCellContainer* apc_ptr) noexcept
+        {
+            CleanupNextAPCPtr_.store(apc_ptr, MoStoreSeq_);
+        }
+
 };
 
 

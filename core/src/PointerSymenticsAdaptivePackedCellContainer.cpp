@@ -1,5 +1,5 @@
 #include "APCSegmentsCausalCordinator.hpp"
-#include "PackedCellContainerManager.hpp"
+#include "AdaptivePackedCellContainer/PointerSymenticsAdaptivePackedCellContainer.hpp"
 #include <iostream>
 
 namespace PredictedAdaptedEncoding
@@ -14,7 +14,7 @@ namespace PredictedAdaptedEncoding
         );
         return assembeled64;
     }
-    std::optional<AcquirePairedPointerStruct> AdaptivePackedCellContainer::AcquirePairedAtomicPtr(
+    std::optional<AcquirePairedPointerStruct> PointerSymenticsAdaptivePackedCellContainer::AcquirePairedAtomicPtr(
         size_t probable_idx, bool claim_ownership, int max_claim_attempts
     ) noexcept
     {
@@ -30,17 +30,17 @@ namespace PredictedAdaptedEncoding
         while (curent_tries++ < max_claim_attempts)
         {
             packed64_t packed_cell_value64 = BackingPtr[probable_idx].load(MoLoad_);
-            RelOffsetMode32 curent_ptr_position = static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell_value64));
+            RelOffsetMode32 curent_ptr_position = PackedCell64_t::ExtractRelOffset32FromPacked(packed_cell_value64);
             size_t head_idx = SIZE_MAX;
             size_t tail_idx = SIZE_MAX;
             if (curent_ptr_position == RelOffsetMode32::REL_OFFSET_HEAD_PTR)
             {
                 head_idx = probable_idx;
-                tail_idx = (probable_idx + 1) % GetPayloadCapacity();
+                tail_idx = (probable_idx + 1) % PayloadCapacityFromHeader();
             }
             else if (curent_ptr_position == RelOffsetMode32::RELOFFSET_TAIL_PTR)
             {
-                head_idx = (probable_idx + GetPayloadCapacity() - 1) % GetPayloadCapacity();
+                head_idx = (probable_idx + PayloadCapacityFromHeader() - 1) % PayloadCapacityFromHeader();
                 tail_idx = probable_idx;
             }
             else
@@ -115,7 +115,7 @@ namespace PredictedAdaptedEncoding
         return std::nullopt;
     }
 
-    bool AdaptivePackedCellContainer::ReleaseAcquiredPairedPtr(const AcquirePairedPointerStruct& acquired_paired_pointer_struct, PackedCellLocalityTypes desired_locality) noexcept
+    bool PointerSymenticsAdaptivePackedCellContainer::ReleaseAcquiredPairedPtr(const AcquirePairedPointerStruct& acquired_paired_pointer_struct, PackedCellLocalityTypes desired_locality) noexcept
     {
         if (!acquired_paired_pointer_struct.Ownership)
         {
@@ -151,7 +151,7 @@ namespace PredictedAdaptedEncoding
         return true;
     }
 
-    void AdaptivePackedCellContainer::RetireAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_paired_pointer_struct) noexcept
+    void PointerSymenticsAdaptivePackedCellContainer::RetireAcquiredPointerPair(const AcquirePairedPointerStruct& acquired_paired_pointer_struct) noexcept
     {
         if (!acquired_paired_pointer_struct.Ownership)
         {
@@ -162,18 +162,18 @@ namespace PredictedAdaptedEncoding
         BackingPtr[acquired_paired_pointer_struct.TailIdx].store(idle32, MoStoreSeq_);
         BackingPtr[acquired_paired_pointer_struct.HeadIdx].notify_all();
         BackingPtr[acquired_paired_pointer_struct.TailIdx].notify_all();
-        OccupancyAddOrSubAndGetAfterChange(-1);
+        AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(-1);
 
         RefreshAPCMeta_();
         if (APCManagerPtr_)
         {
-            APCManagerPtr_->RequestForReclaimationOfTheAdaptivePackedCellContainer(this);
+            APCManagerPtr_->ReclaimationRequestOfAPCSegmentFromManager_(this);
         }
         
     }
 
     template<typename PtrDtype>
-    std::optional<PtrDtype> AdaptivePackedCellContainer::ViewPointerMemoryIfAssembeled(size_t probable_idx) noexcept
+    std::optional<PtrDtype> PointerSymenticsAdaptivePackedCellContainer::ViewPointerMemoryIfAssembeled(size_t probable_idx) noexcept
     {
         static_assert(std::is_trivially_copyable_v<PtrDtype>, "Data Type must be trivally copyable");
         auto maybe_ptr = AcquirePairedAtomicPtr(probable_idx, false);
@@ -201,13 +201,13 @@ namespace PredictedAdaptedEncoding
     }
 
 
-    PublishResult AdaptivePackedCellContainer::PublishHeapPtrPair_(void* object_ptr, tag8_t rel_mask_with_ptrflag, int max_probs) noexcept
+    PublishResult PointerSymenticsAdaptivePackedCellContainer::PublishHeapPtrPair_(void* object_ptr, APCPagedNodeRelMaskClasses rel_mask_with_ptrflag, int max_probs) noexcept
     {
         if (!IfAPCBranchValid())
         {
             return { PublishStatus::INVALID, SIZE_MAX};
         }
-        if (GetPayloadCapacity() < MINIMUM_BRANCH_CAPACITY)
+        if (PayloadCapacityFromHeader() < MINIMUM_BRANCH_CAPACITY)
         {
             return {PublishStatus::FULL, SIZE_MAX};
         }
@@ -221,7 +221,7 @@ namespace PredictedAdaptedEncoding
             return {PublishStatus::INVALID, SIZE_MAX};
         }
         
-        size_t start = PayloadBegin() + ((next_sequence - PayloadBegin()) % GetPayloadCapacity());
+        size_t start = PayloadBegin() + ((next_sequence - PayloadBegin()) % PayloadCapacityFromHeader());
         size_t step = GetHashedRendomizedStep_(next_sequence);
         int probes = 0;
         size_t idx = start;
@@ -240,7 +240,7 @@ namespace PredictedAdaptedEncoding
                 packed64_t expected_head = cur_head;
                 if (!BackingPtr[head].compare_exchange_strong(expected_head, claimed_cur_head, OnExchangeSuccess, OnExchangeFailure))
                 {
-                    SegmentIODefinitionPtr_->TotalCASFailForThisBranchIncreaseAndGet(1);
+                    TotalCASFailForThisBranchIncreaseAndGet(1);
                 }
                 else
                 {
@@ -249,51 +249,51 @@ namespace PredictedAdaptedEncoding
                     {
                         BackingPtr[head].store(cur_head, MoStoreSeq_);
                         BackingPtr[head].notify_all();
-                        SegmentIODefinitionPtr_->TotalCASFailForThisBranchIncreaseAndGet(1);
+                        TotalCASFailForThisBranchIncreaseAndGet(1);
                     }
                     else
                     {
                         val32_t tail_ptr_val32 = high32_half;
-                        strl16_t strl_tail = MakeSTRLMode32_t(PriorityPhysics::IDLE, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask_with_ptrflag, RelOffsetMode32::RELOFFSET_TAIL_PTR);
+                        meta16_t strl_tail = PackedCell64_t::MakeInCellMetaForMode_32t(PriorityPhysics::IDLE, PackedCellNodeAuthority::IDLE_OR_FREE, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask_with_ptrflag, RelOffsetMode32::RELOFFSET_TAIL_PTR);
                         packed64_t tail_packed = PackedCell64_t::ComposeValue32u_64(tail_ptr_val32, 0u, strl_tail);
                         BackingPtr[tail].store(tail_packed, MoStoreSeq_);
 
                         val32_t head_ptr_value32 = low32_half;
-                        strl16_t strl_head = MakeSTRLMode32_t(PriorityPhysics::IDLE, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask_with_ptrflag, RelOffsetMode32::REL_OFFSET_HEAD_PTR);
+                        meta16_t strl_head = PackedCell64_t::MakeInCellMetaForMode_32t(PriorityPhysics::IDLE, PackedCellNodeAuthority::IDLE_OR_FREE, PackedCellLocalityTypes::ST_PUBLISHED, rel_mask_with_ptrflag, RelOffsetMode32::REL_OFFSET_HEAD_PTR);
                         packed64_t head_packed = PackedCell64_t::ComposeValue32u_64(head_ptr_value32, 0u, strl_head);
                         BackingPtr[head].store(head_packed, MoStoreSeq_);
                         BackingPtr[tail].notify_all();
                         BackingPtr[head].notify_all();
-                        OccupancyAddOrSubAndGetAfterChange(+1);
+                        AllPublishedCellsOccupancySnapshotAddOrSubAndGetAfterChange(+1);
                         return {PublishStatus::OK, head};
                     }
                 }
             }
             ++probes;
-            if ((max_probs >=0 && probes >= max_probs) || probes >= static_cast<int>(GetPayloadCapacity()))
+            if ((max_probs >=0 && probes >= max_probs) || probes >= static_cast<int>(PayloadCapacityFromHeader()))
             {
                 return {PublishStatus::FULL, SIZE_MAX};
             }
-            idx = (((idx - PayloadBegin()) + step) % GetPayloadCapacity()) + PayloadBegin();
+            idx = (((idx - PayloadBegin()) + step) % PayloadCapacityFromHeader()) + PayloadBegin();
         }
     }
 
-    bool AdaptivePackedCellContainer::PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries)
+    bool PointerSymenticsAdaptivePackedCellContainer::PublishHeapPtrWithAdaptiveBackoff(void* target_publishable_ptr, uint16_t max_retries)
     {
         int publish_attempt = 0;
 
         while (publish_attempt <= max_retries)
         {
-            PublishResult publish_result = PublishHeapPtrPair_(target_publishable_ptr, REL_NONE);
+            PublishResult publish_result = PublishHeapPtrPair_(target_publishable_ptr, APCPagedNodeRelMaskClasses::FREE_SLOT);
             if (publish_result.ResultStatus == PublishStatus::OK)
             {
                 return true;
             }
             packed64_t observed = 0;
-            if (BackingPtr && GetPayloadCapacity() > 0)
+            if (BackingPtr && PayloadCapacityFromHeader() > 0)
             {
                 size_t idx = ( PayloadBegin() +
-                    (std::hash<std::thread::id>{}(std::this_thread::get_id()) % GetPayloadCapacity())
+                    (std::hash<std::thread::id>{}(std::this_thread::get_id()) % PayloadCapacityFromHeader())
                 );
                 observed = BackingPtr[idx].load(MoLoad_);
             }
@@ -302,12 +302,12 @@ namespace PredictedAdaptedEncoding
                 auto& backoff = APCManagerPtr_->GetManagersAdaptiveBackoff();
                 backoff.AdaptiveBackOffPacked(observed);
             }
-            if (SegmentIODefinitionPtr_ && 
-                SegmentIODefinitionPtr_->HasThisFlag(SegmentIODefinition::ControlEnumOfAPCSegment::ENABLE_BRANCHING) && 
-                SegmentIODefinitionPtr_->ShouldSplitNow() && APCManagerPtr_
+            if (
+                HasThisControlEnumFlag(SegmentIODefinition::ControlEnumOfAPCSegment::ENABLE_BRANCHING) && 
+                ShouldSplitNow() && APCManagerPtr_
             )
             {
-                APCManagerPtr_->RequestBranchCreationForTheAdaptivePackedCellContainer(this);
+                APCManagerPtr_->RequestAPCSegmentCreationFromManager_(this);
             }
             
             ++publish_attempt;

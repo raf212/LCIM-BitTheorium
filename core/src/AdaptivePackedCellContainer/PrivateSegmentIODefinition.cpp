@@ -8,7 +8,7 @@ namespace PredictedAdaptedEncoding
     void SegmentIODefinition::InitDefaultAPCSegmentedNodeLayout_() noexcept
     {
         const uint32_t payload_begain = METACELL_COUNT;
-        const uint32_t payload_end = PayloadEndRead();
+        const uint32_t payload_end = GetTotalCapacityForThisAPC();
         if (payload_end <= payload_begain)
         {
             return;
@@ -25,8 +25,8 @@ namespace PredictedAdaptedEncoding
         WriteBoundsPairToHeader_(full_paged_node_layout.FreeLayout);
 
         WriteBrenchMeta32_(MetaIndexOfAPCNode::REGION_DIR_COUNT, TOTAL_LAYOUT_SECTION_IN_APC_CONTAINER_NODE);
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::EDGE_TABLE_COUNT, NO_VAL);
-        WriteBrenchMeta32_(MetaIndexOfAPCNode::WEIGHT_TABLE_COUNT, NO_VAL);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::EDGE_TABLE_COUNT, UNSIGNED_ZERO);
+        WriteBrenchMeta32_(MetaIndexOfAPCNode::WEIGHT_TABLE_COUNT, UNSIGNED_ZERO);
 
         TurnOnMultipleSegmentFlagsAtOnce_(static_cast<uint32_t>(ControlEnumOfAPCSegment::HAS_LAYOUT_DIR));
 
@@ -36,7 +36,7 @@ namespace PredictedAdaptedEncoding
     void SegmentIODefinition::BuidDefaultLayoutPlan_(CompleteAPCNodeRegionsLayout& full_layout) noexcept
     {
         const uint32_t payload_begain = METACELL_COUNT;
-        const uint32_t payload_end = PayloadEndRead();
+        const uint32_t payload_end = GetTotalCapacityForThisAPC();
         if (payload_end <= payload_begain)
         {
             return;
@@ -66,7 +66,7 @@ namespace PredictedAdaptedEncoding
                 initial_cursor = payload_end;
                 return;
             }
-            const uint32_t remaining_span = (payload_end > initial_cursor) ? (payload_end - initial_cursor) : NO_VAL;
+            const uint32_t remaining_span = (payload_end > initial_cursor) ? (payload_end - initial_cursor) : UNSIGNED_ZERO;
             wanted_span = std::min<uint32_t>(wanted_span, remaining_span);
             one.EndIndex = initial_cursor + wanted_span;
             initial_cursor = one.EndIndex;
@@ -85,7 +85,7 @@ namespace PredictedAdaptedEncoding
 
     bool SegmentIODefinition::WriteBoundsPairToHeader_(const LayoutBoundsOfSingleRelNodeClass layout_bound) noexcept
     {
-        auto maybe_region_bounds_pair = GetMetaBoundsPairForRegionMask_(layout_bound.LAYOUT_CLASS);
+        auto maybe_region_bounds_pair = GetMetaBoundsLegalPairForPageClasses(layout_bound.LAYOUT_CLASS);
         if (!maybe_region_bounds_pair || layout_bound.IsEmpty() == true)
         {
             return false;
@@ -97,7 +97,7 @@ namespace PredictedAdaptedEncoding
                 JustUpdateValueOfMeta32(end_meta, current_end, layout_bound.EndIndex);
     }
 
-    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>>SegmentIODefinition::GetMetaBoundsPairForRegionMask_(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
+    std::optional<std::pair<MetaIndexOfAPCNode, MetaIndexOfAPCNode>>SegmentIODefinition::GetMetaBoundsLegalPairForPageClasses(APCPagedNodeRelMaskClasses desired_rel_mask) noexcept
     {
         MetaIndexOfAPCNode begin_idx;
         MetaIndexOfAPCNode end_idx;
@@ -176,11 +176,21 @@ namespace PredictedAdaptedEncoding
         return std::pair {begin_idx, end_idx};
     }
 
-    bool SegmentIODefinition::UpdateAPCModeFlagsInHeader_(uint32_t flags_to_turn_on, uint32_t flags_to_turn_off) noexcept
+    bool SegmentIODefinition::UpdateAPCModeFlagsInHeader_(uint32_t flags_to_turn_on, uint32_t flags_to_turn_off, MetaIndexOfAPCNode desired_flag_idx) noexcept
     {
+        if (desired_flag_idx != MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS && desired_flag_idx != MetaIndexOfAPCNode::MANAGER_CONTROL_FLAGS)
+        {
+            return false;
+        }
+        
         while (true)
         {
-            const uint32_t current_flags = ReadAPCModeFlags_();
+            const uint32_t current_flags = ReadMetaCellValue32(desired_flag_idx);
+            if (current_flags == BRANCH_SENTINAL)
+            {
+                return false;
+            }
+            
             uint32_t next_flags = current_flags;
             next_flags |= flags_to_turn_on;
             next_flags &= ~flags_to_turn_off;
@@ -188,7 +198,7 @@ namespace PredictedAdaptedEncoding
             {
                 return true;
             }
-            if (JustUpdateValueOfMeta32(MetaIndexOfAPCNode::SEGMENT_CONF_FLAGS, current_flags, next_flags))
+            if (JustUpdateValueOfMeta32(desired_flag_idx, current_flags, next_flags))
             {
                 return true;
             }
@@ -231,6 +241,77 @@ namespace PredictedAdaptedEncoding
             WriteBoundsPairToHeader_(full_layout.WeightLayout) && 
             WriteBoundsPairToHeader_(full_layout.AUXLayout) &&
             WriteBoundsPairToHeader_(full_layout.FreeLayout);
+    }
+
+    bool SegmentIODefinition::TurnOnReadyBitForDesiredPagedNode_(APCPagedNodeRelMaskClasses desired_region_class) noexcept
+    {
+        const uint32_t anew_readybit = APCAndPagedNodeHelpers::MakeOneAPCNodeClassReadyBit(desired_region_class);
+        if (anew_readybit == 0)
+        {
+            return false;
+        }
+        while (true)
+        {
+            const uint32_t compleate_current_paged_node_ready_bit = ReadMetaCellValue32(MetaIndexOfAPCNode::PAGED_NODE_READY_BIT);
+            const uint32_t updated_current_ready_bit = compleate_current_paged_node_ready_bit | anew_readybit;
+            if (updated_current_ready_bit == compleate_current_paged_node_ready_bit)
+            {
+                return true;
+            }
+            if (JustUpdateValueOfMeta32(MetaIndexOfAPCNode::PAGED_NODE_READY_BIT, compleate_current_paged_node_ready_bit, updated_current_ready_bit))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool SegmentIODefinition::ClearTheDesiredPagedNodeReadyBit_(APCPagedNodeRelMaskClasses desired_region_class) noexcept
+    {
+        const uint32_t anew_readybit = APCAndPagedNodeHelpers::MakeOneAPCNodeClassReadyBit(desired_region_class);
+        if (anew_readybit == 0)
+        {
+            return false;
+        }
+        while (true)
+        {
+            const uint32_t compleate_current_paged_node_ready_bit = ReadMetaCellValue32(MetaIndexOfAPCNode::PAGED_NODE_READY_BIT);
+            const uint32_t updated_current_ready_bit = compleate_current_paged_node_ready_bit & ~anew_readybit;
+            if (updated_current_ready_bit == compleate_current_paged_node_ready_bit)
+            {
+                return true;
+            }
+            if (JustUpdateValueOfMeta32(MetaIndexOfAPCNode::PAGED_NODE_READY_BIT, compleate_current_paged_node_ready_bit, updated_current_ready_bit))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool SegmentIODefinition::ForceZeroOccupancy_() noexcept
+    {
+        if (!IsBound())
+        {
+            return false;
+        }
+
+        const uint32_t payload_capacity = static_cast<uint32_t>(PayloadCapacityFromHeader());
+        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS, UNSIGNED_ZERO);
+        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS, UNSIGNED_ZERO);
+        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_IDLE_CELLS, payload_capacity);
+        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_FAULTY_CELLS, UNSIGNED_ZERO);
+
+        for (uint8_t i = 0; i < APCAndPagedNodeHelpers::SIZE_OF_APCPagedNodeRelMaskClasses; i++)
+        {
+            WriteExactMetaCellJustNewValue(
+                APCAndPagedNodeHelpers::GetOccupancyMetIndexByRegionClass(static_cast<APCPagedNodeRelMaskClasses>(i)),
+                UNSIGNED_ZERO
+            );
+        }
+        
+        WriteExactMetaCellJustNewValue(MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS, UNSIGNED_ZERO);
+        return true;      
     }
 
 

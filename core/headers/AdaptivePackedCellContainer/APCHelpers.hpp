@@ -2,37 +2,17 @@
 #pragma once 
 #include <array>
 #include <utility>
-#include "AtomicAdaptiveBackoff.hpp"
+#include "PackedCell/CoreCellDefination.hpp"
 
 namespace PredictedAdaptedEncoding
 {
-
-    #define MIN_PRODUCER_BLOCK_SIZE 96
-    #define MIN_REGION_SIZE 4
-    #define MIN_RETIRE_BATCH_THRESHOLD 16
-    #define MIN_BACKGROUND_EPOCH_MS 50
-    #define INITIAL_BRANCH_SPLIT_THRESHOLD_PERCENTAGE 70
-    #define MINIMUM_BRANCH_CAPACITY 128
-    #define MAX_BRANCH_DEPTH 10
-    //default Rel Class percentage
-    #define FEEDFOEWARD_PERCENTAGE 8u
-    #define FEEDBACKWARD_PERCENTAGE 6u
-    #define STATESLOT_PERCENTAGE 8u
-    #define ERRORSLOT_PERCENTAGE 6u
-    #define EDGEDESCRIPTOR_PERCENTAGE 7u
-    #define WEIGHTSLOT_PERCENTAGE 7u
-    #define AUXSLOT_PERCENTAGE 3u
-    #define FREE_PERCENTAGE 55u
-
     enum class MetaIndexOfAPCNode : size_t
     {
         //identity
         MAGIC_ID = 0,
-        VERSION = 1,
-        CAPACITY = 2,
-        BRANCH_ID = 3,
-
+        MANAGER_CONTROL_FLAGS = 1,
         //logical-node Identity
+        BRANCH_ID = 3,
         LOGICAL_NODE_ID = 4,
         SHARED_ID = 5,
         SHARED_PREVIOUS_ID = 6,
@@ -43,13 +23,18 @@ namespace PredictedAdaptedEncoding
         BRANCH_PRIORITY = 9,
         SEGMENT_CONF_FLAGS = 10,
         CURRENT_ACTIVE_THREADS = 11,
-        OCCUPANCY_SNAPSHOT = 12,
+            //occupancy
+        OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS = 2,
+        OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS = 12,
+        OCCUPANCY_SNAPSHOT_OF_IDLE_CELLS = 85,
+        OCCUPANCY_SNAPSHOT_OF_FAULTY_CELLS = 86,
+            //
         SPLIT_THRESHOLD_PERCENTAGE = 13,
         SEGMENT_KIND = 14,
         MAX_DEPTH = 15,
 
         //payload-Bounds
-        PAYLOAD_END = 16,
+        TOTAL_CAPACITY_OF_THIS_SEGEMENT = 16,
 
         //timing
         LOCAL_CLOCK48 = 17,
@@ -59,7 +44,7 @@ namespace PredictedAdaptedEncoding
         REGION_DIR_COUNT = 19,
         REGION_SIZE = 20,
         REGION_COUNT = 21,
-        READY_REL_MASK = 22,
+        PAGED_NODE_READY_BIT = 22,
         PRODUCER_BLOCK_SIZE = 23,
         BACKGROUND_EPOCH_ADVANCE_MS =  24,
         DEFINED_MODE_OF_CURRENT_APC = 25,
@@ -98,41 +83,42 @@ namespace PredictedAdaptedEncoding
         EDGE_DESCRIPTIOR_END = 54,
         WEIGHT_BEGIN = 55,
         WEIGHT_END = 56,
-        AUX_BEGAIN = 57,
-        AUX_END = 58,
-        FREE_BEGAIN = 59,
-        FREE_END = 60,
+        RESERVED_MESSAGE_1_BEGIN = 57,
+        RESERVED_MESSAGE_1_END = 58,
+        AUX_BEGAIN = 59,
+        AUX_END = 60,
+        FREE_BEGAIN = 61,
+        FREE_END = 62,
+        RESERVED_MESSAGE_2_BEGIN = 63,
+        RESERVED_MESSAGE_2_END = 64,
         //end
 
-        EDGE_TABLE_COUNT = 61,
-        WEIGHT_TABLE_COUNT = 62,
+        EDGE_TABLE_COUNT = 65,
+        WEIGHT_TABLE_COUNT = 66,
 
+        REGION_OCCUPANCY_NONE        = 67,
+        REGION_OCCUPANCY_FF          = 68,
+        REGION_OCCUPANCY_FB          = 69,
+        REGION_OCCUPANCY_LATERAL     = 70,
+        REGION_OCCUPANCY_STATE       = 71,
+        REGION_OCCUPANCY_ERROR       = 72,
+        REGION_OCCUPANCY_EDGE        = 73,
+        REGION_OCCUPANCY_WEIGHT      = 74,
+        REGION_OCCUPANCY_CONTROL     = 75,
+        REGION_OCCUPANCY_AUX         = 76,
+        REGION_OCCUPANCY_FREE        = 77,
+        REGION_OCCUPANCY_MESSAGE_1      = 78,
+        REGION_OCCUPANCY_MESSAGE_2      = 79,
+        REGION_OCCUPANCY_MESSAGE_3      = 80,
+        REGION_OCCUPANCY_MESSAGE_4      = 81,
+        REGION_OCCUPANCY_NANNULL        = 82,
 
-        RESERVED_63 = 63,
+        RETIRE_EPOCH_LOW32     = 83,
+        RETIRE_EPOCH_HIGH32    = 84,
+
+        RESERVED_87 = 87,
         EOF_APC_HEADER = 95
     };
-
-    enum class APCPagedNodeRelMaskClasses : tag8_t
-    {
-        NONE = 0x0,
-        FEEDFORWARD_MESSAGE  = 0x1,
-        FEEDBACKWARD_MESSAGE = 0x2,
-        LATERAL_MESAGE = 0x3,
-        STATE_SLOT = 0x4,
-        ERROR_SLOT = 0x5,
-        EDGE_DESCRIPTOR = 0x6,
-        WEIGHT_SLOT = 0x7,
-        CONTROL_SLOT = 0x8,
-        AUX_SLOT = 0x9,
-        FREE_SLOT = 0xA,
-        SELF_REFARANCE = 0xB,
-        STRUCTRUAL = 0xC,
-        ///
-        COMPLEX_STORAGE = 0xD,
-        RESERVED_14     = 0xE,
-        NANNULL     = 0xF
-    };
-
 
 
     struct ContainerConf
@@ -156,6 +142,147 @@ namespace PredictedAdaptedEncoding
         };
     };
 
+    struct APCAndPagedNodeHelpers
+    {
+        static constexpr uint8_t HIGH_FOUR_NIBBLE = 0x0Fu;
+        static constexpr uint8_t HIGH_ALL_EIGHT_NIBBLE = 0xFFu;
+        static constexpr size_t SIZE_OF_APCPagedNodeRelMaskClasses = 16u;
+
+        static inline bool INewerClock16(clk16_t candidate, clk16_t baseline) noexcept
+        {
+            if (candidate == baseline)
+            {
+                return false;
+            }
+            return static_cast<uint16_t>(candidate - baseline) < HALF16Bit_THRESHOLD_WRAP;
+            
+        }
+        static APCPagedNodeRelMaskClasses ExtractPagedRelMaskFromPacked (packed64_t packed_cell) noexcept
+        {
+            return static_cast<APCPagedNodeRelMaskClasses>(PackedCell64_t::ExtractRelMaskFromPacked(packed_cell));
+        }
+
+        static inline bool IsCellPublishedMode32Generic (packed64_t packed_cell) noexcept
+        {
+            return PackedCell64_t::ExtractModeOfPackedCellFromPacked(packed_cell) == PackedMode::MODE_VALUE32 && 
+                PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
+                PackedCell64_t::ExtractRelOffset32FromPacked(packed_cell) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
+        }
+
+        static constexpr uint32_t MakeOneAPCNodeClassReadyBit(APCPagedNodeRelMaskClasses desired_rel_class) noexcept
+        {
+            const uint32_t rel_class = static_cast<uint8_t>(desired_rel_class) & HIGH_FOUR_NIBBLE;
+            if (rel_class == static_cast<uint8_t>(APCPagedNodeRelMaskClasses::NONE) || rel_class == static_cast<uint8_t>(APCPagedNodeRelMaskClasses::NANNULL))
+            {
+                return UNSIGNED_ZERO;
+            }
+            return (1u << rel_class);
+        }
+
+
+        static bool CanCellBeConsumedForThisRegion(packed64_t packed_cell, APCPagedNodeRelMaskClasses region_kind) noexcept
+        {
+            return PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
+                ExtractPagedRelMaskFromPacked(packed_cell) == region_kind &&
+                PackedCell64_t::ExtractRelOffset32FromPacked(packed_cell) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
+        }
+
+        static constexpr MetaIndexOfAPCNode GetOccupancyMetIndexByRegionClass(
+            APCPagedNodeRelMaskClasses desired_region_class
+        )noexcept
+        {
+            return static_cast<MetaIndexOfAPCNode>(
+                static_cast<size_t>(MetaIndexOfAPCNode::REGION_OCCUPANCY_NONE) +
+                (static_cast<uint8_t>(desired_region_class) & HIGH_FOUR_NIBBLE)
+                );
+        }
+
+        static inline bool IsEmbededControlCell(const PackedCell64_t::AuthoritiveCellView& a_cell_view) noexcept
+        {
+            if (a_cell_view.CellMode == PackedMode::MODE_VALUE32 && a_cell_view.RelationOffsetForMode32.has_value())
+            {
+                return *a_cell_view.RelationOffsetForMode32 == RelOffsetMode32::CONTROL_SLOT;
+            }
+            if (a_cell_view.CellMode == PackedMode::MODE_CLKVAL48 && a_cell_view.RelationOffsetForMode48.has_value())
+            {
+                return *a_cell_view.RelationOffsetForMode48 == RelOffsetMode48::CONTROL_SLOT;
+            }
+            return false;
+        }
+
+        static inline bool IsEmbededTimerCell(const PackedCell64_t::AuthoritiveCellView& a_cell_view) noexcept
+        {
+            return a_cell_view.CellMode == PackedMode::MODE_CLKVAL48 && 
+                a_cell_view.RelationOffsetForMode48.has_value() &&
+                *a_cell_view.RelationOffsetForMode48 == RelOffsetMode48::RELOFFSET_PURE_TIMER;
+        }
+
+        static inline bool IsValidAccountingPageClass(
+            APCPagedNodeRelMaskClasses page_class
+        ) noexcept
+        {
+            return page_class != APCPagedNodeRelMaskClasses::NONE &&
+                page_class != APCPagedNodeRelMaskClasses::NANNULL &&
+                page_class != APCPagedNodeRelMaskClasses::FREE_SLOT &&
+                page_class != APCPagedNodeRelMaskClasses::CLOCK_PURE_TIME &&
+                page_class != APCPagedNodeRelMaskClasses::CONTROL_SLOT;
+        }
+
+        static inline bool DoesPublishedCellContributeToRegionOccupancy(const PackedCell64_t::AuthoritiveCellView& a_cell_view) noexcept
+        {
+            if (!a_cell_view.IsCellValid)
+            {
+                return false;
+            }
+            if (a_cell_view.LocalityOfCell != PackedCellLocalityTypes::ST_PUBLISHED)
+            {
+                return false;
+            }
+            if (!IsValidAccountingPageClass(a_cell_view.PageClass))
+            {
+                return false;
+            }
+            if (IsEmbededControlCell(a_cell_view) || IsEmbededTimerCell(a_cell_view))
+            {
+                return false;
+            }
+            return true;
+        }
+
+        static inline bool IsPublishedDataCellForRegion(
+            const PackedCell64_t::AuthoritiveCellView& view,
+            APCPagedNodeRelMaskClasses region_kind
+        ) noexcept
+        {
+            return DoesPublishedCellContributeToRegionOccupancy(view) &&
+                view.PageClass == region_kind;
+        }    
+
+        static inline MetaIndexOfAPCNode GetDesiredMetaIndexBucketForOccupancy(const PackedCell64_t::AuthoritiveCellView& a_cell_view) noexcept
+        {
+            if (!a_cell_view.IsCellValid || a_cell_view.LocalityOfCell == PackedCellLocalityTypes::ST_EXCEPTION_BIT_FAULTY)
+            {
+                return MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_FAULTY_CELLS;
+            }
+            switch (a_cell_view.LocalityOfCell)
+            {
+                case PackedCellLocalityTypes::ST_IDLE :
+                    return MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_IDLE_CELLS;
+
+                case PackedCellLocalityTypes::ST_PUBLISHED :
+                    return MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_PUBLISHED_CELLS;
+
+                case PackedCellLocalityTypes::ST_CLAIMED :
+                    return MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_CLAIMED_CELLS;
+
+                default :
+                    return MetaIndexOfAPCNode::OCCUPANCY_SNAPSHOT_OF_FAULTY_CELLS;
+            }
+            
+        } 
+
+
+};
     
     struct LayoutBoundsOfSingleRelNodeClass
     {
@@ -233,6 +360,22 @@ namespace PredictedAdaptedEncoding
         constexpr uint32_t ComputeWantedSpanFromTotal(uint32_t total_payload_span) const noexcept
         {
             return (static_cast<uint32_t>(InitialOrCurrentPercentage) * total_payload_span) / 100u;
+        }
+
+        inline bool DoseThisIndexPhysicallyExistInThisRegion(size_t index) const noexcept
+        {
+            return index >= BeginIndex && index < EndIndex;
+        }
+        inline bool CanCellBEConsumedForThisPhysicalRegion(
+            packed64_t packed_cell,
+            APCPagedNodeRelMaskClasses region_kind,
+            size_t idx
+        ) noexcept
+        {
+            return DoseThisIndexPhysicallyExistInThisRegion(idx) && 
+                PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
+                APCAndPagedNodeHelpers::ExtractPagedRelMaskFromPacked(packed_cell) == region_kind &&
+                PackedCell64_t::ExtractRelOffset32FromPacked(packed_cell) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
         }
 
     };
@@ -371,68 +514,15 @@ namespace PredictedAdaptedEncoding
         size_t Index{SIZE_MAX};
     };
 
-
-    struct APCAndPagedNodeHelpers
+    enum class APCOccupancyQuery : uint8_t
     {
-        static APCPagedNodeRelMaskClasses ExtractPagedRelMaskFromPacked (packed64_t packed_cell) noexcept
-        {
-            return static_cast<APCPagedNodeRelMaskClasses>(PackedCell64_t::ExtractRelMaskFromPacked(packed_cell));
-        }
-
-        static inline bool IsCellPublishedMode32Generic (packed64_t packed_cell) noexcept
-        {
-            return PackedCell64_t::ExtractModeOfPackedCellFromPacked(packed_cell) == PackedMode::MODE_VALUE32 && 
-                PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
-                static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell)) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
-        }
-        
-        template<typename PCDT>
-        static inline bool IsMode32TypedPublishedCell(packed64_t packed_cell) noexcept
-        {
-            if (!IsCellPublishedMode32Generic(packed_cell))
-            {
-                return false;
-            }
-            return PackedCell64_t::ExtractPCellDataTypeFromPacked(packed_cell)  == PackedCellTypeBridge<PCDT>::DType;
-        }
-
-        static bool CanCellBeConsumedForThisRegion(packed64_t packed_cell, APCPagedNodeRelMaskClasses region_kind) noexcept
-        {
-            return PackedCell64_t::ExtractLocalityFromPacked(packed_cell) == PackedCellLocalityTypes::ST_PUBLISHED &&
-                ExtractPagedRelMaskFromPacked(packed_cell) == region_kind &&
-                static_cast<RelOffsetMode32>(PackedCell64_t::ExtractRelOffsetFromPacked(packed_cell)) == RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
-        }
-
-        static packed64_t SetRelMaskForPagedNode(packed64_t packed_cell, APCPagedNodeRelMaskClasses rel_mask) noexcept
-        {
-            return PackedCell64_t::SetRelMaskInPacked(packed_cell, static_cast<tag8_t>(rel_mask));
-        }
-
-        static packed64_t PackValue32withAPCPageNodeClasses(val32_t value32, APCPagedNodeRelMaskClasses rel_mask, PackedCellLocalityTypes locality = PackedCellLocalityTypes::ST_PUBLISHED,
-                            MasterClockConf* master_clock_ptr = nullptr ,PackedCellDataType dtype = PackedCellDataType::UnsignedPCellDataType, PriorityPhysics priority = PriorityPhysics::IDLE,
-                            RelOffsetMode32 rel_offset = RelOffsetMode32::RELOFFSET_GENERIC_VALUE, clk16_t clock16 = NO_VAL) noexcept
-        {
-            packed64_t desired = 0;
-            if (master_clock_ptr)
-            {
-                desired = master_clock_ptr->ComposeValue32WithCurrentThreadStamp16(
-                    value32,
-                    static_cast<tag8_t>(rel_mask),
-                    priority,
-                    locality,
-                    rel_offset,
-                    dtype
-                );
-            }
-            else
-            {
-                desired = PackedCell64_t::ComposeValue32u_64(value32, clock16, 
-                        MakeSTRLMode32_t(priority, locality, static_cast<tag8_t>(rel_mask), rel_offset, dtype)
-                    );
-            }
-            return desired;
-            }
+        NON_IDLE_PAYLOAD = 0,
+        PUBLISHED_IN_ANY_REGION = 1,
+        PUBLISHED_IN_DESIRED_REGION = 2,
+        RESERVED_OR_CLAIMED = 3
     };
+
+
     
 
 

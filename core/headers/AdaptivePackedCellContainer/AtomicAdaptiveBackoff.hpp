@@ -1,19 +1,12 @@
 
 #pragma once
 
-#include "PackedCell.hpp"
-#include "PackedStRel.h"
+#include "PackedCell/CoreCellDefination.hpp"
+#include "APCHelpers.hpp"
 #include "MasterClockConf.hpp"
 
 namespace PredictedAdaptedEncoding
 {
-
-
-#define BURNCYCLE_THRESHOLD 4
-#define PAUSE_THRESHOLD 16
-#define YIELD_THRESHOLD 48
-
-
 
 static inline void CpuRelaxHint()
 {
@@ -23,8 +16,6 @@ static inline void CpuRelaxHint()
     __asm__ __volatile__("pause" ::: "memory");
 #endif
 }
-
-
 
 struct SpinBackoff
 {
@@ -321,7 +312,7 @@ private:
             clk16_t stored_clock16 = PackedCell64_t::ExtractClk16(packed);
             if (MasterClockConfAABOPtr_ && master_clock_slot_id.has_value())
             {
-                auto maybe_clock = MasterClockConfAABOPtr_->TryReconstructOrRefresh(master_clock_slot_id.value(), stored_clock16, true);
+                auto maybe_clock = MasterClockConfAABOPtr_->ReconstructCellClock16toFull48BySegmentLocalClock48(master_clock_slot_id.value());
                 if (maybe_clock.has_value())
                 {
                     return maybe_clock.value();
@@ -383,7 +374,7 @@ public:
         uint64_t now = 0ull;
         if (MasterClockConfAABOPtr_)
         {
-            now = MasterClockConfAABOPtr_->MasterTimer48.NowTicks();
+            now = MasterClockConfAABOPtr_->NowTicks48();
         }
         else
         {
@@ -401,7 +392,7 @@ public:
         uint64_t now = 0ull;
         if (MasterClockConfAABOPtr_)
         {
-            now = MasterClockConfAABOPtr_->MasterTimer48.NowTicks();
+            now = MasterClockConfAABOPtr_->NowTicks48();
         }
         else
         {
@@ -419,7 +410,7 @@ public:
         }
         else
         {
-            auto hema = Ema_.HazardPerSec(MasterClockConfAABOPtr_ ? MasterClockConfAABOPtr_->MasterTimer48 : PublicTimer48);
+            auto hema = Ema_.HazardPerSec(PublicTimer48);
             if (hema.has_value())
             {
                 hazard = hema.value();

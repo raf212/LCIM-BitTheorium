@@ -1,22 +1,17 @@
 #pragma once
 #include "PackedCell/CoreCellDefination.hpp"
-#include "MasterClockConf.hpp"
+#include "APCSpikeController/AtomicAdaptiveBackoff.hpp"
 
 namespace PredictedAdaptedEncoding
 {
 
 
-class SegmentIODefinition
+class SegmentIODefinition : public APCStaticsFirst
 {
 public:
     std::atomic<packed64_t>* BackingPtr{nullptr};
-    static constexpr size_t METACELL_COUNT = PackedCell64_t::METACELL_COUNT_FIRST;
-    static constexpr uint32_t BRANCH_MAGIC = 0x41504342u;//big-endian
-    static constexpr uint32_t EOF_HEADER = 0x72616600;//big-endian
-    static constexpr uint32_t BRANCH_VERSION = 1u;
     static constexpr uint32_t BRANCH_SENTINAL = LayoutBoundsOfSingleRelNodeClass::BRANCH_SENTINAL;
-    static constexpr packed64_t APC_SENTENAL = UINT64_MAX;
-    
+
     enum class APCNodeComputeKind : uint32_t
     {
         NONE = 0u,
@@ -58,9 +53,6 @@ public:
         IN_WORK_STACK = 1u << 5,
         IN_CLEANUP_STACK = 1u << 6
     };
-
-    static constexpr uint32_t PAYLOAD_BOUND_START = static_cast<uint32_t>(MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN);
-    static constexpr uint32_t PAYLOAD_BOUND_END = static_cast<uint32_t>(MetaIndexOfAPCNode::FREE_END);
 
 
     bool ValidMeteIdx(MetaIndexOfAPCNode idx) const noexcept

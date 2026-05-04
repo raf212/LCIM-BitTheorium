@@ -366,5 +366,18 @@ namespace PredictedAdaptedEncoding
         RelOffsetMode32 Position = RelOffsetMode32::RELOFFSET_GENERIC_VALUE;
         bool Ownership = false;
     };
+
+    enum class PublishStatus : uint8_t
+    {
+        OK = 0,
+        FULL = 1,
+        INVALID = 2
+    };
+
+    struct PublishResult
+    {
+        PublishStatus ResultStatus{PublishStatus::INVALID};
+        size_t Index{SIZE_MAX};
+    };
     
 }

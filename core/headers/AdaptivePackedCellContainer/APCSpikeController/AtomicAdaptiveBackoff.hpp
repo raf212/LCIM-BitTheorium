@@ -1,7 +1,5 @@
 
 #pragma once
-
-#include "PackedCell/CoreCellDefination.hpp"
 #include "MasterClockConf.hpp"
 
 namespace PredictedAdaptedEncoding

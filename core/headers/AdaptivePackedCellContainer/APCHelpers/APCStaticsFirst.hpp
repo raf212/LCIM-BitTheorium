@@ -142,26 +142,28 @@ namespace PredictedAdaptedEncoding
         };
     };
 
-    enum class PublishStatus : uint8_t
-    {
-        OK = 0,
-        FULL = 1,
-        INVALID = 2
-    };
 
-    struct PublishResult
+    class APCStaticsFirst
     {
-        PublishStatus ResultStatus{PublishStatus::INVALID};
-        size_t Index{SIZE_MAX};
-    };
+    protected:
 
-    enum class APCOccupancyQuery : uint8_t
-    {
-        NON_IDLE_PAYLOAD = 0,
-        PUBLISHED_IN_ANY_REGION = 1,
-        PUBLISHED_IN_DESIRED_REGION = 2,
-        RESERVED_OR_CLAIMED = 3
+
+
+    public:
+        static constexpr size_t METACELL_COUNT = PackedCell64_t::METACELL_COUNT_FIRST;
+        static constexpr uint32_t BRANCH_MAGIC = 0x41504342u;//big-endian
+        static constexpr uint32_t EOF_HEADER = 0x72616600;//big-endian
+        static constexpr uint32_t BRANCH_VERSION = 1u;
+        static constexpr packed64_t APC_SENTENAL = UINT64_MAX;
+        static constexpr uint32_t PAYLOAD_BOUND_START = static_cast<uint32_t>(MetaIndexOfAPCNode::MESSAGE_FEEDFORWARD_BEGAIN);
+        static constexpr uint32_t PAYLOAD_BOUND_END = static_cast<uint32_t>(MetaIndexOfAPCNode::FREE_END);
+        
     };
+    
+
+
+
+
   
     
 }

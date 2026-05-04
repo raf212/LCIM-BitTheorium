@@ -4,16 +4,12 @@
 #include <condition_variable>
 #include <cstdio>
 #include <iostream>
-
-#include "AtomicAdaptiveBackoff.hpp"
-#include "MasterClockConf.hpp"
 #include "SegmentIODefinition.hpp"
 #include "../PackedCellContainerManager.hpp"
 
 namespace PredictedAdaptedEncoding
 {
 static_assert(__cpp_lib_atomic_wait, "C++ must suppoet atomic wait/notify");
-#define CURRENT_BRANCHING_CLIENT  3
 
 class PackedCellContainerManager;
 

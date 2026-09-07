@@ -212,9 +212,13 @@ namespace BidirectionalInMemGraph
         ) noexcept;
 
     protected:
+
+        SD::RegionSchemaTable DefaultRegionTable_{};
+        bool HasDefaultRegionTable_{false};
+
         bool ReclaimRetiredSlotTemp_(uint32_t slot) noexcept;
 
-        bool IsDefaultSchemaCompatible(const SD::RegionSchemaTable& table) noexcept;
+        constexpr bool IsNodePolicyReConfigurable_(const SD::RegionSchemaTable& table) noexcept;
 
     };
 

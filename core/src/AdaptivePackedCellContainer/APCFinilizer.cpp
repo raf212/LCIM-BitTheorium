@@ -295,4 +295,69 @@ namespace BidirectionalInMemGraph
 
         return HandleOfAPCStatic::IsGenerationValid(new_generation);
     }
+
+
+    constexpr bool APCFinilizer::IsNodePolicyReConfigurable_(const SD::RegionSchemaTable& table) noexcept
+    {
+        if (!HasDefaultRegionTable_)
+        {
+            return true;
+        }
+
+        for (uint8_t i = 0; i < APCDataStructure::CountOfMacroColumn(); i++)
+        {
+            const SD::RegionSchemaRecord& expected = DefaultRegionTable_[i];
+
+            const SD::RegionSchemaRecord& supplied = table[i];
+            const bool expected_disabled = SD::HasSchemaFlag(expected.Flags, SD::SchemaFlags::REGION_DISABLED);
+            const bool supplied_disabled = SD::HasSchemaFlag(supplied.Flags, SD::SchemaFlags::REGION_DISABLED);
+
+            if (
+                supplied.Region != expected.Region ||
+                expected_disabled != supplied_disabled
+            )
+            {
+                return false;
+            }
+
+            if (expected_disabled)
+            {
+                if (supplied.Flags != expected.Flags)
+                {
+                    return false;
+                }
+                continue;
+            }
+            
+            if (
+                supplied.Dtype != expected.Dtype ||
+                supplied.MatrixHeight != expected.MatrixHeight ||
+                supplied.MatrixWidth != expected.MatrixWidth ||
+                supplied.CellCount != expected.CellCount ||
+                supplied.Flags != expected.Flags
+            )
+            {
+                return false;
+            }
+
+            // An exceptional node may change synchronization policy, but not
+            // physical record count or vector geometry.
+            switch (supplied.Protocol)
+            {
+            case SD::SchemaProtocols::PRIVATE_REGION:
+            case SD::SchemaProtocols::IMMUTABLE_SNAPSHOT:
+            case SD::SchemaProtocols::ATOMIC_WORD_ARRAY:
+                break;
+
+            default:
+                return false;
+            }
+
+            return true;
+            
+        }
+        
+    }
+
+
 }

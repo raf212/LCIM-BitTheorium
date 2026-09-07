@@ -4,8 +4,9 @@
 
 namespace BidirectionalInMemGraph
 {
-    struct GHGFLayerModel
+    class GHGFLayerModel
     {
+    public:
         using SD = SchemaDefinition;
         static constexpr uint32_t DEFAULT_BATCH_CAPACITY = 32u;
 
@@ -46,7 +47,7 @@ namespace BidirectionalInMemGraph
 
         static constexpr uint8_t WEIGHT_ROW_HEIGHT = 1u;
 
-        struct GHGFStoreageProfile final
+        struct GHGFStorageProfile final
         {
             uint32_t BatchCapacity = UNSIGNED_ZERO;
             uint32_t RequiredAPCCells = UNSIGNED_ZERO;
@@ -70,12 +71,12 @@ namespace BidirectionalInMemGraph
         }
 
         static constexpr bool MakeDefaultGHGFStorageProfile(
-            GHGFStoreageProfile& profile,
+            GHGFStorageProfile& profile,
             uint32_t batch_capacity = DEFAULT_BATCH_CAPACITY,
             uint8_t max_direct_parent_per_axis = APCDataStructure::DEFAULT_DIRECTED_PARENT_PER_AXIS
         ) noexcept
         {
-            profile = GHGFStoreageProfile{};
+            profile = GHGFStorageProfile{};
             SD::MakeDisabledSchemaTable(profile.DefaultSchemaTable);
 
             if (

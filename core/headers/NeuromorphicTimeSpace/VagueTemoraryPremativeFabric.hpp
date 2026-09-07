@@ -76,6 +76,16 @@ public:
         uint8_t max_direct_parents_per_axis = APCDataStructure::DEFAULT_DIRECTED_PARENT_PER_AXIS
     ) noexcept;
 
+    bool InitializeFabricWithProfile(
+        uint32_t slot_count,
+        const GHGFLayerModel::GHGFStorageProfile& profile
+    ) noexcept;
+
+    bool CreateAPC(
+        AdaptivePackedCellContainer& desired_apc,
+        uint32_t internal_max_tries = DEFAULT_MAX_TRIES
+    ) noexcept;
+
     void ShutDownFabricWithPtrTable() noexcept
     {
         ClearAPCRuntimePtrTable_();

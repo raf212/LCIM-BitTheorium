@@ -556,7 +556,7 @@ public:
 
         for (std::size_t i = 0u; i < NodeCount; ++i)
         {
-            if (!Fabric_.CreateCustomAPC(
+            if (!Fabric_.CreateAPC(
                 Nodes_[i],
                 schemas
             ))
@@ -2207,11 +2207,11 @@ inline bool CreationValidationAndRollback() noexcept
 
     SD::RegionSchemaTable missing_active{};
     SD::MakeDisabledSchemaTable(missing_active);
-    const bool missing_rejected = !fabric.CreateCustomAPC(candidate, missing_active);
+    const bool missing_rejected = !fabric.CreateAPC(candidate, missing_active);
 
     SD::RegionSchemaTable wrong_region = valid;
     wrong_region[0u].Region = MacroColumnOfAPC::STATE_SLOT;
-    const bool wrong_region_rejected = !fabric.CreateCustomAPC(candidate, wrong_region);
+    const bool wrong_region_rejected = !fabric.CreateAPC(candidate, wrong_region);
 
     SD::RegionSchemaTable wrong_batch{};
     SD::MakeDisabledSchemaTable(wrong_batch);
@@ -2226,7 +2226,7 @@ inline bool CreationValidationAndRollback() noexcept
         SD::SchemaFlags::BATCHED_LAST_DIM
     );
     const bool wrong_batch_rejected =
-        wrong_batch_defined && !fabric.CreateCustomAPC(candidate, wrong_batch);
+        wrong_batch_defined && !fabric.CreateAPC(candidate, wrong_batch);
 
     SD::RegionSchemaTable oversized{};
     SD::MakeDisabledSchemaTable(oversized);
@@ -2241,7 +2241,7 @@ inline bool CreationValidationAndRollback() noexcept
         SD::SchemaFlags::BATCHED_LAST_DIM
     );
     const bool oversized_rejected =
-        oversized_defined && !fabric.CreateCustomAPC(candidate, oversized);
+        oversized_defined && !fabric.CreateAPC(candidate, oversized);
 
     SD::RegionSchemaTable extra_region = valid;
     const bool extra_defined = MakeSchema(
@@ -2255,7 +2255,7 @@ inline bool CreationValidationAndRollback() noexcept
         SD::SchemaFlags::BATCHED_LAST_DIM
     );
     const bool extra_rejected =
-        extra_defined && !fabric.CreateCustomAPC(candidate, extra_region);
+        extra_defined && !fabric.CreateAPC(candidate, extra_region);
 
     const bool candidate_remained_unbound =
         !candidate.IsActiveAPC() &&
@@ -2263,7 +2263,7 @@ inline bool CreationValidationAndRollback() noexcept
 
     AdaptivePackedCellContainer valid_apc{};
     const bool slot_reusable =
-        fabric.CreateCustomAPC(valid_apc, valid) &&
+        fabric.CreateAPC(valid_apc, valid) &&
         valid_apc.GetThisSlotIdx() == 0u &&
         valid_apc.Retire();
 
@@ -2312,7 +2312,7 @@ bool CreateTyped(
         VIEW_WIDTH,
         0u,
         SD::SchemaFlags::BATCHED_LAST_DIM
-    ) && fabric.CreateCustomAPC(apc, schemas);
+    ) && fabric.CreateAPC(apc, schemas);
 }
 
 template <typename T>
@@ -2561,12 +2561,12 @@ inline bool DeviceViewAndProtocolStorage() noexcept
     }
 
     AdaptivePackedCellContainer apc{};
-    if (!fabric.CreateCustomAPC(apc, schemas))
+    if (!fabric.CreateAPC(apc, schemas))
     {
         std::cout
             << "    detail: Fabric metadata precheck="
             << (fabric_metadata_ok ? "PASS" : "FAIL")
-            << "; CreateCustomAPC rejected the valid compact schema row\n";
+            << "; CreateAPC rejected the valid compact schema row\n";
         return false;
     }
 
@@ -2586,7 +2586,7 @@ inline bool DeviceViewAndProtocolStorage() noexcept
     }
 
     AdaptivePackedCellContainer second_apc{};
-    if (!fabric.CreateCustomAPC(second_apc, second_schemas))
+    if (!fabric.CreateAPC(second_apc, second_schemas))
     {
         std::cout << "    detail: second compact DEVICE_VIEW_TABLE row was rejected\n";
         return false;
@@ -2761,7 +2761,7 @@ inline bool SlotReuseClearsPayloadAndSchema() noexcept
     }
 
     AdaptivePackedCellContainer first{};
-    if (!fabric.CreateCustomAPC(first, first_schema))
+    if (!fabric.CreateAPC(first, first_schema))
     {
         std::cout << "    detail: first APC creation was rejected\n";
         return false;
@@ -2805,7 +2805,7 @@ inline bool SlotReuseClearsPayloadAndSchema() noexcept
 
     AdaptivePackedCellContainer replacement{};
     if (
-        !fabric.CreateCustomAPC(replacement, replacement_schema) ||
+        !fabric.CreateAPC(replacement, replacement_schema) ||
         replacement.GetThisSlotIdx() != retired_slot ||
         first.IsActiveAPC()
     )
@@ -3041,7 +3041,7 @@ inline bool CreateAtomic(
     return SchemaDefinition::SealDesiredSchema(
         schema,
         0u
-    ) && fabric.CreateCustomAPC(apc, schemas);
+    ) && fabric.CreateAPC(apc, schemas);
 }
 
 inline bool RetirementAndABA()

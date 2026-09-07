@@ -669,10 +669,11 @@ namespace BidirectionalInMemGraph
     }
 
 
-    bool VagueTemoraryPremativeFabric::CreateCustomAPC(
+    bool VagueTemoraryPremativeFabric::CreateAPC(
         AdaptivePackedCellContainer& desired_apc,
         const SchemaDefinition::RegionSchemaTable& region_schemas,
-        uint32_t internal_max_tries 
+        uint32_t internal_max_tries,
+        bool override_table 
     ) noexcept
     {
         if (
@@ -774,17 +775,23 @@ namespace BidirectionalInMemGraph
             return false;
         }
 
-        if (!PrepareMatrixViewRow_(slot, region_schemas))
+        if (
+            !HasDefaultRegionTable_ ||
+            override_table
+        )
         {
-            AbortCreation___();
-            return false;
-        }
-        matrix_view_prepared = true;
+            if (!PrepareMatrixViewRow_(slot, region_schemas))
+            {
+                AbortCreation___();
+                return false;
+            }
+            matrix_view_prepared = true;
 
-        if (!InitializeRegionProtocolStorage_(slot))
-        {
-            AbortCreation___();
-            return false;
+            if (!InitializeRegionProtocolStorage_(slot))
+            {
+                AbortCreation___();
+                return false;
+            }
         }
         
         const APCDataStructure::RangeOfAPC range = GetSegmentPoolRange(slot);

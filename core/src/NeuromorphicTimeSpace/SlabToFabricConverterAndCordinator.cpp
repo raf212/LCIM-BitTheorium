@@ -231,6 +231,21 @@ namespace BidirectionalInMemGraph
         {
             return false;
         }
+
+        if (HasDefaultRegionTable_)
+        {
+            for (uint32_t i = 0; i < CountOfAPC_; i++)
+            {
+                if (
+                    !PrepareMatrixViewRow_(i, DefaultRegionTable_) ||
+                    !InitializeRegionProtocolStorage_(i)
+                )
+                {
+                    return false;
+                }
+            }
+        }
+        
         
 
         if (!InitializeAPCGenerationTable_())

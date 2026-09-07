@@ -456,7 +456,7 @@
 //                 epoch->Native.IsFabricActive();
 //         }
 
-//         bool CreateCustomAPC(
+//         bool CreateAPC(
 //             const std::shared_ptr<PythonAPC>& desired_apc,
 //             bool wants_horizontal_root,
 //             bool wants_vertical_root,
@@ -539,7 +539,7 @@
 //                 return false;
 //             }
 
-//             if (!epoch->Native.CreateCustomAPC(
+//             if (!epoch->Native.CreateAPC(
 //                     *desired_apc->Native_,
 //                     wants_horizontal_root,
 //                     wants_vertical_root,
@@ -612,7 +612,7 @@
 //         )
 //         {
 //             auto apc = std::make_shared<PythonAPC>();
-//             if (!CreateCustomAPC(
+//             if (!CreateAPC(
 //                     apc,
 //                     wants_horizontal_root,
 //                     wants_vertical_root,
@@ -623,7 +623,7 @@
 //                     internal_max_tries
 //                 ))
 //             {
-//                 throw std::runtime_error("CreateCustomAPC failed");
+//                 throw std::runtime_error("CreateAPC failed");
 //             }
 //             return apc;
 //         }
@@ -1530,8 +1530,8 @@
 //             )
 //             .def("IsFabricActive", &PythonFabric::IsFabricActive)
 //             .def(
-//                 "CreateCustomAPC",
-//                 &PythonFabric::CreateCustomAPC,
+//                 "CreateAPC",
+//                 &PythonFabric::CreateAPC,
 //                 py::arg("desired_apc"),
 //                 py::arg("wants_horizontal_root") = false,
 //                 py::arg("wants_vertical_root") = false,

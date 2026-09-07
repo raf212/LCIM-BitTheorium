@@ -4,8 +4,9 @@
 
 namespace BidirectionalInMemGraph
 {
-    class GHGFLayerModel
+    class GHGFLayerModel final
     {
+        friend class GHGFModelConstructor;
     public:
         using SD = SchemaDefinition;
         static constexpr uint32_t DEFAULT_BATCH_CAPACITY = 32u;
@@ -60,14 +61,27 @@ namespace BidirectionalInMemGraph
             bool IsValid = false;
         };
 
-        static constexpr uint32_t CouplingIndex(uint8_t relation_ordinal, uint8_t max_direct_parent_per_axis) noexcept
+        static constexpr uint32_t CouplingIndex(
+            FabricSegments edge_table,
+            uint8_t relation_ordinal,
+            uint8_t max_direct_parent_per_axis
+        ) noexcept
         {
-            if (relation_ordinal >= max_direct_parent_per_axis)
+            if (
+                relation_ordinal >= max_direct_parent_per_axis ||
+                (edge_table != FabricSegments::VALUE_PARENT_EDGE_TABLE_H &&
+                 edge_table != FabricSegments::VOLATILE_PARENT_EDGE_TABLE_V)
+            )
             {
-                return UNSIGNED_ZERO;
+                return APCDataStructure::APC_INDEX_BOUND_SENTINAL;
             }
 
-            return FIRST_COUPLING_INDEX + static_cast<uint32_t>(max_direct_parent_per_axis) + relation_ordinal;
+            const uint32_t axis_offset =
+                edge_table == FabricSegments::VOLATILE_PARENT_EDGE_TABLE_V
+                    ? static_cast<uint32_t>(max_direct_parent_per_axis)
+                    : UNSIGNED_ZERO;
+
+            return FIRST_COUPLING_INDEX + axis_offset + relation_ordinal;
         }
 
         static constexpr bool MakeDefaultGHGFStorageProfile(
@@ -144,6 +158,72 @@ namespace BidirectionalInMemGraph
 
             return true;
         }
+
+        static constexpr bool IsValidStoregeProfile(const GHGFStorageProfile& profile) noexcept
+        {
+            const uint32_t expected_paremeter_count = FIRST_COUPLING_INDEX + (AXIS_COUNT * static_cast<uint32_t>(profile.MaxDirectParentPerAxis));
+
+            const uint16_t expected_mask = static_cast<uint16_t>(
+                APCDataStructure::RegionBit(MacroColumnOfAPC::STATE_SLOT) |
+                APCDataStructure::RegionBit(MacroColumnOfAPC::ERROR_SLOT) |
+                APCDataStructure::RegionBit(MacroColumnOfAPC::WEIGHT_SLOT)
+            );        
+
+            const SD::RegionSchemaRecord& state = profile.DefaultSchemaTable[static_cast<uint8_t>(MacroColumnOfAPC::STATE_SLOT)];
+            const SD::RegionSchemaRecord& error = profile.DefaultSchemaTable[static_cast<uint8_t>(MacroColumnOfAPC::ERROR_SLOT)];
+            const SD::RegionSchemaRecord& weight = profile.DefaultSchemaTable[static_cast<uint8_t>(MacroColumnOfAPC::WEIGHT_SLOT)];
+
+            return
+                profile.IsValid &&
+                profile.BatchCapacity != UNSIGNED_ZERO &&
+                profile.MaxDirectParentPerAxis != UNSIGNED_ZERO &&
+                profile.ParameterCount == expected_paremeter_count &&
+                profile.ActiveRegionMask == expected_mask &&
+                profile.FabricConfig.ActiveRegionMask == expected_mask &&
+                profile.FabricConfig.Reserved == expected_mask &&
+                profile.FabricConfig.BatchCapacity == profile.BatchCapacity &&
+                APCDataStructure::IsCapacityOfAPCValid(profile.RequiredAPCCells) &&
+                SD::GetActiveMaskOfRegionTable_(profile.DefaultSchemaTable) == expected_mask &&
+                SD::RequiredCellsForSchemaTable_(profile.DefaultSchemaTable) == profile.RequiredAPCCells &&
+                state.Region == MacroColumnOfAPC::STATE_SLOT &&
+                state.Dtype == SD::DataTypeOfMacroColumn::FLOAT32_T &&
+                state.Protocol == SD::SchemaProtocols::PRIVATE_REGION &&
+                state.MatrixHeight == STATE_ROW_COUNT_HEIGHT &&
+                state.MatrixWidth == profile.BatchCapacity &&
+                state.Flags == SD::SchemaFlags::BATCHED_LAST_DIM &&
+                error.Region == MacroColumnOfAPC::ERROR_SLOT &&
+                error.Dtype == SD::DataTypeOfMacroColumn::FLOAT32_T &&
+                error.Protocol == SD::SchemaProtocols::PRIVATE_REGION &&
+                error.MatrixHeight == ERROR_ROW_COUNT_HEIGHT &&
+                error.MatrixWidth == profile.BatchCapacity &&
+                error.Flags == SD::SchemaFlags::BATCHED_LAST_DIM &&
+                weight.Region == MacroColumnOfAPC::WEIGHT_SLOT &&
+                weight.Dtype == SD::DataTypeOfMacroColumn::FLOAT32_T &&
+                weight.Protocol == SD::SchemaProtocols::PRIVATE_REGION &&
+                weight.MatrixHeight == WEIGHT_ROW_HEIGHT &&
+                weight.MatrixWidth == profile.ParameterCount &&
+                weight.Flags == SD::SchemaFlags::NONE;
+        }
+
+
+    private:
+        
+        struct StorageConst
+        {
+            // Initial storage contents.
+            static constexpr float INITIAL_STORAGE_VALUE = 0.0f;
+
+            // Initial beliefs and prediction state.
+            static constexpr float INITIAL_BINARY_PROBABILITY = 0.5f;
+            static constexpr float INITIAL_PRECISION = 1.0f;
+            // Baseline dynamics; tonic volatility is stored on a logarithmic scale.
+            static constexpr float OBSERVATION_TONIC_LOG_VOLATILITY = 0.0f;
+            static constexpr float INITIAL_TONIC_LOG_VOLATILITY = -4.0f;
+            static constexpr float INITIAL_AUTO_CONNECTION = 1.0f;
+            // Initial strengths for connected H and V parents.
+            static constexpr float INITIAL_VALUE_COUPLING = 1.0f;
+            static constexpr float INITIAL_VOLATILITY_COUPLING = 1.0f;
+        };
 
     };
     

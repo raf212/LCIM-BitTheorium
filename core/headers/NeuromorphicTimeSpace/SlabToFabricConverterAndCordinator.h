@@ -20,6 +20,8 @@ namespace BidirectionalInMemGraph
         void InitializeCompleateFabricMetaIndices_(size_t record_book_begin, size_t record_book_end) noexcept;
 
     protected :
+        SD::RegionSchemaTable DefaultRegionTable_{};
+        bool HasDefaultRegionTable_{false};
 
         bool InitializeFabric(
             uint32_t slot_count,
@@ -212,9 +214,6 @@ namespace BidirectionalInMemGraph
         ) noexcept;
 
     protected:
-
-        SD::RegionSchemaTable DefaultRegionTable_{};
-        bool HasDefaultRegionTable_{false};
 
         bool ReclaimRetiredSlotTemp_(uint32_t slot) noexcept;
 

@@ -1,14 +1,14 @@
 #pragma once 
-#include "../VagueTemoraryPremativeFabric.hpp"
+#include "../NeuromorphicTimeSpace/VagueTemoraryPremativeFabric.hpp"
 
 namespace BidirectionalInMemGraph
 {
+
     class GHGFModelConstructor : private VagueTemoraryPremativeFabric
     {
     private:
         using GM = GHGFLayerModel;
-        GM::GHGFStorageProfile Profile_{};
-
+        GM::GHGFCache Cache_{};
 
     public :
 
@@ -28,6 +28,10 @@ namespace BidirectionalInMemGraph
             return HasDefaultRegionTable_ && CreateAPC(desired_apc, DefaultRegionTable_);
         }
 
+        size_t GHGFSlotBegin_(uint32_t slot) const noexcept;
+        bool IsLiveGHGFSlot_(uint32_t slot) noexcept;
+        bool IsGHGFPlanCurrent_() noexcept;
+        
         
             
     };

@@ -1,5 +1,5 @@
 #pragma once
-#include "NeuromorphicTimeSpace/Models/GHGFModelOfAPC.hpp"
+#include "Models/GHGFModelOfAPC.hpp"
 #include <span>
 
 namespace BidirectionalInMemGraph

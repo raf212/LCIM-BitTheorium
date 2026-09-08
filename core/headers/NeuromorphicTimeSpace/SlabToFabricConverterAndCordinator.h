@@ -10,10 +10,6 @@ namespace BidirectionalInMemGraph
 
         uint64_t* AllocatePackedCellRaw_(size_t count_of_cells) noexcept;
         
-        void FreeRawPackedCells_(uint64_t*packed_cell_memory_ptr, size_t packed_cell_count) noexcept;
-
-        void ResetScalarsofTheFabric_() noexcept;
-
         /// @brief INITIALIZES: All FabricMetaIndicies
         /// @param table_directory_begin 
         /// @param table_directory_end 
@@ -30,6 +26,8 @@ namespace BidirectionalInMemGraph
             uint8_t max_direct_parent_per_axis = APCDataStructure::DEFAULT_DIRECTED_PARENT_PER_AXIS
         ) noexcept;
 
+        void FreeRawPackedCells_(uint64_t*packed_cell_memory_ptr, size_t packed_cell_count) noexcept;
+        void ResetScalarsofTheFabric_() noexcept;
     public:
         SlabToFabricConverterAndCordinator(/* args */) noexcept = default;
 

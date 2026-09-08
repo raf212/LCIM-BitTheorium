@@ -112,7 +112,8 @@ namespace BidirectionalInMemGraph
 
             if (
                 batch_capacity == UNSIGNED_ZERO ||
-                max_direct_parent_per_axis == UNSIGNED_ZERO
+                max_direct_parent_per_axis == UNSIGNED_ZERO ||
+                max_direct_parent_per_axis > APCDataStructure::COMPILED_MAX_DIRECT_PARENTS_PER_AXIS
             )
             {
                 return false;
@@ -124,7 +125,7 @@ namespace BidirectionalInMemGraph
                 profile.DefaultSchemaTable,
                 MacroColumnOfAPC::STATE_SLOT,
                 STATE_ROW_COUNT_HEIGHT,
-                parameter_count,
+                batch_capacity,
                 SD::SchemaFlags::BATCHED_LAST_DIM
             ))
             {
@@ -135,7 +136,7 @@ namespace BidirectionalInMemGraph
                 profile.DefaultSchemaTable,
                 MacroColumnOfAPC::ERROR_SLOT,
                 ERROR_ROW_COUNT_HEIGHT,
-                parameter_count,
+                batch_capacity,
                 SD::SchemaFlags::BATCHED_LAST_DIM
             ))
             {
@@ -194,7 +195,7 @@ namespace BidirectionalInMemGraph
                 profile.IsValid &&
                 profile.BatchCapacity != UNSIGNED_ZERO &&
                 profile.MaxDirectParentPerAxis != UNSIGNED_ZERO &&
-                profile.MaxDirectParentPerAxis < APCDataStructure::COMPILED_MAX_DIRECT_PARENTS_PER_AXIS &&
+                profile.MaxDirectParentPerAxis <= APCDataStructure::COMPILED_MAX_DIRECT_PARENTS_PER_AXIS &&
                 profile.ParameterCount == expected_paremeter_count &&
                 profile.ActiveRegionMask == expected_mask &&
                 profile.FabricConfig.ActiveRegionMask == expected_mask &&

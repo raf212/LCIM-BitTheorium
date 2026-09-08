@@ -76,12 +76,7 @@ public:
         uint8_t max_direct_parents_per_axis = APCDataStructure::DEFAULT_DIRECTED_PARENT_PER_AXIS
     ) noexcept;
 
-    void ShutDownFabricWithPtrTable() noexcept
-    {
-        ClearAPCRuntimePtrTable_();
-        APCRuntimePtrTable_.reset();
-        ShutDownFabric();
-    }
+    void ShutDownFabricWithPtrTable() noexcept;
 
     bool CreateAPC(
         AdaptivePackedCellContainer& desired_apc,

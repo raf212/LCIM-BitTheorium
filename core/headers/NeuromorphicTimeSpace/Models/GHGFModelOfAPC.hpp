@@ -22,6 +22,13 @@ namespace BidirectionalInMemGraph
             GM::GHGFNodeRole role,
             const GM::GHGFStorageProfile& profile
         ) noexcept;
+
+        bool CreateNodeOfGHGF(AdaptivePackedCellContainer& desired_apc) noexcept
+        {
+            return HasDefaultRegionTable_ && CreateAPC(desired_apc, DefaultRegionTable_);
+        }
+
+        
             
     };
 }

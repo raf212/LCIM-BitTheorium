@@ -6,6 +6,43 @@
 namespace BidirectionalInMemGraph
 {
 
+    void VagueTemoraryPremativeFabric::ShutDownFabricWithPtrTable() noexcept
+    {
+        const bool was_active = FabricInitialized_.exchange(false, std::memory_order_acq_rel);
+        if (was_active && SlabBasePtr_)
+        {
+            for (uint32_t i = 0; i < CountOfAPC_; i++)
+            {
+                std::atomic_ref<uint64_t>(*GetAPCGenerationPtr_(i)).fetch_or(
+                    HandleOfAPCStatic::CLOSED_MASK,
+                    std::memory_order_acq_rel
+                );
+            }
+
+            for (uint32_t i = 0; i < CountOfAPC_; i++)
+            {
+                std::atomic_ref<uint64_t> control(*GetAPCGenerationPtr_(i));
+                while (HandleOfAPCStatic::ReadControlCell(control.load(std::memory_order_acquire)).ActiveAccess != UNSIGNED_ZERO)
+                {
+                    std::this_thread::yield();
+                }
+            }
+        }
+
+        uint64_t* old_ptr = SlabBasePtr_;
+        const size_t old_count = SlabCellCount_;
+        SlabBasePtr_ = nullptr;
+        SlabCellCount_ = UNSIGNED_ZERO;
+        if (old_ptr)
+        {
+            FreeRawPackedCells_(old_ptr,old_count);
+        }
+        CompiledDagTableBeginIdx_ = UNSIGNED_ZERO;
+        ComiledDAGRevision_.fetch_add(1, std::memory_order_release);
+        ResetScalarsofTheFabric_();
+    }
+
+
     bool VagueTemoraryPremativeFabric::BuildAPCRuntimePtrTable_() noexcept
     {
         if (CountOfAPC_ == UNSIGNED_ZERO)
@@ -34,8 +71,12 @@ namespace BidirectionalInMemGraph
             return;
         }
         for (size_t i = 0; i < static_cast<size_t>(CountOfAPC_); i++)
-        {
-            APCRuntimePtrTable_[i].store(nullptr, std::memory_order_release);
+        {   
+            AdaptivePackedCellContainer* apc = APCRuntimePtrTable_[i].exchange(nullptr, std::memory_order_acq_rel);
+            if (apc)
+            {
+                apc->ReleseFabricBindingOnly_();
+            }            
         }
     }
 
@@ -68,7 +109,7 @@ namespace BidirectionalInMemGraph
         uint8_t max_direct_parents_per_axis 
     ) noexcept
     {
-        APCRuntimePtrTable_.reset();
+        ShutDownFabricWithPtrTable();
         const bool base_ok = InitializeFabric(
             slot_count,
             slot_cell_count,
@@ -777,10 +818,12 @@ namespace BidirectionalInMemGraph
 
         if (
             !HasDefaultRegionTable_ ||
-            override_table
+            override_table ||
+            control_values.Generation != HandleOfAPCStatic::FIRST_GENERATION
+
         )
         {
-            if (!PrepareMatrixViewRow_(slot, region_schemas))
+            if (!PrepareMatrixViewRow_(slot, HasDefaultRegionTable_ && !override_table ? DefaultRegionTable_ : region_schemas))
             {
                 AbortCreation___();
                 return false;

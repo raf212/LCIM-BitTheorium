@@ -94,11 +94,11 @@ namespace BidirectionalInMemGraph
 
         if (EdgeBuilder::IsEmpty(relation))
         {
-            mask.fetch_add(~relation_bit, std::memory_order_release);
+            mask.fetch_and(~relation_bit, std::memory_order_release);
         }
         else
         {
-            mask.fetch_add(relation_bit, std::memory_order_release);
+            mask.fetch_or(relation_bit, std::memory_order_release);
         }
     }
 
@@ -346,7 +346,9 @@ namespace BidirectionalInMemGraph
                 delta.Work
             );
         }
-
+        
+        ComiledDAGRevision_.fetch_add(1u, std::memory_order_release);
+    
         auto Publish___ = [&](bool publish_anchor) noexcept -> void
         {
             for (uint8_t i = 0; i < transaction.RowCount; i++)

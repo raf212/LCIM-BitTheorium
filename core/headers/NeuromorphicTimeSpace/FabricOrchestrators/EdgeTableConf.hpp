@@ -14,7 +14,6 @@ namespace BidirectionalInMemGraph
 
         using DirtyRelationMask = uint64_t;
 
-        static constexpr uint8_t COMPILED_MAX_DIRECT_PARENTS_PER_AXIS = 64u;
         static constexpr uint8_t RELATION_SLOT_BITS = 24u;
         static constexpr uint8_t RELATION_ORDINAL_BITS = 8u;
 
@@ -68,7 +67,7 @@ namespace BidirectionalInMemGraph
         ) noexcept
         {
             return value > 0u &&
-                value <= COMPILED_MAX_DIRECT_PARENTS_PER_AXIS;
+                value <= APCDataStructure::COMPILED_MAX_DIRECT_PARENTS_PER_AXIS;
         }
 
         static constexpr bool IsValidRelationOrdinal(

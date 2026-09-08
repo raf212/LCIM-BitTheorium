@@ -5,8 +5,12 @@ namespace BidirectionalInMemGraph
 {
     class GHGFModelConstructor : private VagueTemoraryPremativeFabric
     {
+    private:
+        using GM = GHGFLayerModel;
+        GM::GHGFStorageProfile Profile_{};
+
+
     public :
-    using GM = GHGFLayerModel;
 
         bool InitializeGHGFFabric(
             uint32_t slot_count,

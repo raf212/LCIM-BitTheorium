@@ -4,7 +4,7 @@
 namespace BidirectionalInMemGraph
 {
     
-    class SlabToFabricConverterAndCordinator : public EdgeTableConstructor
+    class SlabToFabricConverterAndCordinator : public CompiledDAGTableConstructor
     {
     private:
 

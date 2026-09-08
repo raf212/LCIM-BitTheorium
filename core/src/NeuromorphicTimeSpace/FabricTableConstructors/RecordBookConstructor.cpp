@@ -6,7 +6,7 @@ namespace BidirectionalInMemGraph
     void RecordBookConstructor::IdleAFabricTableClassRangesMemory_(FabricSegments table_class) noexcept
     {
 
-        RecordBookConf::RecordBookTablesBoundsCarrier return_bounds{};
+        RecordBookConf::FabricSegmentBounds return_bounds{};
         if (!GetRecordMapCarrierRanges_(table_class, return_bounds))
         {
             return;
@@ -20,7 +20,7 @@ namespace BidirectionalInMemGraph
 
     bool RecordBookConstructor::GetRecordMapCarrierRanges_(
         const FabricSegments table_class,
-        RecordBookConf::RecordBookTablesBoundsCarrier& return_bounds
+        RecordBookConf::FabricSegmentBounds& return_bounds
     ) noexcept
     {
         return_bounds = {};

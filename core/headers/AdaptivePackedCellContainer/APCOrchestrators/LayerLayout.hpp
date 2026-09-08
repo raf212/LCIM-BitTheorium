@@ -61,6 +61,23 @@ namespace BidirectionalInMemGraph
             bool IsValid = false;
         };
 
+        struct GHGFConnection
+        {
+            uint32_t parent;
+            uint32_t Child;
+            FabricSegments Axis;
+            float Coupling = 1.0f;
+        };
+
+        struct GHGFParameterRange
+        {
+            uint32_t Slot;
+            uint32_t Index;
+            float Lower;
+            float Upper;
+        };
+
+
         static constexpr uint32_t CouplingIndex(
             FabricSegments edge_table,
             uint8_t relation_ordinal,
@@ -107,7 +124,7 @@ namespace BidirectionalInMemGraph
                 profile.DefaultSchemaTable,
                 MacroColumnOfAPC::STATE_SLOT,
                 STATE_ROW_COUNT_HEIGHT,
-                batch_capacity,
+                parameter_count,
                 SD::SchemaFlags::BATCHED_LAST_DIM
             ))
             {
@@ -118,7 +135,7 @@ namespace BidirectionalInMemGraph
                 profile.DefaultSchemaTable,
                 MacroColumnOfAPC::ERROR_SLOT,
                 ERROR_ROW_COUNT_HEIGHT,
-                batch_capacity,
+                parameter_count,
                 SD::SchemaFlags::BATCHED_LAST_DIM
             ))
             {
@@ -129,7 +146,7 @@ namespace BidirectionalInMemGraph
                 profile.DefaultSchemaTable,
                 MacroColumnOfAPC::WEIGHT_SLOT,
                 WEIGHT_ROW_HEIGHT,
-                batch_capacity,
+                parameter_count,
                 SD::SchemaFlags::NONE
             ))
             {
@@ -177,10 +194,11 @@ namespace BidirectionalInMemGraph
                 profile.IsValid &&
                 profile.BatchCapacity != UNSIGNED_ZERO &&
                 profile.MaxDirectParentPerAxis != UNSIGNED_ZERO &&
+                profile.MaxDirectParentPerAxis < APCDataStructure::COMPILED_MAX_DIRECT_PARENTS_PER_AXIS &&
                 profile.ParameterCount == expected_paremeter_count &&
                 profile.ActiveRegionMask == expected_mask &&
                 profile.FabricConfig.ActiveRegionMask == expected_mask &&
-                profile.FabricConfig.Reserved == expected_mask &&
+                profile.FabricConfig.Reserved == UNSIGNED_ZERO &&
                 profile.FabricConfig.BatchCapacity == profile.BatchCapacity &&
                 APCDataStructure::IsCapacityOfAPCValid(profile.RequiredAPCCells) &&
                 SD::GetActiveMaskOfRegionTable_(profile.DefaultSchemaTable) == expected_mask &&
@@ -223,6 +241,16 @@ namespace BidirectionalInMemGraph
             // Initial strengths for connected H and V parents.
             static constexpr float INITIAL_VALUE_COUPLING = 1.0f;
             static constexpr float INITIAL_VOLATILITY_COUPLING = 1.0f;
+
+            static constexpr float ZERO = 0.0f;
+            static constexpr float ONE = 1.0f;
+            static constexpr float HALF = 0.5f;
+            static constexpr float BINARY_CLIP = 1.0e-6f;
+            static constexpr float MIN_PRECISION = 1.0e-8f;
+            static constexpr float MAX_PRECISION = 1.0e10f;
+            static constexpr float INITIAL_SEARCH_STEP = 1.0f;
+            static constexpr float MIN_SEARCH_STEP = 1.0e-3f;
+            static constexpr uint32_t INVALID_SLOT = APCDataStructure::APC_INDEX_BOUND_SENTINAL;
         };
 
     };

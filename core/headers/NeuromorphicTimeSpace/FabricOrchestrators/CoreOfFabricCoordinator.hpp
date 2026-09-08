@@ -8,11 +8,12 @@ namespace BidirectionalInMemGraph
     {
         /// UNCHECKED
         static constexpr size_t RELATION_WIDTH_OF_FABRIC = 0u;
-        static constexpr size_t COMPILED_DAG_LEN = 0u;
         static constexpr size_t DEVICE_PLANNER_RECORD_LEN = 0u;
         static constexpr size_t WORK_RECORD_WIDTH_OF_FABRIC = 0u;
         static constexpr size_t DEFAULT_FABRIC_CONTROLIO_LENGTH = 512u;
         ///--------------------------
+        static constexpr size_t COMPILED_DAG_LEN = 2u;
+
         static constexpr uint32_t FABRIC_MAGIC = 0x41504643u;
         static constexpr uint32_t FABRIC_META_EOF = 0x41474946u;
         static constexpr uint8_t EACH_TABLE_RECORD_SENTINAL = UINT8_MAX;
@@ -69,7 +70,7 @@ namespace BidirectionalInMemGraph
     {
         static constexpr uint8_t RECORD_BOOK_INTERNAL_SEGMENT_COUNT = static_cast<uint8_t>(FabricSegments::SEGMENT_POOL) + 1;
 
-        struct RecordBookTablesBoundsCarrier
+        struct FabricSegmentBounds
         {
             uint64_t BeginIndex = UNSIGNED_ZERO;
             uint64_t EndIndex = UNSIGNED_ZERO;

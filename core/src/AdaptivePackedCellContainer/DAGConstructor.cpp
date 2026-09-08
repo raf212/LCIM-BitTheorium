@@ -5,6 +5,172 @@
 
 namespace BidirectionalInMemGraph
 {
+
+
+    CompiledDAGTableConstructor::CompiledDAGRecord* CompiledDAGTableConstructor::CompiledDAGRow_(uint32_t row_slot) noexcept
+    {
+        if (!SlabBasePtr_ || row_slot >= CountOfAPC_)
+        {
+            return nullptr;
+        }
+        
+        const size_t row_begin = static_cast<size_t>(CompiledDagTableBeginIdx_) +
+            (static_cast<size_t>(row_slot) * CoreOfFabricCoordinator::COMPILED_DAG_LEN);
+        
+        if (
+            row_begin >= SlabCellCount_ ||
+            CoreOfFabricCoordinator::COMPILED_DAG_LEN > SlabCellCount_ - row_begin
+        )
+        {
+            return nullptr;
+        }
+
+        return std::launder(reinterpret_cast<CompiledDAGRecord*>(SlabBasePtr_ + row_begin));
+    }
+
+
+    bool CompiledDAGTableConstructor::InitializeCompiledDAGTAble_() noexcept
+    {
+        RecordBookConf::FabricSegmentBounds bounds{};
+        if (!GetRecordMapCarrierRanges_(FabricSegments::COMPILED_DAG_TABLE, bounds))
+        {
+            return false;
+        }
+
+        const size_t required_cells = static_cast<size_t>(CountOfAPC_) * CoreOfFabricCoordinator::COMPILED_DAG_LEN;
+
+        if (
+            bounds.EndIndex - bounds.BeginIndex != required_cells ||
+            bounds.EndIndex > SlabCellCount_
+        )
+        {
+            return false;
+        }
+
+        CompiledDagTableBeginIdx_ = bounds.BeginIndex;
+
+        for (uint32_t i = 0; i < CountOfAPC_; i++)
+        {
+            const size_t row_begin = static_cast<size_t>(CompiledDagTableBeginIdx_) +
+                (static_cast<size_t>(i) * CoreOfFabricCoordinator::COMPILED_DAG_LEN);
+
+            std::construct_at(reinterpret_cast<CompiledDAGRecord*>(SlabBasePtr_ + row_begin), CompiledDAGRecord{});
+        }
+        
+        return true;
+    }
+
+
+    void CompiledDAGTableConstructor::CompiledDAGRelation_(
+        FabricSegments edge_table,
+        uint32_t child_slot,
+        uint8_t relation_ordinal,
+        const EdgeBuilder::ParentRelation& relation
+    ) noexcept
+    {
+        if (
+            !CoreOfFabricCoordinator::IsValidEdgeTable(edge_table) ||
+            child_slot >= CountOfAPC_ ||
+            relation_ordinal >= MaxDirectParentsPerAxis_ ||
+            EdgeBuilder::IsPartiallyEmpty(relation)
+        )
+        {
+            return;
+        }
+
+        CompiledDAGRecord* record = CompiledDAGRow_(child_slot);
+
+        if (!record)
+        {
+            return;
+        }
+
+        uint64_t& stored_mask = edge_table == FabricSegments::VALUE_PARENT_EDGE_TABLE_H ? 
+            record->ValueParentMask : record->VolatileParentMask;
+
+        std::atomic_ref<uint64_t> mask(stored_mask);
+
+        const uint64_t relation_bit = EdgeBuilder::DirtyBit(relation_ordinal);
+
+        if (EdgeBuilder::IsEmpty(relation))
+        {
+            mask.fetch_add(~relation_bit, std::memory_order_release);
+        }
+        else
+        {
+            mask.fetch_add(relation_bit, std::memory_order_release);
+        }
+    }
+
+
+    CompiledDAGTableConstructor::SeqLockedOperation CompiledDAGTableConstructor::ReadCompiledDAGParentMask_(
+        FabricSegments edge_table,
+        uint32_t child_slot,
+        uint64_t& return_mask,
+        uint32_t max_tries
+    ) noexcept
+    {
+        return_mask = UNSIGNED_ZERO;
+        if (
+            !CoreOfFabricCoordinator::IsValidEdgeTable(edge_table) ||
+            child_slot >= CountOfAPC_
+        )
+        {
+            return SeqLockedOperation::NONE;
+        }
+
+        const EdgeTableRange range = ReadAnEdgeTableRange_(edge_table, child_slot);
+
+        CompiledDAGRecord* record = CompiledDAGRow_(child_slot);
+
+        if (
+            !range.IsValid ||
+            !record
+        )
+        {
+            return SeqLockedOperation::NONE;
+        }
+
+        uint64_t& stored_mask = edge_table == FabricSegments::VALUE_PARENT_EDGE_TABLE_H ?
+            record->ValueParentMask : record->VolatileParentMask;
+
+
+        std::atomic_ref<const uint64_t>seq_lock_ref(SlabBasePtr_[range.BeginIndex]);
+        for (size_t i = 0; i < max_tries; i++)
+        {
+            uint64_t before_raw = seq_lock_ref.load(std::memory_order_acquire);
+
+            const EdgeBuilder::EdgeData before = EdgeBuilder::UnpackEdgeHeader(before_raw);
+
+            if (!before.IsValid)
+            {
+                return SeqLockedOperation::NONE;
+            }
+            
+            if (before.Status == EdgeBuilder::EdgeStatus::RESERVED)
+            {
+                continue;
+            }
+
+            if (before.Status != EdgeBuilder::EdgeStatus::LIVE)
+            {
+                return SeqLockedOperation::NONE;
+            }
+
+            const uint64_t observed_mask = std::atomic_ref<const uint64_t>(stored_mask).load(std::memory_order_acquire);
+            const uint64_t after_raw = seq_lock_ref.load(std::memory_order_acquire);
+            if (before_raw != after_raw)
+            {
+                continue;
+            }
+            
+            return_mask = observed_mask;
+            return SeqLockedOperation::FOUND;
+        }
+        return SeqLockedOperation::RETRY;
+    }
+
+
     bool DAGMutationConf::AddRowParticipant_(
         DAGMutationTransaction& transaction,
         uint32_t slot,

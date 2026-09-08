@@ -24,6 +24,7 @@ namespace BidirectionalInMemGraph
         static constexpr uint32_t APC_INDEX_BOUND_SENTINAL = UINT32_MAX;
         static constexpr size_t APC_CACHELINE_SIZE = 64u;
         static constexpr uint8_t DEFAULT_DIRECTED_PARENT_PER_AXIS = 8u;
+        static constexpr uint8_t COMPILED_MAX_DIRECT_PARENTS_PER_AXIS = 64u;
 
         struct RangeOfAPC
         {

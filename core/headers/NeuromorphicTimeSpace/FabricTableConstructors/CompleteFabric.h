@@ -17,7 +17,7 @@ namespace BidirectionalInMemGraph
         
         bool GetRecordMapCarrierRanges_(
             const FabricSegments table_class,
-            RecordBookConf::RecordBookTablesBoundsCarrier& return_bounds
+            RecordBookConf::FabricSegmentBounds& return_bounds
         ) noexcept;
 
         void IdleAFabricTableClassRangesMemory_(FabricSegments table_class) noexcept;
@@ -116,6 +116,38 @@ namespace BidirectionalInMemGraph
             uint32_t desired_tail,
             EdgeBuilder::EdgeStatus desired_status
         ) noexcept;
+    };
+
+
+    class CompiledDAGTableConstructor : public EdgeTableConstructor
+    {
+    protected:
+        struct alignas(uint64_t) CompiledDAGRecord final
+        {
+            uint64_t ValueParentMask = UNSIGNED_ZERO;
+            uint64_t VolatileParentMask = UNSIGNED_ZERO;
+        };
+
+        uint64_t CompiledDagTableBeginIdx_{UNSIGNED_ZERO};
+
+        CompiledDAGRecord* CompiledDAGRow_(uint32_t row_slot) noexcept;
+
+        bool InitializeCompiledDAGTAble_() noexcept;
+        
+        void CompiledDAGRelation_(
+            FabricSegments edge_table,
+            uint32_t child_slot,
+            uint8_t relation_ordinal,
+            const EdgeBuilder::ParentRelation& relation
+        ) noexcept;
+
+        SeqLockedOperation ReadCompiledDAGParentMask_(
+            FabricSegments edge_table,
+            uint32_t child_slot,
+            uint64_t& return_mask,
+            uint32_t max_tries = DEFAULT_MAX_TRIES
+        ) noexcept;
+
     };
 
 

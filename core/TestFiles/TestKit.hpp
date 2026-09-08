@@ -1945,7 +1945,7 @@ public:
 
     std::optional<APCDataStructure::RangeOfAPC> TableRange(FabricSegments table) noexcept
     {
-        RecordBookConf::RecordBookTablesBoundsCarrier bounds{};
+        RecordBookConf::FabricSegmentBounds bounds{};
         if (!GetRecordMapCarrierRanges_(table, bounds) || !bounds.IsValid)
         {
             return std::nullopt;
@@ -2172,7 +2172,7 @@ inline bool FabricConfigurationValidation() noexcept
             MINIMUM_APC_CELL_COUNT,
             valid,
             static_cast<std::uint8_t>(
-                EdgeBuilder::COMPILED_MAX_DIRECT_PARENTS_PER_AXIS + 1u
+                APCDataStructure::COMPILED_MAX_DIRECT_PARENTS_PER_AXIS + 1u
             )
         );
 }

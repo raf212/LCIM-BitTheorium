@@ -11,8 +11,8 @@ namespace BidirectionalInMemGraph
     private:
         using GM = GHGFLayerModel;
         GM::GHGFCache Cache_{};
+        GM::GHGFStorageProfile Profile_{};
 
-        size_t GHGFSlotBegin_(uint32_t slot) const noexcept;
         GM::GHGFNodeRole GHGFRole_(uint32_t slot) const noexcept;
         bool IsExternalGHGFBuffer_(const float* data, size_t count) const noexcept;
         bool IsLiveGHGFSlot_(uint32_t slot) noexcept;
@@ -24,7 +24,7 @@ namespace BidirectionalInMemGraph
         bool UpdateGHGFBatch(FCSpan observation, uint32_t batch) noexcept;
         bool CopyGHGFPrediction_(FCSpan prediction, uint32_t batch) noexcept;
 
-        float* GHGFRegion(uint32_t slot, uint32_t cell_offset) noexcept;
+        float* GHGFRegion_(uint32_t slot, uint32_t cell_offset) noexcept;
         float* GHGFStateRow_(uint32_t slot, GM::GHGFStateRow row) noexcept;
         float* GHGFErrorRow_(uint32_t slot, GM::GHGFErrorRow row) noexcept;
 
@@ -33,7 +33,6 @@ namespace BidirectionalInMemGraph
 
         uint64_t GHGFParentMask_(uint32_t slot, FabricSegments axis) noexcept;
     public :
-
 
         bool InitializeGHGFFabric(
             uint32_t slot_count,

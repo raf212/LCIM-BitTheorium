@@ -38,7 +38,7 @@ namespace BidirectionalInMemGraph
             FreeRawPackedCells_(old_ptr,old_count);
         }
         CompiledDagTableBeginIdx_ = UNSIGNED_ZERO;
-        ComiledDAGRevision_.fetch_add(1, std::memory_order_release);
+        CompiledDagRevision_.fetch_add(1, std::memory_order_release);
         ResetScalarsofTheFabric_();
     }
 

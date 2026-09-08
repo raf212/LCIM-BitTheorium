@@ -77,7 +77,27 @@ namespace BidirectionalInMemGraph
             return false;
         }
 
+        constexpr size_t SlotBegin_(uint32_t slot) noexcept
+        {
+            return SegmentPoolBegin_ + static_cast<size_t>(slot) * PerAPCRuntimeCellCount_;
+        }
 
+        template<typename T>
+        bool IsInternalBuffer(const T* data, size_t count) noexcept
+        {
+            if (!SlabBasePtr_ || count == UNSIGNED_ZERO)
+            {
+                return false;
+            }
+
+            const uintptr_t begin = reinterpret_cast<uintptr_t>(data);
+            const uintptr_t slab = reinterpret_cast<uintptr_t>(SlabBasePtr_);
+
+            const size_t bytes = count * sizeof(T);
+            const size_t slab_bytes = SlabBasePtr_ * sizeof(uint64_t);
+
+            return begin > slab && begin + bytes <= slab_bytes;
+        }
     };
 
     class MatrixViewConstructor : public FabricConstructor

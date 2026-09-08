@@ -347,7 +347,7 @@ namespace BidirectionalInMemGraph
             );
         }
         
-        ComiledDAGRevision_.fetch_add(1u, std::memory_order_release);
+        CompiledDagRevision_.fetch_add(1u, std::memory_order_release);
     
         auto Publish___ = [&](bool publish_anchor) noexcept -> void
         {

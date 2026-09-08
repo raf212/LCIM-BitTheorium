@@ -3,7 +3,61 @@
 #include <span>
 
 namespace BidirectionalInMemGraph
-{
+{ 
+
+    bool GHGFModelConstructor::IsLiveGHGFSlot_(uint32_t slot) noexcept
+    {
+        if (!IsFabricActive() || slot >= CountOfAPC_)
+        {
+            return false;
+        }
+
+        const uint64_t raw = std::atomic_ref<uint64_t>(*GetAPCGenerationPtr_(slot)).load(std::memory_order_acquire);
+        const HandleOfAPCStatic::ControlValues control = HandleOfAPCStatic::ReadControlCell(raw);
+        const uint64_t role = SlabBasePtr_[SlotBegin_(slot), + static_cast<uint8_t>(APCDataStructure::HeaderIdentifierOfAPC::GHGF_ROLE_CELL)];
+        return !control.Closed  && role >= 1u &&
+            role <= static_cast<uint64_t>(GM::GHGFNodeRole::VOLATILE) + 1u;
+    }
+
+    bool GHGFModelConstructor::IsGHGFPlanCurrent_() noexcept
+    {
+        return IsFabricActive() && Cache_.ModelPrepared_ &&
+            Cache_.PreparedRevision_ == CompiledDagRevision_.load(std::memory_order_acquire);
+    }
+
+    float* GHGFModelConstructor::GHGFRegion_(uint32_t slot, uint32_t cell_offset) noexcept
+    {
+        return RegionT_<float>(slot, cell_offset);
+    }
+
+    float* GHGFModelConstructor::GHGFStateRow_(uint32_t slot, GM::GHGFStateRow row) noexcept
+    {
+        return GHGFRegion_(slot, Cache_.StateCellOffset_) +
+            static_cast<size_t>(row) * Profile_.BatchCapacity;
+    }
+
+    float* GHGFModelConstructor::GHGFErrorRow_(uint32_t slot, GM::GHGFErrorRow row) noexcept
+    {
+        return GHGFRegion_(slot, Cache_.ErrorCellOffset_) +
+            static_cast<size_t>(row) * Profile_.BatchCapacity;
+    }
+
+    uint64_t GHGFModelConstructor::GHGFParentMask_(uint32_t slot, FabricSegments axis) noexcept
+    {
+        CompiledDAGRecord* record = CompiledDAGRow_(slot);
+        return axis == FabricSegments::VALUE_PARENT_EDGE_TABLE_H ?
+            record->ValueParentMask : record->VolatileParentMask;
+    }
+
+    void GHGFModelConstructor::InvalidateGHGFModel_() noexcept
+    {
+        Cache_.ModelPrepared_ = false;
+        Cache_.Phase_ = GM::GHGFPhase::NEEDS_RESET;
+        Cache_.ActiveBatch_ = UNSIGNED_ZERO;
+    }
+
+
+
     bool GHGFModelConstructor::InitializeGHGFFabric(
         uint32_t slot_count,
         const GHGFLayerModel::GHGFStorageProfile& profile

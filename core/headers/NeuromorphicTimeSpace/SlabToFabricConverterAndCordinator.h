@@ -28,6 +28,13 @@ namespace BidirectionalInMemGraph
 
         void FreeRawPackedCells_(uint64_t*packed_cell_memory_ptr, size_t packed_cell_count) noexcept;
         void ResetScalarsofTheFabric_() noexcept;
+
+        template<typename T>
+        T* RegionT_(uint32_t slot, uint32_t cell_offset) noexcept
+        {
+            return reinterpret_cast<T*>(SlabBasePtr_ + SlotBegin_(slot) + cell_offset);
+        }
+
     public:
         SlabToFabricConverterAndCordinator(/* args */) noexcept = default;
 

@@ -26,7 +26,7 @@ namespace BidirectionalInMemGraph
         
     }
 
-    bool GHGFModelConstructor::InitializeAGHGFGNode(
+    bool GHGFModelConstructor::InitializeGHGFNode(
         AdaptivePackedCellContainer& apc,
         GHGFLayerModel::GHGFNodeRole role,
         const GHGFLayerModel::GHGFStorageProfile& profile

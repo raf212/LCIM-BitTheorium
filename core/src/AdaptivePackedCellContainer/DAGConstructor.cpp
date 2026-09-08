@@ -328,10 +328,18 @@ namespace BidirectionalInMemGraph
         EdgeBuilder::EdgeStatus final_status
     ) noexcept
     {
-        for (uint8_t i =  transaction.RelationCount; i > UNSIGNED_ZERO; i--)
+        for (uint8_t i = transaction.RelationCount; i > UNSIGNED_ZERO; i--)
         {
             const DAGRelationDelta& delta = transaction.Relations[i - 1];
+
             StoreReservedParentRelation_(
+                transaction.EdgeTable,
+                delta.ChildSlot,
+                delta.Ordinal,
+                delta.Work
+            );
+
+            CompiledDAGRelation_(
                 transaction.EdgeTable,
                 delta.ChildSlot,
                 delta.Ordinal,
@@ -344,6 +352,7 @@ namespace BidirectionalInMemGraph
             for (uint8_t i = 0; i < transaction.RowCount; i++)
             {
                 DAGRowParticipant& row = transaction.Rows[i];
+
                 if (row.IsParentAnchor != publish_anchor)
                 {
                     continue;
@@ -356,6 +365,7 @@ namespace BidirectionalInMemGraph
                     row.WorkTail,
                     final_status
                 );
+
                 row.Reserved = false;
             }
         };

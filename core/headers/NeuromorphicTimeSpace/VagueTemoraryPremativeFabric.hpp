@@ -7,7 +7,7 @@ namespace BidirectionalInMemGraph
 class VagueTemoraryPremativeFabric : public APCFinilizer
 {
     friend class AdaptivePackedCellContainer;
-private:
+protected:
     /// @brief IN FUTURE EITHER GET RID OF THE TABLE OR: STORE INSIDE FABRICE BY USING  WildCardOfPackedCell::RAW_30x2BIT
     std::unique_ptr<std::atomic<AdaptivePackedCellContainer*>[]> APCRuntimePtrTable_{nullptr};
 

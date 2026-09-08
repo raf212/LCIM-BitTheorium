@@ -254,7 +254,6 @@ namespace BidirectionalInMemGraph
         }
         
         //IDLE UNUSED FabricSegments
-        IdleAFabricTableClassRangesMemory_(FabricSegments::COMPILED_DAG_TABLE);
         IdleAFabricTableClassRangesMemory_(FabricSegments::DEVICE_PLANNER_TABLE);
         IdleAFabricTableClassRangesMemory_(FabricSegments::WORK_QUEUE);
         //END:: IDELING
@@ -262,7 +261,8 @@ namespace BidirectionalInMemGraph
         //INIT: EDGE TABLES
         if (
             !InitializeEdgeTable_(FabricSegments::VALUE_PARENT_EDGE_TABLE_H) ||
-            !InitializeEdgeTable_(FabricSegments::VOLATILE_PARENT_EDGE_TABLE_V)
+            !InitializeEdgeTable_(FabricSegments::VOLATILE_PARENT_EDGE_TABLE_V) ||
+            !InitializeCompiledDAGTAble_()
         )
         {
             return false;

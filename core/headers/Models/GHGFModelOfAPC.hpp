@@ -7,9 +7,15 @@ namespace BidirectionalInMemGraph
     class GHGFModelConstructor : private VagueTemoraryPremativeFabric
     {
     public:
-        using FCSpan = std::span<const float>;
-    private:
         using GM = GHGFLayerModel;
+        using FCSpan = std::span<const float>;
+        struct GHGFModelConstructionValues
+        {
+            std::span<AdaptivePackedCellContainer> APCParticipentSpan{};
+            std::span<const GM::GHGFNodeRole> RoleSpan{};
+            std::span<const GM::GHGFConnection> ConnectionSpan{};            
+        };
+    private:
         GM::GHGFCache Cache_{};
         GM::GHGFStorageProfile Profile_{};
 
@@ -19,7 +25,7 @@ namespace BidirectionalInMemGraph
         bool IsGHGFPlanCurrent_() noexcept;
         bool PredictGHGFNode_(uint32_t slot, uint32_t batch) noexcept;
         bool UpdateGHGFNode_(uint32_t slot, uint32_t batch) noexcept;
-        bool PropogateGHGFErroe_(uint32_t child, uint32_t batch) noexcept;
+        bool PropogateGHGFError_(uint32_t child, uint32_t batch) noexcept;
         bool PredictGHGFBatch(uint32_t batch) noexcept;
         bool UpdateGHGFBatch(FCSpan observation, uint32_t batch) noexcept;
         bool CopyGHGFPrediction_(FCSpan prediction, uint32_t batch) noexcept;
@@ -29,10 +35,16 @@ namespace BidirectionalInMemGraph
         float* GHGFErrorRow_(uint32_t slot, GM::GHGFErrorRow row) noexcept;
 
         void InvalidateGHGFModel_() noexcept;
-        void ResetGHGFModel_() noexcept;
+        void ResetAPCGHGFStateRegion_(uint32_t slot) noexcept;
 
         uint64_t GHGFParentMask_(uint32_t slot, FabricSegments axis) noexcept;
     public :
+
+        bool ConnectGHGFParent(const GM::GHGFConnection& connection) noexcept;
+
+        bool ResetGHGFState() noexcept;
+
+        bool CompileGHGFModel() noexcept;
 
         bool InitializeGHGFFabric(
             uint32_t slot_count,
@@ -41,16 +53,24 @@ namespace BidirectionalInMemGraph
 
         bool InitializeGHGFNode(
             AdaptivePackedCellContainer& apc,
-            GM::GHGFNodeRole role,
-            const GM::GHGFStorageProfile& profile
+            GM::GHGFNodeRole role
         ) noexcept;
 
-        bool CreateNodeOfGHGF(AdaptivePackedCellContainer& desired_apc) noexcept
+        bool CreateNodeOfGHGF(
+            AdaptivePackedCellContainer& desired_apc,
+            GM::GHGFNodeRole role
+        ) noexcept
         {
-            return HasDefaultRegionTable_ && CreateAPC(desired_apc, DefaultRegionTable_);
+            return 
+                HasDefaultRegionTable_ && 
+                CreateAPC(desired_apc, DefaultRegionTable_) &&
+                InitializeGHGFNode(desired_apc, role);
         }
-
         
+        bool ConstructGHGFModel(
+            GHGFModelConstructionValues& model_values,
+            const GHGFLayerModel::GHGFStorageProfile& profile
+        ) noexcept;
             
     };
 }

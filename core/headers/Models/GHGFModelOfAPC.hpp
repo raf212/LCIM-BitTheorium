@@ -14,7 +14,7 @@ namespace BidirectionalInMemGraph
         using FCSpan = std::span<const float>;
         struct GHGFModelConstructionValues
         {
-            std::span<AdaptivePackedCellContainer> APCParticipentSpan{};
+            std::span<GHGFNode> APCParticipentSpan{};
             std::span<const GM::GHGFNodeRole> RoleSpan{};
             std::span<const GM::GHGFConnection> ConnectionSpan{};            
         };
@@ -54,20 +54,15 @@ namespace BidirectionalInMemGraph
             const GHGFLayerModel::GHGFStorageProfile& profile
         ) noexcept;
 
-        bool InitializeGHGFNode(
-            AdaptivePackedCellContainer& apc,
-            GM::GHGFNodeRole role
-        ) noexcept;
-
         bool CreateNodeOfGHGF(
-            AdaptivePackedCellContainer& desired_apc,
+            GHGFNode& desired_apc,
             GM::GHGFNodeRole role
         ) noexcept
         {
             return 
                 HasDefaultRegionTable_ && 
                 CreateAPC(desired_apc, DefaultRegionTable_) &&
-                InitializeGHGFNode(desired_apc, role);
+                desired_apc.InitializeGHGFNode(role);
         }
         
         bool ConstructGHGFModel(

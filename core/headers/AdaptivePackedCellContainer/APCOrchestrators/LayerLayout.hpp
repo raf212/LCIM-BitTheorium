@@ -7,6 +7,7 @@ namespace BidirectionalInMemGraph
     class GHGFLayerModel final
     {
         friend class GHGFModelConstructor;
+        friend class GHGFNode;
     public:
         using SD = SchemaDefinition;
         static constexpr uint32_t DEFAULT_BATCH_CAPACITY = 32u;

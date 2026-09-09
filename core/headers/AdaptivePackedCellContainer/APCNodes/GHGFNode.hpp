@@ -7,8 +7,13 @@ namespace BidirectionalInMemGraph
     {
         friend class GHGFModelConstructor;
     private:
+        using GM = GHGFLayerModel;
+
         GHGFModelConstructor* GHGFFabric_{nullptr};
-        
+
+        bool InitializeGHGFNode(
+            GM::GHGFNodeRole role
+        ) noexcept;
     };
     
 }

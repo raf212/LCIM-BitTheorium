@@ -1,11 +1,14 @@
 #pragma once 
 #include "../NeuromorphicTimeSpace/VagueTemoraryPremativeFabric.hpp"
+#include "../AdaptivePackedCellContainer/APCNodes/GHGFNode.hpp"
+
 
 namespace BidirectionalInMemGraph
 {
 
     class GHGFModelConstructor : private VagueTemoraryPremativeFabric
     {
+        friend class GHGFNode;
     public:
         using GM = GHGFLayerModel;
         using FCSpan = std::span<const float>;

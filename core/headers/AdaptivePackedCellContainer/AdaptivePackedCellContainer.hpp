@@ -1,5 +1,5 @@
 #pragma once 
-#include "ConstructorsOfAPC/RegionViewConstructor.hpp"
+#include "RegionViewConstructor.hpp"
 
 namespace BidirectionalInMemGraph
 {
@@ -73,6 +73,12 @@ static_assert(__cpp_lib_atomic_wait, "C++ must suppoet atomic wait/notify");
         bool Retire(
             uint32_t max_tries = DEFAULT_MAX_TRIES
         ) noexcept;
+
+    protected:
+        AdaptivePackedCellContainer* MyAPCPtr() noexcept
+        {
+            return this;
+        }
     };
 
 
